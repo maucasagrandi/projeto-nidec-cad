@@ -59,9 +59,10 @@ nidec-cad-review/
 | 4. Rasterização Diff | Converte todas as páginas para análise visual | 300 | PIL Image |
 | 5. Compressão | Otimiza PNGs com `compress_level=9` para reduzir tokens | — | PNG base64 |
 | 6. Pré-filtragem | Identifica páginas com diferenças via OpenCV | — | int (regiões) |
-| 7. Diff visual | Gera imagem com contornos vermelhos nas diferenças | 300 | PIL Image |
+| 7. Diff visual | Gera imagem com overlay rosa nas diferenças | 300 | PIL Image |
 | 8. Análise LLM | Envia par de imagens ao Gemini para relatório | — | Markdown |
-| 9. Download | Exporta imagem diff em PDF | 300 | PDF |
+| 9. Download Diff | Exporta imagem diff em PDF | 300 | PDF |
+| 10. Download Relatório | Exporta análise da IA em PDF com tabela formatada | — | PDF (reportlab) |
 
 ---
 
@@ -73,16 +74,28 @@ Responsabilidades:
 - Autenticação por usuário/senha (via `.env`)
 - Upload de 2 PDFs com preview da primeira página
 - Orquestração do pipeline de comparação
+- Persistência de resultados via `st.session_state` (evita perda de dados no rerun do Streamlit)
 - Exibição side-by-side: Original | Revisado | Diferenças
 - Exibição do relatório de divergências do LLM
 - Métricas de tokens, latência e custo
-- Botão de download do diff em PDF (300 DPI)
+- Botão de download do diff visual em PDF (300 DPI)
+- Botão de download do relatório da IA em PDF (tabela formatada via `reportlab`)
 - Sumário final com custos acumulados
 
 **Componentes visuais:**
 - `streamlit-image-zoom` para zoom interativo nas imagens
 - Layout em 3 colunas para comparação visual
 - Métricas em cards (`st.metric`)
+
+**Persistência (`st.session_state`):**
+O processamento salva imagens, relatórios e metadados no `session_state`. A exibição dos resultados ocorre num bloco separado que lê do state, garantindo que botões de download não causem perda de dados ao disparar rerun do Streamlit.
+
+**Geração de PDF do relatório (reportlab):**
+- Parseia a tabela Markdown retornada pelo LLM
+- Renderiza como tabela real com header verde (`#27AE60`), linhas alternadas, grid e text wrapping
+- Orientação paisagem (A4) para acomodar as 5 colunas
+- Colunas com larguras proporcionais: Item (5%), Diferença (35%), Localização (20%), Tipo (18%), Impacto (22%)
+- Metadados do PDF: `title` e `author` definidos para exibição correta na aba do navegador
 
 ---
 

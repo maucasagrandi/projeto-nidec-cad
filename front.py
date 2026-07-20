@@ -154,7 +154,6 @@ if st.button("🔄 Processar Comparação", disabled=not (pdf1 and pdf2)):
 
     # Comprime imagens para o LLM (reduz tokens ~30-40%)
     with st.spinner("Otimizando imagens para análise..."):
-        # Converte base64 → PIL → comprime → volta base64
         pages1_b64_compressed = []
         pages2_b64_compressed = []
         
@@ -166,7 +165,6 @@ if st.button("🔄 Processar Comparação", disabled=not (pdf1 and pdf2)):
             compressed = compress_png_for_llm(img_pil)
             pages2_b64_compressed.append(compressed)
         
-        # Usa imagens comprimidas para LLM
         pages1_b64 = pages1_b64_compressed
         pages2_b64 = pages2_b64_compressed
 
@@ -181,9 +179,7 @@ if st.button("🔄 Processar Comparação", disabled=not (pdf1 and pdf2)):
             f"Serão comparadas as primeiras {n_pages} páginas."
         )
 
-    # ------------------------------------------------------------------
     # Pré-filtragem: identifica páginas com diferenças visuais
-    # ------------------------------------------------------------------
     with st.spinner("Identificando páginas com divergências..."):
         changed_pages = []
         for i in range(n_pages):
@@ -195,53 +191,16 @@ if st.button("🔄 Processar Comparação", disabled=not (pdf1 and pdf2)):
         st.success("✅ Nenhuma diferença visual detectada entre os dois PDFs.")
         st.stop()
 
-    st.info(
-        f"**{len(changed_pages)}** página(s) com diferenças detectadas de {n_pages} total: "
-        + ", ".join([f"pág. {i+1}" for i, _ in changed_pages])
-    )
-
-    # ------------------------------------------------------------------
     # Análise por LLM para cada página divergente
-    # ------------------------------------------------------------------
-    all_results = []
+    analysis_results = []
 
     for page_idx, n_regions in changed_pages:
         page_num = page_idx + 1
-        st.divider()
-        st.write(f"### 📄 Página {page_num}")
-        st.caption(f"{n_regions} região(ões) com alteração visual detectada(s)")
 
         # Diff visual
         with st.spinner(f"Gerando comparação visual da página {page_num}..."):
             diff_img = compute_visual_diff(pages1_pil[page_idx], pages2_pil[page_idx])
 
-        # Exibição side-by-side
-        vis_col1, vis_col2, vis_col3 = st.columns(3)
-        with vis_col1:
-            st.write("###### Original")
-            image_zoom(pages1_pil[page_idx])
-        with vis_col2:
-            st.write("###### Revisado")
-            image_zoom(pages2_pil[page_idx])
-        with vis_col3:
-            st.write("###### Diferenças (marcadas em vermelho)")
-            image_zoom(diff_img)
-
-        # Botão de download do diff em PDF (300 DPI)
-        with vis_col1:
-            buf = BytesIO()
-            diff_rgb = diff_img.convert("RGB") if diff_img.mode == "RGBA" else diff_img
-            diff_rgb.save(buf, format="PDF", resolution=300)
-            buf.seek(0)
-            st.download_button(
-                label="⬇️ Download Diff (PDF)",
-                data=buf,
-                file_name=f"diff_pagina_{page_num}.pdf",
-                mime="application/pdf",
-                key=f"download_diff_{page_num}",
-            )
-
-        st.divider()
         # Análise LLM
         with st.spinner(f"Analisando divergências com IA na página {page_num}..."):
             try:
@@ -251,39 +210,274 @@ if st.button("🔄 Processar Comparação", disabled=not (pdf1 and pdf2)):
                     system_prompt=system_prompt,
                     max_tokens=32768,
                 )
-                
-                # Log de custos
                 cost_logger.log_analysis(metadata, page_number=page_num)
                 
-                # Exibe metadados
-                col_meta1, col_meta2, col_meta3 = st.columns(3)
-                with col_meta1:
-                    st.metric("Total de Tokens", metadata.total_tokens)
-                with col_meta2:
-                    st.metric("Latência", f"{metadata.latency_ms:.0f}ms")
-                with col_meta3:
-                    cost = cost_logger.calculate_cost(metadata)
-                    st.metric("Custo Estimado", f"${cost:.6f}")
-                
-                # Exibe relatório de divergências
-                all_results.append((page_num, result))
-                
-                st.markdown("#### 🔍 Relatório de Divergências")
-                # Sanitiza tags HTML que o modelo pode retornar indevidamente
-                result_clean = result.replace("<br>", "; ").replace("<br/>", "; ").replace("<br />", "; ")
-                st.markdown(result_clean)
-                
+                analysis_results.append({
+                    "page_num": page_num,
+                    "n_regions": n_regions,
+                    "diff_img": diff_img,
+                    "original_img": pages1_pil[page_idx],
+                    "revised_img": pages2_pil[page_idx],
+                    "result": result,
+                    "metadata": metadata,
+                })
             except Exception as e:
-                st.error(f"Erro ao analisar a página {page_num}: {e}")
+                analysis_results.append({
+                    "page_num": page_num,
+                    "n_regions": n_regions,
+                    "diff_img": diff_img,
+                    "original_img": pages1_pil[page_idx],
+                    "revised_img": pages2_pil[page_idx],
+                    "result": None,
+                    "error": str(e),
+                    "metadata": None,
+                })
 
-    # ------------------------------------------------------------------
-    # Sumário final
-    # ------------------------------------------------------------------
     total_time = time.time() - start_time
+
+    # Salva tudo no session_state para persistir entre reruns
+    st.session_state["analysis_results"] = analysis_results
+    st.session_state["changed_pages"] = changed_pages
+    st.session_state["total_time"] = total_time
+
+# ==============================================================================
+# Exibição dos resultados (persistente via session_state)
+# ==============================================================================
+if "analysis_results" in st.session_state:
+    analysis_results = st.session_state["analysis_results"]
+    changed_pages = st.session_state["changed_pages"]
+    total_time = st.session_state["total_time"]
+
+    st.info(
+        f"**{len(changed_pages)}** página(s) com diferenças detectadas: "
+        + ", ".join([f"pág. {i+1}" for i, _ in changed_pages])
+    )
+
+    for item in analysis_results:
+        page_num = item["page_num"]
+        n_regions = item["n_regions"]
+        diff_img = item["diff_img"]
+
+        st.divider()
+        st.write(f"### 📄 Página {page_num}")
+        st.caption(f"{n_regions} região(ões) com alteração visual detectada(s)")
+
+        # Exibição side-by-side
+        vis_col1, vis_col2, vis_col3 = st.columns(3)
+        with vis_col1:
+            st.write("###### Original")
+            image_zoom(item["original_img"])
+        with vis_col2:
+            st.write("###### Revisado")
+            image_zoom(item["revised_img"])
+        with vis_col3:
+            st.write("###### Diferenças")
+            image_zoom(diff_img)
+
+        # Botões de download
+        dl_col1, dl_col2 = st.columns(2)
+
+        # Download da imagem diff em PDF
+        with dl_col1:
+            buf_img = BytesIO()
+            diff_rgb = diff_img.convert("RGB") if diff_img.mode == "RGBA" else diff_img
+            diff_rgb.save(buf_img, format="PDF", resolution=300)
+            buf_img.seek(0)
+            st.download_button(
+                label="⬇️ Download Diff (PDF)",
+                data=buf_img,
+                file_name=f"diff_pagina_{page_num}.pdf",
+                mime="application/pdf",
+                key=f"download_diff_{page_num}",
+            )
+
+        # Download do relatório da IA em PDF
+        if item.get("result"):
+            with dl_col2:
+                report_text = item["result"].replace("<br>", "\n").replace("<br/>", "\n").replace("<br />", "\n")
+                
+                from reportlab.lib.pagesizes import A4, landscape
+                from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+                from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+                from reportlab.lib.units import cm
+                from reportlab.lib import colors
+                
+                buf_report = BytesIO()
+                doc = SimpleDocTemplate(buf_report, pagesize=landscape(A4),
+                                        leftMargin=1.5*cm, rightMargin=1.5*cm,
+                                        topMargin=2*cm, bottomMargin=2*cm,
+                                        title=f"Relatório de Divergências - Página {page_num}",
+                                        author="CAD Review - Nidec")
+                styles = getSampleStyleSheet()
+                
+                title_style = ParagraphStyle(
+                    'CustomTitle', parent=styles['Heading1'],
+                    fontSize=14, spaceAfter=12
+                )
+                body_style = ParagraphStyle(
+                    'CustomBody', parent=styles['Normal'],
+                    fontSize=9, leading=12, spaceAfter=6
+                )
+                cell_style = ParagraphStyle(
+                    'CellStyle', parent=styles['Normal'],
+                    fontSize=8, leading=10, spaceAfter=2
+                )
+                header_cell_style = ParagraphStyle(
+                    'HeaderCell', parent=styles['Normal'],
+                    fontSize=8, leading=10, fontName='Helvetica-Bold'
+                )
+                
+                story = []
+                story.append(Paragraph(f"Relatório de Divergências — Página {page_num}", title_style))
+                story.append(Spacer(1, 0.5*cm))
+                
+                # Parseia o markdown: separa texto antes/depois da tabela
+                lines = report_text.split("\n")
+                table_lines = []
+                text_lines = []
+                in_table = False
+                
+                for line in lines:
+                    stripped = line.strip()
+                    if stripped.startswith("|") and stripped.endswith("|"):
+                        # Ignora linha separadora (|---|---|...)
+                        if all(c in "-| " for c in stripped):
+                            in_table = True
+                            continue
+                        in_table = True
+                        table_lines.append(stripped)
+                    else:
+                        if in_table and not stripped:
+                            in_table = False
+                        if not in_table:
+                            text_lines.append((stripped, len(table_lines) > 0))
+                
+                # Adiciona texto que vem antes da tabela
+                for line, after_table in text_lines:
+                    if after_table:
+                        break
+                    if line:
+                        safe_line = line.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+                        # Remove markdown bold
+                        safe_line = safe_line.replace("**", "")
+                        story.append(Paragraph(safe_line, body_style))
+                    else:
+                        story.append(Spacer(1, 0.2*cm))
+                
+                # Constrói a tabela formatada
+                if table_lines:
+                    # Parseia células
+                    parsed_rows = []
+                    for tl in table_lines:
+                        cells = [c.strip() for c in tl.split("|")[1:-1]]
+                        parsed_rows.append(cells)
+                    
+                    if parsed_rows:
+                        # Determina número de colunas
+                        n_cols = len(parsed_rows[0])
+                        
+                        # Converte cada célula em Paragraph para wrapping
+                        table_data = []
+                        for row_idx, row in enumerate(parsed_rows):
+                            pdf_row = []
+                            for cell in row:
+                                safe_cell = cell.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+                                safe_cell = safe_cell.replace("**", "")
+                                if row_idx == 0:
+                                    pdf_row.append(Paragraph(safe_cell, header_cell_style))
+                                else:
+                                    pdf_row.append(Paragraph(safe_cell, cell_style))
+                            # Preenche colunas faltantes se necessário
+                            while len(pdf_row) < n_cols:
+                                pdf_row.append(Paragraph("", cell_style))
+                            table_data.append(pdf_row)
+                        
+                        # Define larguras proporcionais das colunas
+                        available_width = landscape(A4)[0] - 3*cm
+                        if n_cols == 5:
+                            col_widths = [
+                                available_width * 0.05,   # Item
+                                available_width * 0.35,   # Diferença
+                                available_width * 0.20,   # Localização
+                                available_width * 0.18,   # Tipo
+                                available_width * 0.22,   # Impacto
+                            ]
+                        else:
+                            col_widths = [available_width / n_cols] * n_cols
+                        
+                        # Cria tabela
+                        table = Table(table_data, colWidths=col_widths, repeatRows=1)
+                        table.setStyle(TableStyle([
+                            # Header
+                            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#27AE60')),
+                            ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+                            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                            ('FONTSIZE', (0, 0), (-1, 0), 8),
+                            ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
+                            ('TOPPADDING', (0, 0), (-1, 0), 8),
+                            # Body
+                            ('FONTSIZE', (0, 1), (-1, -1), 8),
+                            ('TOPPADDING', (0, 1), (-1, -1), 5),
+                            ('BOTTOMPADDING', (0, 1), (-1, -1), 5),
+                            ('LEFTPADDING', (0, 0), (-1, -1), 6),
+                            ('RIGHTPADDING', (0, 0), (-1, -1), 6),
+                            # Grid
+                            ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+                            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#F8F9FA')]),
+                            # Alinhamento
+                            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+                            ('ALIGN', (0, 0), (0, -1), 'CENTER'),
+                        ]))
+                        
+                        story.append(Spacer(1, 0.3*cm))
+                        story.append(table)
+                
+                # Texto após a tabela
+                found_after = False
+                for line, after_table in text_lines:
+                    if after_table:
+                        found_after = True
+                    if found_after and line:
+                        safe_line = line.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+                        safe_line = safe_line.replace("**", "")
+                        story.append(Spacer(1, 0.2*cm))
+                        story.append(Paragraph(safe_line, body_style))
+                
+                doc.build(story)
+                buf_report.seek(0)
+                
+                st.download_button(
+                    label="⬇️ Download Relatório IA (PDF)",
+                    data=buf_report,
+                    file_name=f"relatorio_ia_pagina_{page_num}.pdf",
+                    mime="application/pdf",
+                    key=f"download_report_{page_num}",
+                )
+
+        st.divider()
+
+        # Análise LLM
+        if item.get("result"):
+            metadata = item["metadata"]
+            col_meta1, col_meta2, col_meta3 = st.columns(3)
+            with col_meta1:
+                st.metric("Total de Tokens", metadata.total_tokens)
+            with col_meta2:
+                st.metric("Latência", f"{metadata.latency_ms:.0f}ms")
+            with col_meta3:
+                cost = cost_logger.calculate_cost(metadata)
+                st.metric("Custo Estimado", f"${cost:.6f}")
+
+            st.markdown("#### 🔍 Relatório de Divergências")
+            result_clean = item["result"].replace("<br>", "; ").replace("<br/>", "; ").replace("<br />", "; ")
+            st.markdown(result_clean)
+        elif item.get("error"):
+            st.error(f"Erro ao analisar a página {page_num}: {item['error']}")
+
+    # Sumário final
     st.divider()
     st.write("## 📊 Sumário da Análise")
     
-    # Métricas de análise
     col_sum1, col_sum2, col_sum3 = st.columns(3)
     with col_sum1:
         st.metric("Páginas analisadas pelo LLM", len(changed_pages))
@@ -293,7 +487,6 @@ if st.button("🔄 Processar Comparação", disabled=not (pdf1 and pdf2)):
         cost_summary = cost_logger.get_summary()
         st.metric("Análises realizadas", cost_summary['total_analyses'])
     
-    # Resumo de custos
     st.divider()
     st.write("## 💰 Resumo de Custos")
     
@@ -307,7 +500,6 @@ if st.button("🔄 Processar Comparação", disabled=not (pdf1 and pdf2)):
     with col_cost4:
         st.info(f"📁 Dados salvos em:\n`{cost_summary['file_path']}`")
     
-    # Info sobre otimização
     st.divider()
     st.info("✨ **Otimizações ativas:** Imagens PNG comprimidas com máxima compressão para reduzir tokens (~30-40% economia)")
     
