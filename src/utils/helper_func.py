@@ -125,7 +125,7 @@ def compute_visual_diff(img1: Image.Image, img2: Image.Image) -> Image.Image:
 
     # Aplica APENAS overlay rosa semi-transparente — sem bordas vermelhas
     overlay_color = (200, 210, 255)  # Rosa claro suave em BGR
-    alpha = 0.30
+    alpha = 0.50
 
     output = arr2.copy()
     overlay = arr2.copy()
