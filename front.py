@@ -1,6 +1,7 @@
 import os
 import time
 import hmac
+from io import BytesIO
 import streamlit as st
 from PIL import Image
 from streamlit_image_zoom import image_zoom
@@ -226,6 +227,21 @@ if st.button("🔄 Processar Comparação", disabled=not (pdf1 and pdf2)):
             st.write("###### Diferenças (marcadas em vermelho)")
             image_zoom(diff_img)
 
+        # Botão de download do diff em PDF (300 DPI)
+        with vis_col1:
+            buf = BytesIO()
+            diff_rgb = diff_img.convert("RGB") if diff_img.mode == "RGBA" else diff_img
+            diff_rgb.save(buf, format="PDF", resolution=300)
+            buf.seek(0)
+            st.download_button(
+                label="⬇️ Download Diff (PDF)",
+                data=buf,
+                file_name=f"diff_pagina_{page_num}.pdf",
+                mime="application/pdf",
+                key=f"download_diff_{page_num}",
+            )
+
+        st.divider()
         # Análise LLM
         with st.spinner(f"Analisando divergências com IA na página {page_num}..."):
             try:
@@ -253,7 +269,9 @@ if st.button("🔄 Processar Comparação", disabled=not (pdf1 and pdf2)):
                 all_results.append((page_num, result))
                 
                 st.markdown("#### 🔍 Relatório de Divergências")
-                st.markdown(result)
+                # Sanitiza tags HTML que o modelo pode retornar indevidamente
+                result_clean = result.replace("<br>", "; ").replace("<br/>", "; ").replace("<br />", "; ")
+                st.markdown(result_clean)
                 
             except Exception as e:
                 st.error(f"Erro ao analisar a página {page_num}: {e}")

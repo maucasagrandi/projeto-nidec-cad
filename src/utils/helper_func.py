@@ -10,7 +10,7 @@ from io import BytesIO
 # PDF → lista de imagens PNG em memória (base64)
 # ==============================================================================
 
-def pdf_to_images_base64(pdf_bytes: bytes, dpi: int = 200) -> list[str]:
+def pdf_to_images_base64(pdf_bytes: bytes, dpi: int = 300) -> list[str]:
     """
     Converte todas as páginas de um PDF em imagens PNG e retorna uma lista
     de strings base64, uma por página.
@@ -72,15 +72,15 @@ def pdf_to_pil_images(pdf_bytes: bytes, dpi: int = 200) -> list[Image.Image]:
 def compute_visual_diff(img1: Image.Image, img2: Image.Image) -> Image.Image:
     """
     Calcula a diferença visual entre duas imagens de páginas CAD.
-    Retorna a imagem da segunda página com os contornos das diferenças
-    marcados em vermelho.
+    Retorna a imagem da segunda página com as regiões diferentes
+    destacadas com overlay rosa semi-transparente (estilo analista).
 
     Args:
         img1: Imagem da página original (PIL.Image).
         img2: Imagem da página revisada (PIL.Image).
 
     Returns:
-        PIL.Image com as diferenças marcadas em vermelho.
+        PIL.Image com as diferenças destacadas em rosa translúcido.
     """
     # Converte para arrays numpy BGR (OpenCV)
     arr1 = cv2.cvtColor(np.array(img1), cv2.COLOR_RGB2BGR)
@@ -94,37 +94,43 @@ def compute_visual_diff(img1: Image.Image, img2: Image.Image) -> Image.Image:
     diff = cv2.absdiff(arr1, arr2)
     gray_diff = cv2.cvtColor(diff, cv2.COLOR_BGR2GRAY)
 
-    # Aplica blur para suavizar ruído de compressão/renderização
+    # Blur para suavizar ruído de renderização
     gray_diff = cv2.GaussianBlur(gray_diff, (5, 5), 0)
 
-    # Threshold mais sensível para captar mudanças sutis em CAD
+    # Threshold para identificar pixels alterados
     _, thresh = cv2.threshold(gray_diff, 15, 255, cv2.THRESH_BINARY)
 
-    # Remove ruído morfológico e expande regiões detectadas
-    kernel = np.ones((5, 5), np.uint8)
+    # Morfologia moderada — fecha gaps pequenos sem unir regiões distantes
+    kernel = np.ones((7, 7), np.uint8)
     cleaned = cv2.morphologyEx(thresh, cv2.MORPH_CLOSE, kernel, iterations=2)
-    cleaned = cv2.dilate(cleaned, kernel, iterations=3)
+    cleaned = cv2.dilate(cleaned, kernel, iterations=2)
 
     # Encontra contornos das regiões modificadas
     contours, _ = cv2.findContours(cleaned, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
-    # Espessura proporcional ao tamanho da imagem
+    # Cria máscara preenchida com padding moderado
     h, w = arr2.shape[:2]
-    thickness = max(3, int(min(h, w) / 300))
-    padding = max(5, int(min(h, w) / 200))
+    padding = max(4, int(min(h, w) / 250))
+    mask = np.zeros((h, w), dtype=np.uint8)
 
-    # Desenha retângulos vermelhos ao redor de cada região diferente
-    output = arr2.copy()
     for cnt in contours:
         area = cv2.contourArea(cnt)
-        if area > 30:  # limiar mais sensível
+        if area > 50:
             x, y, w_r, h_r = cv2.boundingRect(cnt)
-            # Adiciona padding ao redor da região
             x = max(0, x - padding)
             y = max(0, y - padding)
             w_r = min(w - x, w_r + 2 * padding)
             h_r = min(h - y, h_r + 2 * padding)
-            cv2.rectangle(output, (x, y), (x + w_r, y + h_r), (0, 0, 255), thickness)
+            cv2.rectangle(mask, (x, y), (x + w_r, y + h_r), 255, -1)
+
+    # Aplica APENAS overlay rosa semi-transparente — sem bordas vermelhas
+    overlay_color = (200, 210, 255)  # Rosa claro suave em BGR
+    alpha = 0.30
+
+    output = arr2.copy()
+    overlay = arr2.copy()
+    overlay[mask == 255] = overlay_color
+    cv2.addWeighted(overlay, alpha, output, 1 - alpha, 0, output)
 
     # Converte de volta para PIL RGB
     result = Image.fromarray(cv2.cvtColor(output, cv2.COLOR_BGR2RGB))
