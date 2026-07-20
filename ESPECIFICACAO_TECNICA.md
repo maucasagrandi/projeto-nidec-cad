@@ -262,3 +262,6 @@ streamlit run front.py
 | Compressão PNG level 9 | Reduz ~30-40% do payload sem perda visual (lossless) |
 | Gemini 3.5 Flash | Modelo multimodal rápido com boa capacidade de análise visual |
 | Saída em tabela Markdown | Formato estruturado, legível e renderizável pelo Streamlit |
+| `st.session_state` | Persiste resultados entre reruns — botões de download não perdem dados |
+| Relatório PDF com reportlab | Tabela real formatada (header verde, grid, text wrapping, landscape A4) |
+| Metadados no PDF (`title`/`author`) | Exibe nome correto na aba do navegador em vez de "anonymous" |
