@@ -1,0 +1,8 @@
+root = true # 
+
+[*] # aplica configurações abaixo para todos os arquivos
+charset = utf-8 # Utilizar o charset utf-8
+indent_size = 4 # Para cada indentação, deve ser dado quatro (4) espaços
+indent_style = space # Indentação deve ser feita com espaços
+insert_final_newline = false # Não adicionar linhas em branco no final dos arquivos
+trim_trailing_whitespace = true # Apagar os espaços em brancos no final de cada linha
