@@ -223,6 +223,7 @@ Usa **Application Default Credentials (ADC)** via `gcloud auth login`. Permissõ
 | `google-auth` | 2.35.0 | Autenticação GCP |
 | `google-cloud-aiplatform` | 1.70.0 | SDK Vertex AI |
 | `python-dotenv` | 1.0.1 | Carregamento de `.env` |
+| `reportlab` | ≥4.0.0 | Geração de PDF do relatório com tabela formatada |
 
 **Gerenciador de pacotes:** `uv` (com `uv.lock` para reprodutibilidade)
 
