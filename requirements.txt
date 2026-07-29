@@ -5,4 +5,5 @@ Pillow==10.4.0
 google-auth==2.35.0
 google-cloud-aiplatform==1.70.0
 python-dotenv==1.0.1
-reportlab>=4.0.0
+reportlab==5.0.0
+google-generativeai==0.8.6
