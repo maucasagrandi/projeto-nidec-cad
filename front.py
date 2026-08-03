@@ -21,6 +21,13 @@ from src.utils.helper_func import (
     compress_png_for_llm,
 )
 from src.utils.cost_logger import CostLogger
+from src.utils.cad_quadrant_paint import (
+    extract_grid,
+    parse_markdown_table,
+    encontrar_coluna,
+    paint_quadrants,
+    paint_single_item,
+)
 
 # Inicializa o logger de custos
 cost_logger = CostLogger("custos.csv")
@@ -315,7 +322,46 @@ if st.session_state.selected_operation == "cad_review":
                         max_tokens=32768,
                     )
                     cost_logger.log_analysis(metadata, page_number=page_num)
-                    
+
+                    # Pintura dos quadrantes reportados pela própria LLM sobre a
+                    # imagem revisada. Não faz nenhuma chamada adicional ao LLM:
+                    # apenas reaproveita o texto de "Localização (Quadrante)" que
+                    # já vem na tabela e a grade de zoneamento vetorial do PDF.
+                    painted_img = None
+                    painted_regions = None
+                    grid = None
+                    itens_localizacao = []
+                    pages1_pil_150 = None
+                    pages2_pil_150 = None
+                    try:
+                        grid = extract_grid(pdf2_bytes, page_index=page_idx)
+                        if grid is not None:
+                            registros = parse_markdown_table(result)
+                            col_item   = encontrar_coluna(registros[0], "item") if registros else None
+                            col_local  = encontrar_coluna(registros[0], "localiza", "quadrante") if registros else None
+                            col_status = encontrar_coluna(registros[0], "status") if registros else None
+                            if col_item and col_local:
+                                itens_localizacao = [
+                                    (reg.get(col_item, ""), reg.get(col_local, ""))
+                                    for reg in registros
+                                ]
+                                status_list = [
+                                    reg.get(col_status, "") for reg in registros
+                                ] if col_status else None
+                                painted_img, painted_regions = paint_quadrants(
+                                    pages2_pil[page_idx],
+                                    itens_localizacao,
+                                    grid,
+                                    dpi=300,
+                                    status_list=status_list,
+                                )
+                        # Rasteriza ambos os PDFs em 150 dpi para os blocos por ID
+                        # (resolução suficiente para leitura; muito menor que 300 dpi).
+                        pages1_pil_150 = pdf_to_pil_images(pdf1_bytes, dpi=150)
+                        pages2_pil_150 = pdf_to_pil_images(pdf2_bytes, dpi=150)
+                    except Exception:
+                        painted_img, painted_regions = None, None
+
                     analysis_results.append({
                         "page_num": page_num,
                         "n_regions": n_regions,
@@ -324,6 +370,13 @@ if st.session_state.selected_operation == "cad_review":
                         "revised_img": pages2_pil[page_idx],
                         "result": result,
                         "metadata": metadata,
+                        "painted_img": painted_img,
+                        "painted_regions": painted_regions,
+                        "grid": grid,
+                        "itens_localizacao": itens_localizacao,
+                        "pages1_pil_150": pages1_pil_150,
+                        "pages2_pil_150": pages2_pil_150,
+                        "page_idx": page_idx,
                     })
                 except Exception as e:
                     analysis_results.append({
@@ -365,7 +418,14 @@ if st.session_state.selected_operation == "cad_review":
             st.write(f"### 📄 Página {page_num}")
             st.caption(f"{n_regions} região(ões) com alteração visual detectada(s)")
 
-            vis_col1, vis_col2, vis_col3 = st.columns(3)
+            painted_img = item.get("painted_img")
+            painted_regions = item.get("painted_regions")
+
+            if painted_img is not None:
+                vis_col1, vis_col2, vis_col3, vis_col4 = st.columns(4)
+            else:
+                vis_col1, vis_col2, vis_col3 = st.columns(3)
+
             with vis_col1:
                 st.write("###### Original")
                 image_zoom(item["original_img"])
@@ -375,8 +435,25 @@ if st.session_state.selected_operation == "cad_review":
             with vis_col3:
                 st.write("###### Diferenças")
                 image_zoom(diff_img)
+            if painted_img is not None:
+                with vis_col4:
+                    st.write("###### Revisado com Quadrantes")
+                    image_zoom(painted_img)
 
-            dl_col1, dl_col2 = st.columns(2)
+            if painted_regions is not None:
+                n_resolvidos = sum(1 for r in painted_regions if r.resolvido)
+                if n_resolvidos < len(painted_regions):
+                    st.caption(
+                        f"⚠️ {len(painted_regions) - n_resolvidos} de {len(painted_regions)} "
+                        f"item(ns) não puderam ser localizados na grade (texto de "
+                        f"localização sem quadrante identificável)."
+                    )
+
+            if painted_img is not None:
+                dl_col1, dl_col2, dl_col3 = st.columns(3)
+            else:
+                dl_col1, dl_col2 = st.columns(2)
+                dl_col3 = None
 
             with dl_col1:
                 buf_img = BytesIO()
@@ -398,6 +475,7 @@ if st.session_state.selected_operation == "cad_review":
                     from reportlab.lib.pagesizes import A4, landscape
                     from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
                     from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+                    from reportlab.platypus import Image as RLImage
                     from reportlab.lib.units import cm
                     from reportlab.lib import colors
                     
@@ -438,7 +516,7 @@ if st.session_state.selected_operation == "cad_review":
                     for line in lines:
                         stripped = line.strip()
                         if stripped.startswith("|") and stripped.endswith("|"):
-                            if all(c in "-| " for c in stripped):
+                            if all(c in "-|: " for c in stripped):
                                 in_table = True
                                 continue
                             in_table = True
@@ -467,16 +545,41 @@ if st.session_state.selected_operation == "cad_review":
                         
                         if parsed_rows:
                             n_cols = len(parsed_rows[0])
-                            
+
+                            # Detecta índice da coluna Status IA para coloração condicional
+                            status_col_idx = next(
+                                (i for i, h in enumerate(parsed_rows[0])
+                                 if any(p in h.lower() for p in ("status", "ia", "aprovado"))),
+                                None,
+                            )
+
                             table_data = []
+                            status_cell_styles = []  # lista de (row_idx, col_idx, cor)
+
                             for row_idx, row in enumerate(parsed_rows):
                                 pdf_row = []
-                                for cell in row:
+                                for col_idx, cell in enumerate(row):
                                     safe_cell = cell.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
                                     safe_cell = safe_cell.replace("**", "")
                                     if row_idx == 0:
                                         pdf_row.append(Paragraph(safe_cell, header_cell_style))
                                     else:
+                                        # Bullet points em células com ponto-e-vírgula
+                                        if ";" in safe_cell:
+                                            partes = [p.strip() for p in safe_cell.split(";") if p.strip()]
+                                            safe_cell = "<br/>".join(f"• {p}" for p in partes)
+                                        # Coloração do texto na coluna Status IA
+                                        if status_col_idx is not None and col_idx == status_col_idx:
+                                            val = cell.strip().lower()
+                                            if "observa" in val:
+                                                safe_cell = f'<font color="#7D5A00"><b>⚠ Aprovado com Observação</b></font>'
+                                                status_cell_styles.append((row_idx, col_idx, colors.HexColor("#FEF3CD")))
+                                            elif "requer" in val or "fixing" in val or "correc" in val:
+                                                safe_cell = f'<font color="#922B21"><b>✗ Requer Correção</b></font>'
+                                                status_cell_styles.append((row_idx, col_idx, colors.HexColor("#FADBD8")))
+                                            elif "aprovado" in val:
+                                                safe_cell = f'<font color="#1E8449"><b>✓ Aprovado</b></font>'
+                                                status_cell_styles.append((row_idx, col_idx, colors.HexColor("#D5F5E3")))
                                         pdf_row.append(Paragraph(safe_cell, cell_style))
                                 while len(pdf_row) < n_cols:
                                     pdf_row.append(Paragraph("", cell_style))
@@ -485,17 +588,24 @@ if st.session_state.selected_operation == "cad_review":
                             available_width = landscape(A4)[0] - 3*cm
                             if n_cols == 5:
                                 col_widths = [
+                                    available_width * 0.05,  # Item
+                                    available_width * 0.38,  # Diferença Encontrada
+                                    available_width * 0.18,  # Localização (Quadrante)
+                                    available_width * 0.12,  # Status IA
+                                    available_width * 0.27,  # Ação Recomendada
+                                ]
+                            elif n_cols == 4:
+                                col_widths = [
                                     available_width * 0.05,
-                                    available_width * 0.35,
-                                    available_width * 0.20,
-                                    available_width * 0.18,
+                                    available_width * 0.42,
                                     available_width * 0.22,
+                                    available_width * 0.31,
                                 ]
                             else:
                                 col_widths = [available_width / n_cols] * n_cols
                             
                             table = Table(table_data, colWidths=col_widths, repeatRows=1)
-                            table.setStyle(TableStyle([
+                            base_style = [
                                 ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#27AE60')),
                                 ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
                                 ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
@@ -511,10 +621,176 @@ if st.session_state.selected_operation == "cad_review":
                                 ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#F8F9FA')]),
                                 ('VALIGN', (0, 0), (-1, -1), 'TOP'),
                                 ('ALIGN', (0, 0), (0, -1), 'CENTER'),
-                            ]))
+                                ('ALIGN', (0, 0), (-1, 0), 'CENTER'),  # cabeçalho centrado
+                            ]
+                            # Aplica cor de fundo nas células de Status IA
+                            for r_idx, c_idx, bg_color in status_cell_styles:
+                                base_style.append(('BACKGROUND', (c_idx, r_idx), (c_idx, r_idx), bg_color))
+                            table.setStyle(TableStyle(base_style))
                             
                             story.append(Spacer(1, 0.3*cm))
                             story.append(table)
+
+                    # ------------------------------------------------------------------
+                    # Blocos por ID: após a tabela, um bloco para cada linha com os
+                    # dois CADs marcados individualmente (só aquele ID).
+                    # ------------------------------------------------------------------
+                    item_grid     = item.get("grid")
+                    itens_loc     = item.get("itens_localizacao", [])
+                    p1_150        = item.get("pages1_pil_150")
+                    p2_150        = item.get("pages2_pil_150")
+                    p_idx         = item.get("page_idx", 0)
+
+                    tem_dados_por_id = (
+                        item_grid is not None
+                        and itens_loc
+                        and p1_150 is not None
+                        and p2_150 is not None
+                        and p_idx < len(p1_150)
+                        and p_idx < len(p2_150)
+                        and parsed_rows
+                        and len(parsed_rows) > 1  # pelo menos cabeçalho + 1 dado
+                    )
+
+                    if tem_dados_por_id:
+                        from reportlab.platypus import HRFlowable
+                        from reportlab.lib.utils import ImageReader
+
+                        id_title_style = ParagraphStyle(
+                            'IDTitle', parent=styles['Heading2'],
+                            fontSize=11, spaceAfter=4, spaceBefore=14,
+                            textColor=colors.HexColor('#1A5276'),
+                        )
+                        id_desc_style = ParagraphStyle(
+                            'IDDesc', parent=styles['Normal'],
+                            fontSize=8, leading=11, spaceAfter=4,
+                            textColor=colors.HexColor('#2C3E50'),
+                        )
+                        caption_style = ParagraphStyle(
+                            'Caption', parent=styles['Normal'],
+                            fontSize=7, leading=9, textColor=colors.grey,
+                            alignment=1,  # centrado
+                        )
+
+                        # Cabeçalho da coluna de localização (para lookup nas linhas)
+                        cabecalho_row = parsed_rows[0]
+                        col_item_idx  = next(
+                            (i for i, h in enumerate(cabecalho_row)
+                             if any(p in h.lower() for p in ("item", "id"))),
+                            0,
+                        )
+                        col_loc_idx = next(
+                            (i for i, h in enumerate(cabecalho_row)
+                             if any(p in h.lower() for p in ("localiz", "quadrante"))),
+                            None,
+                        )
+                        col_dif_idx = next(
+                            (i for i, h in enumerate(cabecalho_row)
+                             if any(p in h.lower() for p in ("diferen", "difference", "found"))),
+                            1,
+                        )
+                        col_status_idx = next(
+                            (i for i, h in enumerate(cabecalho_row)
+                             if "status" in h.lower()),
+                            None,
+                        )
+
+                        # Largura disponível para cada imagem (duas lado a lado)
+                        avail_w   = landscape(A4)[0] - 3*cm
+                        img_w_rl  = avail_w / 2.0 - 0.3*cm   # largura ReportLab por imagem
+                        img_h_rl  = img_w_rl * (p1_150[p_idx].height / p1_150[p_idx].width)
+
+                        story.append(Spacer(1, 0.8*cm))
+                        story.append(HRFlowable(width="100%", thickness=1.5,
+                                                 color=colors.HexColor('#27AE60')))
+                        story.append(Spacer(1, 0.3*cm))
+                        story.append(Paragraph("Detalhamento por ID", title_style))
+
+                        for data_row in parsed_rows[1:]:
+                            id_val  = data_row[col_item_idx] if col_item_idx < len(data_row) else "?"
+                            dif_val = data_row[col_dif_idx]  if col_dif_idx  < len(data_row) else ""
+                            loc_val = (data_row[col_loc_idx]
+                                       if col_loc_idx is not None and col_loc_idx < len(data_row)
+                                       else "")
+                            status_val = (data_row[col_status_idx]
+                                          if col_status_idx is not None and col_status_idx < len(data_row)
+                                          else "")
+
+                            story.append(HRFlowable(width="100%", thickness=0.5,
+                                                     color=colors.HexColor('#BDC3C7')))
+                            story.append(Spacer(1, 0.2*cm))
+
+                            safe_id  = id_val.replace("&","&amp;").replace("<","&lt;").replace(">","&gt;")
+                            safe_dif = dif_val.replace("&","&amp;").replace("<","&lt;").replace(">","&gt;").replace("**","")
+                            safe_loc = loc_val.replace("&","&amp;").replace("<","&lt;").replace(">","&gt;")
+
+                            # Bullet points na descrição
+                            if ";" in safe_dif:
+                                partes   = [p.strip() for p in safe_dif.split(";") if p.strip()]
+                                safe_dif = "<br/>".join(f"• {p}" for p in partes)
+
+                            story.append(Paragraph(f"<b>ID {safe_id}</b>", id_title_style))
+                            story.append(Paragraph(safe_dif, id_desc_style))
+                            if safe_loc:
+                                story.append(Paragraph(
+                                    f"<font color='#7F8C8D'>Localização: {safe_loc}</font>",
+                                    id_desc_style,
+                                ))
+                            story.append(Spacer(1, 0.25*cm))
+
+                            # Gera as duas imagens anotadas com só este ID
+                            try:
+                                img1_anotada = paint_single_item(
+                                    p1_150[p_idx], id_val, loc_val, item_grid, dpi=150,
+                                    status=status_val,
+                                )
+                                img2_anotada = paint_single_item(
+                                    p2_150[p_idx], id_val, loc_val, item_grid, dpi=150,
+                                    status=status_val,
+                                )
+
+                                buf1 = BytesIO()
+                                img1_anotada.save(buf1, format="PNG")
+                                buf1.seek(0)
+
+                                buf2 = BytesIO()
+                                img2_anotada.save(buf2, format="PNG")
+                                buf2.seek(0)
+
+                                img_rl1 = RLImage(buf1, width=img_w_rl, height=img_h_rl)
+                                img_rl2 = RLImage(buf2, width=img_w_rl, height=img_h_rl)
+
+                                img_table = Table(
+                                    [[img_rl1, img_rl2]],
+                                    colWidths=[img_w_rl + 0.3*cm, img_w_rl + 0.3*cm],
+                                )
+                                img_table.setStyle(TableStyle([
+                                    ('ALIGN',   (0, 0), (-1, -1), 'CENTER'),
+                                    ('VALIGN',  (0, 0), (-1, -1), 'MIDDLE'),
+                                    ('LEFTPADDING',  (0, 0), (-1, -1), 4),
+                                    ('RIGHTPADDING', (0, 0), (-1, -1), 4),
+                                ]))
+
+                                cap_table = Table(
+                                    [[Paragraph("Original", caption_style),
+                                      Paragraph("Revisado", caption_style)]],
+                                    colWidths=[img_w_rl + 0.3*cm, img_w_rl + 0.3*cm],
+                                )
+                                cap_table.setStyle(TableStyle([
+                                    ('ALIGN',  (0, 0), (-1, -1), 'CENTER'),
+                                    ('LEFTPADDING',  (0, 0), (-1, -1), 4),
+                                    ('RIGHTPADDING', (0, 0), (-1, -1), 4),
+                                ]))
+
+                                story.append(img_table)
+                                story.append(cap_table)
+                            except Exception:
+                                story.append(Paragraph(
+                                    "<i>Imagens não disponíveis para este ID.</i>",
+                                    id_desc_style,
+                                ))
+
+                            story.append(Spacer(1, 0.3*cm))
                     
                     found_after = False
                     for line, after_table in text_lines:
@@ -537,6 +813,20 @@ if st.session_state.selected_operation == "cad_review":
                         key=f"download_report_{page_num}",
                     )
 
+            if painted_img is not None and dl_col3 is not None:
+                with dl_col3:
+                    buf_painted = BytesIO()
+                    painted_rgb = painted_img.convert("RGB") if painted_img.mode == "RGBA" else painted_img
+                    painted_rgb.save(buf_painted, format="PDF", resolution=300)
+                    buf_painted.seek(0)
+                    st.download_button(
+                        label="⬇️ Download Revisado com Quadrantes (PDF)",
+                        data=buf_painted,
+                        file_name=f"revisado_quadrantes_pagina_{page_num}.pdf",
+                        mime="application/pdf",
+                        key=f"download_painted_{page_num}",
+                    )
+
             st.divider()
 
             if item.get("result"):
@@ -545,7 +835,7 @@ if st.session_state.selected_operation == "cad_review":
                 with col_meta1:
                     st.metric("Input Tokens", metadata.prompt_tokens)
                 with col_meta2:
-                    st.metric("Output Tokens", metadata.candidates_token_count)
+                    st.metric("Output Tokens", metadata.completion_tokens)
                 with col_meta3:
                     st.metric("Total de Tokens", metadata.total_tokens)
                 with col_meta4:
@@ -559,15 +849,37 @@ if st.session_state.selected_operation == "cad_review":
 
         st.divider()
         st.write("## 📊 Sumário da Análise")
-        
-        col_sum1, col_sum2, col_sum3 = st.columns(3)
+
+        # Conta os status em todos os resultados desta sessão
+        n_aprovado = 0
+        n_observacao = 0
+        n_correcao = 0
+        for _item in analysis_results:
+            if not _item.get("result"):
+                continue
+            for _reg in parse_markdown_table(_item["result"]):
+                _col_st = encontrar_coluna(_reg, "status")
+                _val = _reg.get(_col_st, "").strip().lower() if _col_st else ""
+                if "observa" in _val:
+                    n_observacao += 1
+                elif "requer" in _val or "correc" in _val:
+                    n_correcao += 1
+                elif "aprovado" in _val:
+                    n_aprovado += 1
+
+        col_sum1, col_sum2, col_sum3, col_sum4, col_sum5 = st.columns(5)
         with col_sum1:
             st.metric("Páginas analisadas pelo LLM", len(changed_pages))
         with col_sum2:
             st.metric("Tempo total de processamento", f"{total_time:.1f}s")
         with col_sum3:
-            cost_summary = cost_logger.get_summary()
-            st.metric("Análises realizadas", cost_summary['total_analyses'])
+            st.metric("✅ Aprovado", n_aprovado)
+        with col_sum4:
+            st.metric("⚠️ Aprovado com Observação", n_observacao)
+        with col_sum5:
+            st.metric("❌ Requer Correção", n_correcao)
+
+        cost_summary = cost_logger.get_summary()
         
         st.divider()
         st.write("## 💰 Resumo de Custos")
