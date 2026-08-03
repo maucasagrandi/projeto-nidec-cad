@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 # Carrega variáveis do arquivo .env
 load_dotenv()
 
-from prompts import system_prompt
+from prompts import system_prompt, build_format_change_context
 from src.modeling.llm_models import compare_cad_pages
 from src.utils.helper_func import (
     pdf_to_images_base64,
@@ -28,6 +28,7 @@ from src.utils.cad_quadrant_paint import (
     paint_quadrants,
     paint_single_item,
 )
+from src.utils.paper_format import check_all_pages_format
 
 # Inicializa o logger de custos
 cost_logger = CostLogger("custos.csv")
@@ -294,6 +295,12 @@ if st.session_state.selected_operation == "cad_review":
                 f"Serão comparadas as primeiras {n_pages} páginas."
             )
 
+        # ==================================================================
+        # Check determinístico: mudança de formato de papel (ISO 216)
+        # ==================================================================
+        with st.spinner("Verificando formato de papel (ISO 216)..."):
+            format_changes = check_all_pages_format(pdf1_bytes, pdf2_bytes)
+
         with st.spinner("Identificando páginas com divergências..."):
             changed_pages = []
             for i in range(n_pages):
@@ -315,10 +322,15 @@ if st.session_state.selected_operation == "cad_review":
 
             with st.spinner(f"Analisando divergências com IA na página {page_num}..."):
                 try:
+                    # Injeta contexto de mudança de formato no prompt, se houver
+                    page_format_change = format_changes.get(page_idx)
+                    format_ctx = build_format_change_context(page_format_change)
+                    page_prompt = system_prompt.format(format_change_context=format_ctx)
+
                     result, metadata = compare_cad_pages(
                         image1_base64=pages1_b64[page_idx],
                         image2_base64=pages2_b64[page_idx],
-                        system_prompt=system_prompt,
+                        system_prompt=page_prompt,
                         max_tokens=32768,
                     )
                     cost_logger.log_analysis(metadata, page_number=page_num)
@@ -377,6 +389,7 @@ if st.session_state.selected_operation == "cad_review":
                         "pages1_pil_150": pages1_pil_150,
                         "pages2_pil_150": pages2_pil_150,
                         "page_idx": page_idx,
+                        "format_change": page_format_change,
                     })
                 except Exception as e:
                     analysis_results.append({
@@ -395,6 +408,7 @@ if st.session_state.selected_operation == "cad_review":
         st.session_state["analysis_results"] = analysis_results
         st.session_state["changed_pages"] = changed_pages
         st.session_state["total_time"] = total_time
+        st.session_state["format_changes"] = format_changes
 
     # ==============================================================================
     # Exibição dos resultados
@@ -403,11 +417,35 @@ if st.session_state.selected_operation == "cad_review":
         analysis_results = st.session_state["analysis_results"]
         changed_pages = st.session_state["changed_pages"]
         total_time = st.session_state["total_time"]
+        format_changes = st.session_state.get("format_changes", {})
 
         st.info(
             f"**{len(changed_pages)}** página(s) com diferenças detectadas: "
             + ", ".join([f"pág. {i+1}" for i, _ in changed_pages])
         )
+
+        # ==================================================================
+        # Alertas Estruturais globais (formato de papel)
+        # ==================================================================
+        if format_changes:
+            st.markdown("### ⚠️ Alertas Estruturais")
+            for pg_idx, fc in sorted(format_changes.items()):
+                alert_parts = []
+                if fc.format_changed:
+                    alert_parts.append(
+                        f"**Formato do papel alterado** na página {pg_idx + 1}: "
+                        f"`{fc.original.display_name}` → `{fc.revised.display_name}` "
+                        f"({fc.original.width_mm:.0f}×{fc.original.height_mm:.0f}mm → "
+                        f"{fc.revised.width_mm:.0f}×{fc.revised.height_mm:.0f}mm)"
+                    )
+                if fc.orientation_changed and not fc.format_changed:
+                    alert_parts.append(
+                        f"**Orientação alterada** na página {pg_idx + 1}: "
+                        f"`{fc.original.orientation}` → `{fc.revised.orientation}`"
+                    )
+                for part in alert_parts:
+                    st.error(f"🚨 {part}  \n**Status:** Requer Correção")
+            st.divider()
 
         for item in analysis_results:
             page_num = item["page_num"]
@@ -417,6 +455,26 @@ if st.session_state.selected_operation == "cad_review":
             st.divider()
             st.write(f"### 📄 Página {page_num}")
             st.caption(f"{n_regions} região(ões) com alteração visual detectada(s)")
+
+            # Alerta estrutural por página (formato de papel)
+            page_fc = item.get("format_change")
+            if page_fc:
+                fc_msg_parts = []
+                if page_fc.format_changed:
+                    fc_msg_parts.append(
+                        f"Formato: `{page_fc.original.display_name}` → "
+                        f"`{page_fc.revised.display_name}`"
+                    )
+                if page_fc.orientation_changed and not page_fc.format_changed:
+                    fc_msg_parts.append(
+                        f"Orientação: `{page_fc.original.orientation}` → "
+                        f"`{page_fc.revised.orientation}`"
+                    )
+                if fc_msg_parts:
+                    st.error(
+                        f"🚨 **Alerta Estrutural:** {'; '.join(fc_msg_parts)} — "
+                        f"**Requer Correção**"
+                    )
 
             painted_img = item.get("painted_img")
             painted_regions = item.get("painted_regions")
@@ -854,6 +912,7 @@ if st.session_state.selected_operation == "cad_review":
         n_aprovado = 0
         n_observacao = 0
         n_correcao = 0
+        n_alertas_estruturais = len(format_changes)
         for _item in analysis_results:
             if not _item.get("result"):
                 continue
@@ -867,7 +926,7 @@ if st.session_state.selected_operation == "cad_review":
                 elif "aprovado" in _val:
                     n_aprovado += 1
 
-        col_sum1, col_sum2, col_sum3, col_sum4, col_sum5 = st.columns(5)
+        col_sum1, col_sum2, col_sum3, col_sum4, col_sum5, col_sum6 = st.columns(6)
         with col_sum1:
             st.metric("Páginas analisadas pelo LLM", len(changed_pages))
         with col_sum2:
@@ -878,6 +937,8 @@ if st.session_state.selected_operation == "cad_review":
             st.metric("⚠️ Aprovado com Observação", n_observacao)
         with col_sum5:
             st.metric("❌ Requer Correção", n_correcao)
+        with col_sum6:
+            st.metric("🚨 Alertas Estruturais", n_alertas_estruturais)
 
         cost_summary = cost_logger.get_summary()
         

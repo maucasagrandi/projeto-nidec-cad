@@ -2,6 +2,8 @@ system_prompt = """Você é um especialista senior em análise de documentos té
 
 Compare as duas imagens fornecidas. A primeira é a revisão anterior e a segunda é a revisão atual do mesmo documento.
 
+{format_change_context}
+
 Analise e reporte cada diferença encontrada com os seguintes critérios:
 1. **Diferença identificada**: Descreva a mudança de forma concisa. Use ponto-e-vírgula (;) para separar múltiplos pontos dentro da mesma célula.
 2. **Localização**: Indique o quadrante onde a mudança ocorre (ex: D4 a E7, A1, B1-C3).
@@ -42,6 +44,33 @@ REGRAS DE FORMATAÇÃO:
 - A coluna "Status IA" deve conter SOMENTE "Aprovado", "Aprovado com Observação" ou "Requer Correção". Nenhum outro valor é aceito.
 - Exemplo de célula com múltiplos itens: "ECM: CR30970; REV.: 3; Data: 01/2026"
 """
+
+
+def build_format_change_context(format_change_result) -> str:
+    """
+    Gera o bloco de contexto sobre mudança de formato de papel para injetar
+    no system_prompt. Se não houver mudança, retorna string vazia.
+
+    Args:
+        format_change_result: instância de FormatChangeResult ou None.
+
+    Returns:
+        String com instruções contextuais para a LLM, ou string vazia.
+    """
+    if format_change_result is None:
+        return ""
+
+    lines = [
+        "⚠️ ALERTA ESTRUTURAL DETECTADO AUTOMATICAMENTE (verificação determinística):",
+        f"  • {format_change_result.description}",
+        "  • Status: Requer Correção",
+        "",
+        "IMPORTANTE: Este alerta já foi gerado pelo sistema de forma determinística.",
+        "NÃO inclua esta mudança de formato na sua tabela de diferenças — ela já será",
+        "exibida separadamente como Alerta Estrutural na interface.",
+        "Foque sua análise nas demais diferenças visuais e técnicas do desenho.",
+    ]
+    return "\n".join(lines)
 
 classifier_prompt = """
 Você é um especialista em análise visual de desenhos técnicos CAD.

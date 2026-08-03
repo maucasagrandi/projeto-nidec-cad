@@ -60,6 +60,7 @@ nidec-cad-review/
         ├── __init__.py
         ├── helper_func.py      # Conversão PDF→imagem, diff visual, compressão
         ├── cost_logger.py      # Logger de custos e tokens em CSV
+        ├── paper_format.py     # Detecção de formato ISO 216 e comparação
         └── json_display.py     # Componentes visuais JSON para Streamlit
 ```
 
@@ -558,7 +559,96 @@ result = OutputSchema.model_validate_json(response.text)
 
 ---
 
-## 17. Próximos Passos (Sugestões)
+## 17. Feature: Detecção de Mudança de Formato de Papel (ISO 216)
+
+### 17.1 Objetivo
+
+Detectar automaticamente quando o formato do papel (tamanho ISO padrão) muda entre a versão original e a revisada de um desenho CAD. Exemplos: A2 → A1, A3 → A4, A1 paisagem → A1 retrato.
+
+### 17.2 Abordagem
+
+**Check determinístico (sem LLM):** Leitura direta das dimensões da página do PDF via PyMuPDF (`page.rect.width/height` em pontos) → conversão para mm → classificação ISO 216. Não depende de visão computacional nem tokens de IA.
+
+**Motivação da abordagem determinística:**
+- O pipeline de diff visual (`compute_visual_diff`, `count_diff_regions`) faz `cv2.resize()` quando as imagens têm tamanhos diferentes, o que "normaliza" a mudança de formato antes que a LLM veja as imagens — a LLM nunca perceberia a diferença de tamanho real.
+- Formato de papel é metadado geométrico do PDF — leitura direta é 100% confiável, sem custo de tokens.
+
+### 17.3 Decisões Técnicas
+
+| Decisão | Valor | Justificativa |
+|---------|-------|---------------|
+| **Tolerância ISO** | ±3 mm | Absorve arredondamento de PDF, variações de scan/digitalização e margens de corte sem gerar falsos positivos. Valor testado contra formatos A0–A5. |
+| **Formatos suportados** | A0, A1, A2, A3, A4, A5 | Cobertura completa ISO 216 série A (formatos mais usados em desenhos técnicos). |
+| **Orientação** | Inclusa no mesmo check | Mudança de orientação (retrato↔paisagem) é reportada junto com mudança de formato, não como achado separado, pois ambas configuram alteração do "drawing format". |
+| **Status padrão** | Requer Correção | Mudança de formato de papel em desenho técnico é potencialmente um erro grave (pode indicar redimensionamento indevido do desenho). |
+| **Exibição na UI** | Alertas Estruturais (bloco separado, `st.error`) | Destaque visual forte, separado da tabela de diferenças da LLM para não misturar checks determinísticos com análise AI. |
+| **Contexto para LLM** | Sim, injetado no prompt via `{format_change_context}` | Informa a LLM que a mudança de formato já foi detectada, instruindo-a a NÃO duplicar o achado na tabela. |
+
+### 17.4 Módulo `src/utils/paper_format.py`
+
+```python
+# Tabela ISO 216 (mm, retrato)
+ISO_PAPER_SIZES_MM = {
+    "A0": (841, 1189), "A1": (594, 841), "A2": (420, 594),
+    "A3": (297, 420),  "A4": (210, 297), "A5": (148, 210),
+}
+TOLERANCE_MM = 3.0  # ±3mm
+
+# Dataclasses
+PageFormat(iso_name, orientation, width_mm, height_mm)
+FormatChangeResult(original, revised, format_changed, orientation_changed)
+
+# Funções principais
+detect_iso_format(width_pt, height_pt) -> PageFormat
+check_format_change(pdf1_bytes, pdf2_bytes, page_index) -> Optional[FormatChangeResult]
+check_all_pages_format(pdf1_bytes, pdf2_bytes) -> dict[int, FormatChangeResult]
+```
+
+### 17.5 Integração no Pipeline
+
+```
+PDF bytes (original + revisado)
+  ↓
+check_all_pages_format() — determinístico, ~0ms
+  ↓ (dict com páginas que mudaram de formato)
+Para cada página analisada pelo LLM:
+  ├── build_format_change_context(format_change) → injetado no system_prompt
+  └── format_change armazenado em analysis_results[page]["format_change"]
+  ↓
+Exibição:
+  ├── Bloco "⚠️ Alertas Estruturais" (global, acima dos resultados por página)
+  ├── Alerta inline por página (st.error no topo de cada resultado)
+  └── Métrica "🚨 Alertas Estruturais" no sumário final
+```
+
+### 17.6 Impacto no Prompt da LLM
+
+Quando há mudança de formato detectada, o `system_prompt` recebe um bloco contextual entre a introdução e as regras de detecção:
+
+```
+⚠️ ALERTA ESTRUTURAL DETECTADO AUTOMATICAMENTE (verificação determinística):
+  • Formato do papel alterado de A2 para A1 (420×594mm → 594×841mm)
+  • Status: Requer Correção
+
+IMPORTANTE: Este alerta já foi gerado pelo sistema de forma determinística.
+NÃO inclua esta mudança de formato na sua tabela de diferenças — ela já será
+exibida separadamente como Alerta Estrutural na interface.
+Foque sua análise nas demais diferenças visuais e técnicas do desenho.
+```
+
+Quando NÃO há mudança, o placeholder `{format_change_context}` é substituído por string vazia — o prompt permanece inalterado.
+
+### 17.7 Arquivos Modificados/Criados
+
+| Arquivo | Ação | Descrição |
+|---------|------|-----------|
+| `src/utils/paper_format.py` | **Criado** | Módulo completo de detecção e comparação de formato ISO 216 |
+| `prompts.py` | Modificado | Adicionado placeholder `{format_change_context}` no `system_prompt` + função `build_format_change_context()` |
+| `front.py` | Modificado | Import do novo módulo, execução do check antes do loop de análise, injeção de contexto no prompt, armazenamento em results, exibição de alertas na UI (global + por página + sumário) |
+
+---
+
+## 18. Próximos Passos (Sugestões)
 
 1. Refinar prompts baseado em testes reais
 2. Testar com PDFs reais de clientes
