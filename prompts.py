@@ -257,6 +257,95 @@ Retorne somente um objeto JSON válido no seguinte formato:
 {{texto_extraido}}
 """
 
+# Novo prompt enriquecido para Tópico 3 (classificação com evidências e confiança)
+classificacao_enriquecida_prompt = """
+<Contexto>
+Você é um especialista em análise de textos extraídos de desenhos técnicos CAD e documentos de engenharia.
+
+Sua tarefa é extrair informações estruturadas do texto com MÁXIMA PRECISÃO:
+- Se uma informação NÃO estiver explícita no texto, retorne null para o valor
+- NUNCA invente ou deduza informações que não estão escritas
+- Sempre cite o trecho exato que sustenta cada classificação
+
+<Tarefa>
+Extraia as seguintes informações do texto fornecido:
+
+1. TIPO DO DOCUMENTO
+   - Identifique se é: product_drawing, assembly_drawing, process_sheet, technical_specification
+   - Se não conseguir determinar com certeza, use "product_drawing" como fallback
+
+2. COMPONENTE
+   - Identifique o nome da peça/componente através de:
+     * Campo PART NAME ou DESCRIPTION
+     * Título do desenho
+     * Informações no bloco de título
+   - Se não encontrar, retorne "Não encontrado"
+
+3. FAMÍLIA DO MATERIAL
+   - Identifique a família do material (ex: sintered_metal, gray_cast_iron, steel_sheet, copper_tube)
+   - Baseie-se em descrições de material, ligas, especificações
+   - Se não houver informação clara sobre material, retorne null
+
+4. SÉRIE DO COMPRESSOR
+   - Identifique SOMENTE se houver menção explícita (ex: "SERIES F", "SÉRIE EG", "EM COMPRESSOR")
+   - NÃO deduza a série a partir de códigos de peça ou outros campos
+   - Se não houver evidência explícita, retorne null
+
+5. NORMAS CITADAS
+   - Extraia SOMENTE normas explicitamente escritas no texto
+   - Preserve o código exatamente como aparece (ex: TSS002611, TSS-002611, TSS 002611)
+   - Tipos aceitos: TSS, SOP, ISO, DIN, JIS, ASTM, ASME, ANSI, IEC, NTB
+   - NÃO deduza normas a partir de materiais ou símbolos
+
+<Saída>
+Retorne um objeto JSON com a seguinte estrutura EXATA:
+
+{
+  "document_type": {
+    "value": "product_drawing",
+    "evidence": "trecho do texto que indica o tipo",
+    "confidence": 0.95
+  },
+  "component": {
+    "value": "Connecting Rod",
+    "evidence": "PART NAME: CONNECTING ROD",
+    "confidence": 0.99
+  },
+  "material_family": {
+    "value": "sintered_metal",
+    "evidence": "MATERIAL: Fe-C-Ni SINTERED ALLOY",
+    "confidence": 0.96
+  },
+  "compressor_series": {
+    "value": null,
+    "evidence": null,
+    "confidence": 0.0
+  },
+  "cited_standards": [
+    {
+      "standard": "TSS 002611",
+      "evidence": "7. GEOMETRIC REQUIREMENTS ACCORDING TO TSS 002611."
+    },
+    {
+      "standard": "TSS 002470",
+      "evidence": "8. CHARACTERISTIC CLASSIFICATION PER TSS 002470."
+    }
+  ]
+}
+
+<Regras CRÍTICAS>
+1. Se um campo não foi encontrado: value=null, evidence=null, confidence=0.0
+2. Confidence deve ser um número decimal entre 0.0 e 1.0
+3. Evidence deve ser o trecho LITERAL do texto (máximo 150 caracteres)
+4. NUNCA invente série do compressor
+5. Preserve códigos de normas EXATAMENTE como aparecem
+6. Se houver incerteza, REDUZA a confiança (não invente o valor)
+7. Retorne APENAS JSON válido, sem Markdown ou blocos de código
+
+<texto fornecido>
+{{texto_extraido}}
+"""
+
 normas_faltantes_prompt = """
 Você é um especialista em normas técnicas de engenharia e design de peças mecânicas.
 
@@ -301,4 +390,60 @@ REGRAS RIGOROSAS DE SAÍDA:
   "reasoning": "Não há normas adicionais recomendadas para este tipo de peça",
   "confianca": 0.9
 }}
+"""
+
+# ==============================================================================
+# Prompt para análise determinística de normas faltantes (Abordagem B)
+# Usado quando o diff já foi calculado pelo StandardsChecker — o LLM apenas explica.
+# ==============================================================================
+analise_normas_diff_prompt = """
+Você é um especialista sênior em normas técnicas de engenharia para compressores herméticos.
+
+Você recebeu o resultado de uma análise automática de conformidade normativa de um desenho técnico CAD.
+Seu papel é interpretar esse resultado e gerar um relatório técnico claro e objetivo.
+
+ENTRADA:
+- Tipo de peça: {part_name}
+- Peça identificada na tabela de referência como: {part_matched}
+- Normas encontradas no CAD: {normas_encontradas}
+- Normas obrigatórias segundo o padrão interno: {normas_obrigatorias}
+- Normas FALTANTES (obrigatórias que não estão no CAD): {normas_faltantes}
+- Normas EXTRAS (estão no CAD mas não constam como obrigatórias na tabela): {normas_extras}
+
+DETALHES DAS NORMAS FALTANTES:
+{detalhes_faltantes}
+
+TAREFA:
+1. Para cada norma faltante, explique de forma técnica o impacto de sua ausência neste tipo de peça.
+2. Para cada norma extra, avalie se sua presença é tecnicamente justificável ou se pode indicar um erro.
+3. Produza um parecer geral sobre o nível de conformidade do desenho.
+
+RETORNE OBRIGATORIAMENTE um objeto JSON válido EXATAMENTE neste formato:
+
+{{
+  "parecer_geral": "avaliação geral da conformidade normativa da peça",
+  "analise_faltantes": [
+    {{
+      "norma": "código da norma",
+      "impacto": "descrição do impacto técnico de sua ausência neste tipo de peça"
+    }}
+  ],
+  "analise_extras": [
+    {{
+      "norma": "código da norma",
+      "avaliacao": "justificável ou questionável — com breve explicação"
+    }}
+  ],
+  "conformidade_percentual": 0.75
+}}
+
+REGRAS RIGOROSAS DE SAÍDA:
+1. Os campos DEVEM ser EXATAMENTE os especificados acima.
+2. "parecer_geral" é uma string com a avaliação geral.
+3. "analise_faltantes" é uma lista de objetos com "norma" e "impacto".
+4. "analise_extras" é uma lista de objetos com "norma" e "avaliacao".
+5. "conformidade_percentual" é um número entre 0.0 e 1.0 calculado como: normas_presentes / total_obrigatorias.
+6. Se não houver normas faltantes, retorne lista vazia em "analise_faltantes".
+7. Se não houver normas extras, retorne lista vazia em "analise_extras".
+8. Retorne APENAS JSON válido, sem Markdown, sem blocos de código.
 """

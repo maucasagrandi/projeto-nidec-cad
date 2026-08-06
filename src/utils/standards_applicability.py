@@ -90,6 +90,79 @@ def _normalize_standard(standard: str) -> str:
     return re.sub(r"\s+", " ", standard.upper().strip())
 
 
+def normalize_standard(standard: str) -> str:
+    """
+    Função pública de normalização de códigos de norma (Tópico 4).
+    
+    Wrapper sobre _normalize_standard para uso externo.
+    """
+    return _normalize_standard(standard)
+
+
+def extract_note_number(text: str) -> Optional[int]:
+    """
+    Extrai número da nota de um trecho de texto (Tópico 4).
+    
+    Exemplos:
+        "NOTE 7: TSS 002611" → 7
+        "7. GEOMETRIC REQUIREMENTS" → 7
+        "ACCORDING TO TSS 002611" → None
+    
+    Args:
+        text: Trecho de texto onde a norma foi citada
+    
+    Returns:
+        Número da nota ou None se não encontrado
+    """
+    if not isinstance(text, str):
+        return None
+    
+    # Padrão: "NOTE 7:" ou "NOTA 7:" (case insensitive)
+    match = re.search(r"\bNOTE?S?\s+(\d+)\s*[:.]", text, re.IGNORECASE)
+    if match:
+        return int(match.group(1))
+    
+    # Padrão: "7. " no início (numeração de lista)
+    match = re.match(r"^\s*(\d+)\.\s+", text)
+    if match:
+        return int(match.group(1))
+    
+    return None
+
+
+def _normalize_standard(standard: str) -> str:
+    """
+    Normaliza código de norma para formato consistente.
+    
+    Regras:
+        - Remove hífens e underscores
+        - Adiciona espaço entre prefixo e número
+        - Uppercase no prefixo
+        - Remove espaços duplicados
+    
+    Exemplos:
+        "TSS002611" → "TSS 002611"
+        "TSS-002611" → "TSS 002611"
+        "tss 002611" → "TSS 002611"
+        "TSS  002611" → "TSS 002611"
+    """
+    if not isinstance(standard, str):
+        return ""
+    
+    # Remove hífens e underscores
+    standard = standard.replace("-", " ").replace("_", " ")
+    
+    # Regex: captura prefixo (letras) + número
+    match = re.match(r"^([A-Za-z]+)\s*(\d+.*)$", standard.strip())
+    if match:
+        prefix = match.group(1).upper()
+        number = match.group(2).strip()
+        return f"{prefix} {number}"
+    
+    # Fallback: uppercase e remove espaços duplicados
+    return re.sub(r"\s+", " ", standard.upper().strip())
+
+
 def _split_list_field(field_value: str) -> Set[str]:
     """
     Separa campo de lista (separado por vírgula ou ponto-e-vírgula).

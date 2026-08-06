@@ -4,11 +4,12 @@ import logging
 import time
 import json
 from dataclasses import dataclass
-from typing import Tuple, List
+from typing import Tuple, List, TYPE_CHECKING, Optional
 from datetime import datetime
 from pydantic import BaseModel, Field
 import google.genai as genai
 from google.genai import types
+import fitz  # PyMuPDF
 
 # Configurar logging
 logging.basicConfig(level=logging.INFO)
@@ -43,6 +44,32 @@ class NormasFaltantesOutput(BaseModel):
     normas_sugeridas: List[str] = Field(description="Lista de normas recomendadas")
     reasoning: str = Field(description="Explicação técnica")
     confianca: float = Field(description="Nível de confiança (0.0 a 1.0)")
+
+
+class AnaliseFaltanteItem(BaseModel):
+    """Análise de impacto de uma norma faltante"""
+    norma: str = Field(description="Código da norma")
+    impacto: str = Field(description="Impacto técnico da ausência desta norma")
+
+
+class AnaliseExtraItem(BaseModel):
+    """Avaliação de uma norma extra encontrada no CAD"""
+    norma: str = Field(description="Código da norma")
+    avaliacao: str = Field(description="Justificável ou questionável — com explicação")
+
+
+class AnaliseNormasDiffOutput(BaseModel):
+    """Saída da análise LLM baseada no diff determinístico de normas."""
+    parecer_geral: str = Field(description="Avaliação geral da conformidade normativa")
+    analise_faltantes: List[AnaliseFaltanteItem] = Field(
+        description="Análise de impacto de cada norma faltante"
+    )
+    analise_extras: List[AnaliseExtraItem] = Field(
+        description="Avaliação de cada norma extra encontrada no CAD"
+    )
+    conformidade_percentual: float = Field(
+        description="Percentual de conformidade (normas presentes / total obrigatórias)"
+    )
 
 
 # ==============================================================================
@@ -246,6 +273,194 @@ def infer_missing_norms(
     )
     
     logger.info(f"✅ Sugestões: {len(parsed.normas_sugeridas)} normas")
+    return parsed, metadata
+
+
+def analyze_standards_diff(
+    system_prompt: str,
+    model: str = MODEL_ID,
+) -> Tuple["AnaliseNormasDiffOutput", AnalysisMetadata]:
+    """
+    Envia o diff determinístico de normas ao LLM para análise técnica.
+
+    O prompt já deve conter todos os dados do diff (part_name, normas faltantes,
+    normas extras, detalhes) — montados pelo caller a partir do StandardsCheckResult.
+
+    Returns:
+        (AnaliseNormasDiffOutput, AnalysisMetadata)
+    """
+    start_time = time.time()
+
+    logger.info(f"Enviando análise de diff de normas para {model}...")
+
+    response = client.models.generate_content(
+        model=model,
+        contents=[
+            types.Part.from_text(text=system_prompt),
+        ],
+        config=types.GenerateContentConfig(
+            response_mime_type="application/json",
+            response_schema=AnaliseNormasDiffOutput,
+        ),
+    )
+
+    parsed = AnaliseNormasDiffOutput.model_validate_json(response.text)
+
+    end_time = time.time()
+    latency_ms = (end_time - start_time) * 1000
+
+    usage = response.usage_metadata
+    metadata = AnalysisMetadata(
+        total_tokens=usage.total_token_count,
+        prompt_tokens=usage.prompt_token_count,
+        completion_tokens=usage.candidates_token_count,
+        latency_ms=latency_ms,
+        model=model,
+        timestamp=datetime.now().isoformat(),
+    )
+
+    logger.info(
+        f"✅ Análise diff — faltantes: {len(parsed.analise_faltantes)} | "
+        f"extras: {len(parsed.analise_extras)} | "
+        f"conformidade: {parsed.conformidade_percentual:.0%}"
+    )
+    return parsed, metadata
+
+
+def classify_cad_enriched(
+    texto_extraido: str,
+    system_prompt: str,
+    model: str = MODEL_ID,
+) -> Tuple["CadClassificationEnriched", AnalysisMetadata]:
+    """
+    Classifica CAD com saída enriquecida (Tópico 3).
+    
+    Cada campo retorna: value, evidence, confidence.
+    Série só quando houver evidência explícita.
+    
+    Args:
+        texto_extraido: Texto vetorial extraído do PDF via PyMuPDF
+        system_prompt: Prompt enriquecido (classificacao_enriquecida_prompt)
+        model: Modelo LLM a usar
+    
+    Returns:
+        (CadClassificationEnriched, AnalysisMetadata)
+    """
+    from src.modeling.part_classification_types import CadClassificationEnriched
+    
+    start_time = time.time()
+    
+    logger.info(f"Enviando classificação enriquecida para {model}...")
+    
+    # Substitui placeholder no prompt
+    prompt_final = system_prompt.replace("{{texto_extraido}}", texto_extraido)
+    
+    response = client.models.generate_content(
+        model=model,
+        contents=[
+            types.Part.from_text(text=prompt_final),
+        ],
+        config=types.GenerateContentConfig(
+            response_mime_type="application/json",
+            response_schema=CadClassificationEnriched,
+        ),
+    )
+    
+    parsed = CadClassificationEnriched.model_validate_json(response.text)
+    
+    end_time = time.time()
+    latency_ms = (end_time - start_time) * 1000
+    
+    usage = response.usage_metadata
+    metadata = AnalysisMetadata(
+        total_tokens=usage.total_token_count,
+        prompt_tokens=usage.prompt_token_count,
+        completion_tokens=usage.candidates_token_count,
+        latency_ms=latency_ms,
+        model=model,
+        timestamp=datetime.now().isoformat()
+    )
+    
+    logger.info(
+        f"✅ Classificação enriquecida: "
+        f"component={parsed.component.value} (conf={parsed.component.confidence:.2f}) | "
+        f"material={parsed.material_family.value} (conf={parsed.material_family.confidence:.2f}) | "
+        f"series={parsed.compressor_series.value} (conf={parsed.compressor_series.confidence:.2f}) | "
+        f"normas={len(parsed.cited_standards)}"
+    )
+    return parsed, metadata
+
+
+def extract_text_from_pdf(pdf_bytes: bytes, page_index: int = 0) -> str:
+    """
+    Extrai texto vetorial de uma página do PDF usando PyMuPDF.
+    
+    Args:
+        pdf_bytes: Bytes do PDF
+        page_index: Índice da página (0-indexed)
+    
+    Returns:
+        String com o texto extraído
+    """
+    doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+    try:
+        if page_index >= len(doc):
+            return ""
+        page = doc[page_index]
+        text = page.get_text("text")
+        return text
+    finally:
+        doc.close()
+
+
+def analyze_standards_diff(
+    system_prompt: str,
+    model: str = MODEL_ID,
+) -> Tuple["AnaliseNormasDiffOutput", AnalysisMetadata]:
+    """
+    Envia o diff determinístico de normas ao LLM para análise técnica.
+
+    O prompt já deve conter todos os dados do diff (part_name, normas faltantes,
+    normas extras, detalhes) — montados pelo caller a partir do StandardsCheckResult.
+
+    Returns:
+        (AnaliseNormasDiffOutput, AnalysisMetadata)
+    """
+    start_time = time.time()
+
+    logger.info(f"Enviando análise de diff de normas para {model}...")
+
+    response = client.models.generate_content(
+        model=model,
+        contents=[
+            types.Part.from_text(text=system_prompt),
+        ],
+        config=types.GenerateContentConfig(
+            response_mime_type="application/json",
+            response_schema=AnaliseNormasDiffOutput,
+        ),
+    )
+
+    parsed = AnaliseNormasDiffOutput.model_validate_json(response.text)
+
+    end_time = time.time()
+    latency_ms = (end_time - start_time) * 1000
+
+    usage = response.usage_metadata
+    metadata = AnalysisMetadata(
+        total_tokens=usage.total_token_count,
+        prompt_tokens=usage.prompt_token_count,
+        completion_tokens=usage.candidates_token_count,
+        latency_ms=latency_ms,
+        model=model,
+        timestamp=datetime.now().isoformat(),
+    )
+
+    logger.info(
+        f"✅ Análise diff — faltantes: {len(parsed.analise_faltantes)} | "
+        f"extras: {len(parsed.analise_extras)} | "
+        f"conformidade: {parsed.conformidade_percentual:.0%}"
+    )
     return parsed, metadata
 
 

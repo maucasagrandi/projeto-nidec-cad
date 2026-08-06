@@ -40,6 +40,41 @@ class FieldWithEvidence(BaseModel):
     )
 
 
+class CitedStandardRaw(BaseModel):
+    """Uma norma citada no CAD (antes da normalização)."""
+    standard: str = Field(
+        description="Código da norma como aparece no texto"
+    )
+    evidence: str = Field(
+        description="Trecho do texto que menciona esta norma"
+    )
+
+
+class CadClassificationEnriched(BaseModel):
+    """
+    Classificação enriquecida de um componente CAD (Tópico 3).
+    
+    Cada campo retorna value + evidence + confidence.
+    Série só quando houver evidência explícita.
+    """
+    document_type: FieldWithEvidence = Field(
+        description="Tipo do documento"
+    )
+    component: FieldWithEvidence = Field(
+        description="Tipo do componente"
+    )
+    material_family: FieldWithEvidence = Field(
+        description="Família do material"
+    )
+    compressor_series: FieldWithEvidence = Field(
+        description="Série do compressor — só quando houver evidência"
+    )
+    cited_standards: List[CitedStandardRaw] = Field(
+        default_factory=list,
+        description="Lista de normas citadas (códigos brutos antes da normalização)"
+    )
+
+
 class CadClassification(BaseModel):
     """
     Classificação completa de um componente CAD extraída via LLM.
