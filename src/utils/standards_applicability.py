@@ -477,3 +477,65 @@ def get_applicable_standards(
         compressor_series=compressor_series,
         material_family=material_family,
     )
+
+
+# ==============================================================================
+# Tópico 5: Comparação determinística de normas
+# ==============================================================================
+
+def compare_standards(
+    applicable_standards: List[str],
+    cited_standards: List[str],
+    unresolved_fields: Optional[List[str]] = None,
+) -> "StandardsComparisonResult":
+    """
+    Compara normas aplicáveis × normas citadas (Tópico 5).
+    
+    Lógica puramente determinística:
+    - matching = expected ∩ cited
+    - missing = expected - cited
+    - unexpected = cited - expected
+    
+    Args:
+        applicable_standards: Lista de normas esperadas (da planilha)
+        cited_standards: Lista de normas citadas no CAD (normalizadas)
+        unresolved_fields: Campos não resolvidos (ex: ["compressor_series"])
+    
+    Returns:
+        StandardsComparisonResult com status de aplicabilidade
+    """
+    from src.modeling.part_classification_types import StandardsComparisonResult
+    
+    # Normalizar todas as normas antes da comparação (garantia extra)
+    expected_set = {normalize_standard(s) for s in applicable_standards}
+    cited_set = {normalize_standard(s) for s in cited_standards}
+    
+    # Operações de set
+    matching = sorted(expected_set & cited_set)
+    missing = sorted(expected_set - cited_set)
+    unexpected = sorted(cited_set - expected_set)
+    
+    # Status de aplicabilidade
+    if unresolved_fields:
+        applicability_status = "INCONCLUSIVE"
+    else:
+        applicability_status = "RESOLVED"
+    
+    logger.info(
+        f"📊 Comparação de normas: "
+        f"esperadas={len(expected_set)} | "
+        f"citadas={len(cited_set)} | "
+        f"matching={len(matching)} | "
+        f"missing={len(missing)} | "
+        f"unexpected={len(unexpected)} | "
+        f"status={applicability_status}"
+    )
+    
+    return StandardsComparisonResult(
+        expected=sorted(expected_set),
+        cited=sorted(cited_set),
+        matching=matching,
+        missing=missing,
+        unexpected=unexpected,
+        applicability_status=applicability_status,
+    )
