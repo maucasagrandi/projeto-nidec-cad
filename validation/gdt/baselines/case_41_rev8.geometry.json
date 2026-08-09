@@ -1,0 +1,85 @@
+{
+  "schema_version": 1,
+  "case_id": "case_41_rev8",
+  "phase": "geometry",
+  "official_benchmark": true,
+  "ground_truth": "validation/gdt/ground_truth/case_41_rev8.json",
+  "candidate_count": 11,
+  "ground_truth_count": 6,
+  "matching": {
+    "min_iou": 0.35,
+    "min_overlap_smallest": 0.5,
+    "max_area_ratio": 2.5,
+    "rule": "iou OR (overlap_smallest AND area_ratio)"
+  },
+  "metrics": {
+    "true_positives": 6,
+    "false_negatives": 0,
+    "false_positives": 5,
+    "recall": 1.0,
+    "precision": 0.5455,
+    "f1": 0.7059,
+    "recall_gate": {
+      "minimum": 0.95,
+      "passed": true
+    }
+  },
+  "matches": [
+    {
+      "ground_truth_id": "GT-001",
+      "candidate_id": "GDT-CAND-P01-001",
+      "iou": 0.741,
+      "overlap_smallest": 0.8655,
+      "area_ratio": 1.0336,
+      "match_reason": "iou"
+    },
+    {
+      "ground_truth_id": "GT-002",
+      "candidate_id": "GDT-CAND-P01-004",
+      "iou": 0.4412,
+      "overlap_smallest": 0.7299,
+      "area_ratio": 1.3842,
+      "match_reason": "iou"
+    },
+    {
+      "ground_truth_id": "GT-003",
+      "candidate_id": "GDT-CAND-P01-006",
+      "iou": 0.3401,
+      "overlap_smallest": 0.5496,
+      "area_ratio": 1.1654,
+      "match_reason": "manual_roi_overlap"
+    },
+    {
+      "ground_truth_id": "GT-004",
+      "candidate_id": "GDT-CAND-P01-007",
+      "iou": 0.7285,
+      "overlap_smallest": 0.9748,
+      "area_ratio": 1.3128,
+      "match_reason": "iou"
+    },
+    {
+      "ground_truth_id": "GT-005",
+      "candidate_id": "GDT-CAND-P01-008",
+      "iou": 0.7209,
+      "overlap_smallest": 0.9907,
+      "area_ratio": 1.3649,
+      "match_reason": "iou"
+    },
+    {
+      "ground_truth_id": "GT-006",
+      "candidate_id": "GDT-CAND-P01-010",
+      "iou": 0.3152,
+      "overlap_smallest": 0.6428,
+      "area_ratio": 1.682,
+      "match_reason": "manual_roi_overlap"
+    }
+  ],
+  "unmatched_candidates": [
+    "GDT-CAND-P01-002",
+    "GDT-CAND-P01-003",
+    "GDT-CAND-P01-005",
+    "GDT-CAND-P01-009",
+    "GDT-CAND-P01-011"
+  ],
+  "notes": "Baseline computed from the independent manual full-frame ground truth supplied for case 41. Candidate set corresponds to the detector configuration recorded by bootstrap_case.py."
+}
