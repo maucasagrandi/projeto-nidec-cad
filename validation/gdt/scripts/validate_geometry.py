@@ -13,7 +13,16 @@ import json
 import sys
 from pathlib import Path
 
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
 from src.gdt.geometry_validation import detect_and_validate
+
+
+def _project_path(path_value: str | Path) -> Path:
+    path = Path(path_value)
+    return path if path.is_absolute() else PROJECT_ROOT / path
 
 
 def main() -> None:
@@ -27,9 +36,13 @@ def main() -> None:
     parser.add_argument("--output", default="validation/gdt/outputs/geometry_metrics.json")
     args = parser.parse_args()
 
+    pdf_path = _project_path(args.pdf)
+    ground_truth_path = _project_path(args.ground_truth)
+    output = _project_path(args.output)
+
     candidates, metrics = detect_and_validate(
-        args.pdf,
-        args.ground_truth,
+        pdf_path,
+        ground_truth_path,
         page_index=args.page_index,
         min_iou=args.min_iou,
     )
@@ -38,7 +51,7 @@ def main() -> None:
     payload = {
         "schema_version": 1,
         "phase": "geometry",
-        "pdf": str(args.pdf),
+        "pdf": str(pdf_path),
         "page_index": args.page_index,
         "min_iou": args.min_iou,
         "candidate_count": len(candidates),
@@ -56,7 +69,6 @@ def main() -> None:
         ],
     }
 
-    output = Path(args.output)
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
 
