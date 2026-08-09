@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "case_id": "case_19_rev4",
+  "pdf": "CAD_Review_Test_Battery_V1/2. Comparison Analysis/19/218023000_Rev4_draw_1.pdf",
+  "page_index": 0,
+  "geometry_gate": {
+    "minimum_recall": 0.95,
+    "min_iou": 0.35
+  },
+  "phase3": {
+    "discovery_candidate_count": 21,
+    "purpose": "generalization case reserved for later revision-pair comparison with folder 36"
+  },
+  "notes": "Fase 3. Contagem real de frames e classes deve vir de anotacao manual independente; os 21 itens da descoberta sao apenas candidatos geometricos. O caso 36 do mesmo desenho-base sera usado depois para estabilidade entre revisoes."
+}
