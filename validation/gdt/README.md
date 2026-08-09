@@ -12,6 +12,7 @@ validation/gdt/
   ground_truth/   # referência independente e versionada
   scripts/        # executáveis de validação
   outputs/        # resultados locais; ignorados pelo Git
+  reference_catalog.json  # manifesto das referências visuais versionadas
 ```
 
 ## Regra principal
@@ -21,8 +22,9 @@ Cada fase é validada isoladamente:
 1. Geometria: o quadro foi encontrado?
 2. Classificação: o símbolo da primeira célula foi identificado?
 3. Generalização: o comportamento se mantém em outros CADs?
-4. Interpretação: tolerância e datums referenciados foram lidos?
-5. Conformidade: a regra ISO foi aplicada corretamente?
+4. Expansão do catálogo: novas classes não quebram as antigas?
+5. Interpretação: tolerância e datums referenciados foram lidos?
+6. Conformidade: a regra ISO foi aplicada corretamente?
 
 A saída de uma etapa não pode ser usada como verdade de referência da própria etapa.
 
@@ -76,9 +78,7 @@ O frame externo precisa de `endpoint_tolerance` permissivo para não perder quad
 
 Isso impede que traços internos do próprio símbolo Position sejam interpretados como paredes de célula.
 
-### Templates
-
-Estrutura:
+### Templates iniciais
 
 ```text
 assets/gdt/templates/
@@ -139,51 +139,114 @@ status = PASS_DIAGNOSTIC
 
 ## Fase 3 — generalização em outros CADs
 
-### 1. Descobrir casos sem escolher no chute
+### Descoberta
 
 ```powershell
 python validation/gdt/scripts/discover_phase3_cases.py
 ```
 
-O script percorre desenhos `*_draw_*.pdf` da seção Comparison Analysis em DPI baixo apenas para economizar renderização. A geometria continua vindo dos vetores do PDF.
+A descoberta apontou desenhos com alta densidade de candidatos para revisão independente. Esses candidatos não são ground truth.
 
-Saída:
+### Status atual
+
+A anotação manual dos novos CADs foi **adiada**, não aprovada, porque a visualização do anotador atual ficou pequena/ilegível em desenhos densos. Não serão fabricados ground truths a partir dos candidatos do detector.
+
+Consequências metodológicas:
+
+- não afirmar generalização multi-CAD ainda;
+- não calibrar `ACCEPTED / AMBIGUOUS / UNKNOWN` com esses casos;
+- retomar a Fase 3 quando o annotator tiver zoom/pan ou revisão por crops legíveis.
+
+Os scripts de descoberta, inicialização e agregação permanecem versionados para retomada posterior.
+
+---
+
+## Fase 4 — expansão incremental do catálogo
+
+A Fase 4 amplia as classes visuais sem alterar a geometria nem criar regras de compliance.
+
+### Referências humanas
+
+As imagens fornecidas ficam versionadas em:
 
 ```text
-validation/gdt/outputs/phase3_discovery.json
+cotas/
 ```
 
-Ele informa candidatos por CAD e sugere até 5 casos variados. A sugestão não usa classe prevista nem score visual, para evitar selecionar somente desenhos parecidos com os templates atuais.
+O mapeamento entre filename e classe canônica fica em:
 
-### 2. Inicializar um caso escolhido
+```text
+validation/gdt/reference_catalog.json
+```
+
+Isso torna a expansão data-driven: novas referências entram pelo manifesto, sem hardcode no classificador.
+
+### Primeiro lote
+
+```text
+position       # já existente
+profile        # já existente
+straightness
+flatness
+circularity    # referência recebida como Roundness
+cylindricity
+```
+
+Sincronizar `cotas/` para o catálogo semântico:
 
 ```powershell
-python validation/gdt/scripts/init_case.py --case-id case_NOME --pdf "CAMINHO_DO_DRAWING.pdf"
+python validation/gdt/scripts/sync_phase4_templates.py
 ```
 
-O arquivo nasce com `expected=null`: quantidade e classes não são inventadas antes da anotação.
+O script aplica apenas normalização de contraste e trim de whitespace externo. Ele não redesenha o símbolo.
 
-### 3. Anotar ground truth independente
+### Mudança importante nos controles negativos
+
+O círculo simples usado no experimento inicial como `negative_controls` deixa de ser um controle negativo válido quando `circularity` entra no catálogo, pois o círculo passa a representar uma característica GD&T real.
+
+Por isso a regressão da Fase 4 exclui `negative_controls` da competição visual. Candidatos geométricos extras continuam servindo como população negativa para a futura calibração de aceitação.
+
+### Regressão automática no caso 41
 
 ```powershell
-python validation/gdt/scripts/annotate_ground_truth.py --case validation/gdt/cases/case_NOME.json
+python validation/gdt/scripts/run_phase4_regression.py
 ```
 
-### 4. Medir geometria e rodar scoring
+Esse comando:
 
-Use `validate_geometry.py` para congelar a associação geométrica e depois `run_phase2.py` para produzir `symbol_evaluation.json` daquele caso.
+1. sincroniza as referências ativas do manifesto;
+2. pontua o caso 41 com todas as classes válidas;
+3. exclui `negative_controls` da competição;
+4. avalia contra o ground truth independente já existente;
+5. exige que os 3 Position + 3 Profile continuem 6/6 no ranking.
 
-### 5. Agregar vários CADs
+Ele **não valida as novas classes em CAD real** e **não calibra threshold**. É um teste de regressão/competição entre classes.
 
-```powershell
-python validation/gdt/scripts/aggregate_phase3.py \
-  validation/gdt/outputs/case_41_rev8/symbol_evaluation.json \
-  validation/gdt/outputs/case_NOME/symbol_evaluation.json
+---
+
+## Próximas fases
+
+Depois da expansão visual e da retomada da generalização:
+
+```text
+feature control frame detectado
+    ↓
+segmentação estrutural das células
+    ↓
+cell[0] -> característica GD&T
+cell[1] -> tolerância/modificadores
+cell[2+] -> referências de datum
+    ↓
+resolver edição ISO aplicável
+    ↓
+regras determinísticas Table 1 / Table 2
+    ↓
+detector de datum feature indicator
+    ↓
+compliance
 ```
 
-O agregador calcula ranking global e os gaps entre o menor score/margem dos quadros reais e o maior score/margem dos candidatos extras.
-
-Thresholds `ACCEPTED / AMBIGUOUS / UNKNOWN` só serão discutidos depois de vários CADs independentes.
+A Table 3 será usada principalmente para orientar o parser estrutural das células. Table 1/Table 2 serão convertidas para regras versionadas; screenshots da norma não serão consultados em runtime.
 
 ---
 
@@ -201,6 +264,10 @@ métricas de geometria
 Primeira célula
     ↓
 scores visuais sem threshold
+
+Expansão incremental de classes
+    ↓
+regressão das classes já suportadas
 
 Vários CADs rotulados
     ↓
