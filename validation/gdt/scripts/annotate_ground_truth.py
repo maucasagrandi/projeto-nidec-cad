@@ -81,7 +81,8 @@ def main() -> None:
     case_path = _project_path(args.case)
     config = json.loads(case_path.read_text(encoding="utf-8"))
     case_id = str(config["case_id"])
-    pdf_path = _project_path(config["pdf"])
+    pdf_value = str(config["pdf"])
+    pdf_path = _project_path(pdf_value)
     page_index = int(config.get("page_index", 0))
     expected_count = config.get("expected", {}).get("frame_count")
 
@@ -135,7 +136,6 @@ def main() -> None:
             cv2.LINE_AA,
         )
 
-    # Ordena para gerar IDs estáveis: de cima para baixo, esquerda para direita.
     frames.sort(key=lambda item: (item["bbox"][1], item["bbox"][0]))
     for idx, frame in enumerate(frames, start=1):
         frame["id"] = f"GT-{idx:03d}"
@@ -143,7 +143,7 @@ def main() -> None:
     payload = {
         "schema_version": 2,
         "case_id": case_id,
-        "pdf": str(pdf_path),
+        "pdf": pdf_value,
         "page": page_index + 1,
         "expected_frame_count": len(frames),
         "independent_annotation": True,
