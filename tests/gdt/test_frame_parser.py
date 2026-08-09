@@ -42,6 +42,15 @@ def test_accepts_decimal_comma_without_changing_raw_value():
     assert parsed.referenced_datums == []
 
 
+def test_accepts_leading_dot_tolerance_without_changing_raw_value():
+    candidate = _candidate([[], [".05"]])
+
+    parsed = parse_feature_control_frame(candidate, characteristic="profile")
+
+    assert parsed.tolerance_raw == ".05"
+    assert parsed.tolerance_value == 0.05
+
+
 def test_diameter_absence_in_text_is_unknown_not_false():
     candidate = _candidate([[], ["0.10"], ["A"]])
 
