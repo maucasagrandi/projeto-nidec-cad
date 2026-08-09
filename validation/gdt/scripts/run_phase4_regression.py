@@ -3,7 +3,7 @@
 Objetivo: adicionar novas classes ao catálogo SEM perder o ranking correto dos
 3 Position + 3 Profile já validados no caso 41.
 
-As novas classes esperadas são lidas de ``validation/gdt/reference_catalog.json``.
+As classes esperadas são lidas de ``validation/gdt/reference_catalog.json``.
 Assim o mesmo teste continua válido à medida que o catálogo cresce.
 
 Este script NÃO calibra threshold e NÃO valida as novas classes em CAD real.
@@ -59,7 +59,7 @@ def _expected_active_classes() -> set[str]:
 def main() -> None:
     expected_active_classes = _expected_active_classes()
 
-    # 1) Copia/prepara as referências versionadas de cotas/ para o catálogo local.
+    # 1) Prepara referências e exige cobertura completa de cotas/ pelo manifesto.
     _run([sys.executable, str(SCRIPTS_DIR / "sync_phase4_templates.py")])
 
     # 2) Pontua o caso 41 com todas as classes válidas. O círculo usado no
@@ -101,24 +101,30 @@ def main() -> None:
 
     active_classes = set(scores.get("classes", []))
     missing_classes = sorted(expected_active_classes - active_classes)
+    unexpected_classes = sorted(active_classes - expected_active_classes)
+
     metrics = evaluation.get("ranking_metrics", {})
     correct = int(metrics.get("correct", 0))
     total = int(metrics.get("total", 0))
     accuracy = float(metrics.get("accuracy", 0.0))
 
     ranking_pass = total == 6 and correct == 6 and accuracy == 1.0
-    catalog_pass = not missing_classes
+    catalog_pass = not missing_classes and not unexpected_classes
     passed = ranking_pass and catalog_pass
 
     print("\n=== Phase 4 regression summary ===")
     print("expected_active_classes=" + ",".join(sorted(expected_active_classes)))
     print("active_classes=" + ",".join(sorted(active_classes)))
+    print(f"expected_class_count={len(expected_active_classes)}")
+    print(f"active_class_count={len(active_classes)}")
     print("negative_controls_active=False")
     print(f"case41_ranking={correct}/{total}")
     print(f"case41_ranking_accuracy={accuracy:.3f}")
     print("threshold_calibrated=False")
     if missing_classes:
         print("missing_classes=" + ",".join(missing_classes))
+    if unexpected_classes:
+        print("unexpected_classes=" + ",".join(unexpected_classes))
     print(f"phase4_case41_regression={'PASS' if passed else 'FAIL'}")
     print(f"scores={SCORES_PATH}")
     print(f"evaluation={EVALUATION_PATH}")
