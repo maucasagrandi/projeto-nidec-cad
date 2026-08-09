@@ -8,6 +8,12 @@ Esta etapa NÃO decide conformidade e NÃO usa LLM. Ela apenas:
 4. compara o crop contra templates organizados por classe;
 5. devolve todos os scores, melhor classe, segunda melhor e margem.
 
+Além das correlações ``gray/binary/edges``, a Fase 4 usa um componente
+``structure`` que compara a forma INTEIRA do símbolo (mapa de ocupação e
+projeções horizontal/vertical). Isso reduz falsos rankings em que um símbolo
+simples, como Straightness, encaixa apenas em um subtrecho de um símbolo mais
+complexo, como Position.
+
 Nenhum threshold de aceitação é aplicado aqui de propósito. Thresholds serão
 calibrados depois usando a distribuição dos scores em casos rotulados.
 """
@@ -25,8 +31,12 @@ import numpy as np
 from src.gdt.detector import BBox, GdtFrameCandidate
 
 REPRESENTATIONS = ("gray", "binary", "edges")
+STRUCTURE_COMPONENT = "structure"
+SCORE_COMPONENTS = REPRESENTATIONS + (STRUCTURE_COMPONENT,)
 DEFAULT_TARGET_SIZE = 48
 DEFAULT_MARGIN = 10
+DEFAULT_STRUCTURE_GRID = 12
+DEFAULT_PROJECTION_BINS = 16
 
 
 @dataclass(frozen=True)
@@ -195,7 +205,7 @@ def canonicalize(
 
 
 def derive_representations(gray: np.ndarray) -> Dict[str, np.ndarray]:
-    """Gera representações complementares para comparação."""
+    """Gera representações complementares para comparação local."""
 
     gray = normalize_gray(gray)
     _, binary = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
@@ -206,6 +216,84 @@ def derive_representations(gray: np.ndarray) -> Dict[str, np.ndarray]:
 def _prepare_forms(gray: np.ndarray, *, target_size: int, margin: int) -> Tuple[Dict[str, np.ndarray], Dict[str, np.ndarray]]:
     search, tight = canonicalize(gray, target_size=target_size, margin=margin)
     return derive_representations(search), derive_representations(tight)
+
+
+def _foreground_mask(gray: np.ndarray) -> np.ndarray:
+    """Máscara binária de tinta (1=traço, 0=fundo), robusta a espessura básica."""
+
+    normalized = normalize_gray(gray)
+    if normalized.size == 0:
+        return np.zeros_like(normalized, dtype=np.float32)
+    _, ink = cv2.threshold(
+        normalized,
+        0,
+        255,
+        cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU,
+    )
+    return (ink > 0).astype(np.float32)
+
+
+def _structural_descriptor(
+    gray: np.ndarray,
+    *,
+    grid_size: int = DEFAULT_STRUCTURE_GRID,
+    projection_bins: int = DEFAULT_PROJECTION_BINS,
+) -> np.ndarray:
+    """Descreve a forma global sem tentar reconhecer nenhuma classe específica.
+
+    O vetor combina:
+    - ocupação espacial em uma grade baixa resolução;
+    - projeção de tinta ao longo do eixo horizontal;
+    - projeção de tinta ao longo do eixo vertical.
+
+    Isso diferencia, por exemplo, um alvo Position de uma linha Straightness
+    mesmo quando a linha horizontal do alvo produz alta correlação local.
+    """
+
+    mask = _foreground_mask(gray)
+    if mask.size == 0 or float(mask.sum()) == 0.0:
+        return np.zeros(grid_size * grid_size + 2 * projection_bins, dtype=np.float32)
+
+    horizontal = mask.mean(axis=1).astype(np.float32)
+    vertical = mask.mean(axis=0).astype(np.float32)
+
+    h_bins = cv2.resize(
+        horizontal.reshape(-1, 1),
+        (1, projection_bins),
+        interpolation=cv2.INTER_AREA,
+    ).reshape(-1)
+    v_bins = cv2.resize(
+        vertical.reshape(1, -1),
+        (projection_bins, 1),
+        interpolation=cv2.INTER_AREA,
+    ).reshape(-1)
+    grid = cv2.resize(
+        mask,
+        (grid_size, grid_size),
+        interpolation=cv2.INTER_AREA,
+    ).reshape(-1)
+
+    descriptor = np.concatenate([grid, h_bins, v_bins]).astype(np.float32)
+    descriptor -= float(descriptor.mean())
+    norm = float(np.linalg.norm(descriptor))
+    if norm > 1e-8:
+        descriptor /= norm
+    return descriptor
+
+
+def _structure_score(a: np.ndarray, b: np.ndarray) -> float:
+    """Similaridade cosseno entre descritores estruturais, limitada a [-1, 1]."""
+
+    if a.size == 0 or b.size == 0:
+        return -1.0
+    norm_a = float(np.linalg.norm(a))
+    norm_b = float(np.linalg.norm(b))
+    if norm_a <= 1e-8 or norm_b <= 1e-8:
+        return -1.0
+    score = float(np.dot(a, b) / (norm_a * norm_b))
+    if not np.isfinite(score):
+        return -1.0
+    return max(-1.0, min(1.0, score))
 
 
 def _match_score(search: np.ndarray, template: np.ndarray) -> float:
@@ -265,9 +353,16 @@ def score_crop(
     target_size: int = DEFAULT_TARGET_SIZE,
     margin: int = DEFAULT_MARGIN,
 ) -> Tuple[Dict[str, float], List[TemplateScore]]:
-    """Compara um crop contra todos os templates e agrega melhor score por classe."""
+    """Compara um crop contra todos os templates e agrega melhor score por classe.
 
-    search_reps, _ = _prepare_forms(crop, target_size=target_size, margin=margin)
+    O score final de cada template é a média simples de quatro componentes:
+    ``gray``, ``binary``, ``edges`` e ``structure``. A média continua sendo
+    apenas ranking diagnóstico; não é probabilidade nem threshold de aceitação.
+    """
+
+    search_reps, tight_reps = _prepare_forms(crop, target_size=target_size, margin=margin)
+    crop_structure = _structural_descriptor(tight_reps["gray"])
+
     template_scores: List[TemplateScore] = []
     class_scores: Dict[str, float] = {}
 
@@ -276,7 +371,12 @@ def score_crop(
             rep: _match_score(search_reps[rep], template.representations[rep])
             for rep in REPRESENTATIONS
         }
-        mean_score = float(np.mean([rep_scores[rep] for rep in REPRESENTATIONS]))
+        rep_scores[STRUCTURE_COMPONENT] = _structure_score(
+            crop_structure,
+            _structural_descriptor(template.representations["gray"]),
+        )
+
+        mean_score = float(np.mean([rep_scores[rep] for rep in SCORE_COMPONENTS]))
         item = TemplateScore(
             class_name=template.class_name,
             template_name=template.template_name,
