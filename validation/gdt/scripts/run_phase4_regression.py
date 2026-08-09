@@ -7,7 +7,8 @@ As classes esperadas são lidas de ``validation/gdt/reference_catalog.json``.
 Assim o mesmo teste continua válido à medida que o catálogo cresce.
 
 Este script NÃO calibra threshold e NÃO valida as novas classes em CAD real.
-Ele apenas testa competição entre classes no caso de referência.
+Ele testa competição entre classes no caso de referência e gera um diagnóstico
+separado de similaridade template-a-template.
 
 Uso:
     python validation/gdt/scripts/run_phase4_regression.py
@@ -34,6 +35,7 @@ TEMPLATE_ROOT = PROJECT_ROOT / "assets" / "gdt" / "templates"
 OUTPUT_DIR = PROJECT_ROOT / "validation" / "gdt" / "outputs" / "phase4" / CASE_ID
 SCORES_PATH = OUTPUT_DIR / "symbol_scores.json"
 EVALUATION_PATH = OUTPUT_DIR / "symbol_evaluation.json"
+COMPETITION_PATH = PROJECT_ROOT / "validation" / "gdt" / "outputs" / "phase4" / "template_competition.json"
 IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp"}
 
 
@@ -90,7 +92,22 @@ def main() -> None:
     # 1) Prepara referências e exige cobertura completa de cotas/ pelo manifesto.
     _run([sys.executable, str(SCRIPTS_DIR / "sync_phase4_templates.py")])
 
-    # 2) Pontua o caso 41 com todas as classes válidas. O círculo usado no
+    # 2) Diagnóstico auxiliar de competição visual entre classes. Não é uma
+    # validação em CAD e não produz threshold; serve para apontar pares próximos.
+    _run(
+        [
+            sys.executable,
+            str(SCRIPTS_DIR / "analyze_template_competition.py"),
+            "--templates",
+            str(TEMPLATE_ROOT),
+            "--exclude-class",
+            "negative_controls",
+            "--output",
+            str(COMPETITION_PATH),
+        ]
+    )
+
+    # 3) Pontua o caso 41 com todas as classes válidas. O círculo usado no
     # experimento inicial como controle negativo é excluído porque agora ele é
     # um símbolo válido de Circularity e não pode competir como classe negativa.
     _run(
@@ -108,7 +125,7 @@ def main() -> None:
         ]
     )
 
-    # 3) Avalia somente contra o ground truth independente já existente.
+    # 4) Avalia somente contra o ground truth independente já existente.
     _run(
         [
             sys.executable,
@@ -154,6 +171,7 @@ def main() -> None:
     if unexpected_classes:
         print("unexpected_classes=" + ",".join(unexpected_classes))
     print(f"phase4_case41_regression={'PASS' if passed else 'FAIL'}")
+    print(f"template_competition={COMPETITION_PATH}")
     print(f"scores={SCORES_PATH}")
     print(f"evaluation={EVALUATION_PATH}")
     print(f"contact_sheet={OUTPUT_DIR / 'symbol_contact_sheet.png'}")
