@@ -102,6 +102,12 @@ def main() -> None:
     parser.add_argument("--margin", type=int, default=DEFAULT_MARGIN)
     parser.add_argument("--dpi", type=int, default=300)
     parser.add_argument("--output-root", default="validation/gdt/outputs")
+    parser.add_argument(
+        "--exclude-class",
+        action="append",
+        default=[],
+        help="Classe de template a ignorar; pode repetir. Útil para controles legados.",
+    )
     args = parser.parse_args()
 
     case_path = _project_path(args.case)
@@ -126,6 +132,13 @@ def main() -> None:
         target_size=args.target_size,
         margin=args.margin,
     )
+
+    excluded_classes = {str(name).strip().lower() for name in args.exclude_class if str(name).strip()}
+    if excluded_classes:
+        templates = [template for template in templates if template.class_name not in excluded_classes]
+    if not templates:
+        raise ValueError("Nenhum template ativo após aplicar --exclude-class.")
+
     scored = score_candidates(
         candidates,
         page_gray,
@@ -158,7 +171,7 @@ def main() -> None:
 
     classes = sorted({template.class_name for template in templates})
     payload = {
-        "schema_version": 1,
+        "schema_version": 2,
         "phase": "symbol_scoring",
         "decision_applied": False,
         "case_id": case_id,
@@ -168,6 +181,7 @@ def main() -> None:
         "template_root": str(template_root),
         "template_count": len(templates),
         "classes": classes,
+        "excluded_classes": sorted(excluded_classes),
         "config": {
             "dpi": args.dpi,
             "target_size": args.target_size,
@@ -189,6 +203,8 @@ def main() -> None:
     print(f"candidates={len(candidates)}")
     print(f"templates={len(templates)}")
     print(f"classes={','.join(classes)}")
+    if excluded_classes:
+        print(f"excluded_classes={','.join(sorted(excluded_classes))}")
     print("decision_applied=False")
     print(f"output={output_path}")
     print(f"contact_sheet={contact_path}")
