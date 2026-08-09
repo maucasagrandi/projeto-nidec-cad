@@ -37,7 +37,7 @@ SCORES_PATH = OUTPUT_DIR / "symbol_scores.json"
 EVALUATION_PATH = OUTPUT_DIR / "symbol_evaluation.json"
 COMPETITION_PATH = PROJECT_ROOT / "validation" / "gdt" / "outputs" / "phase4" / "template_competition.json"
 IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp"}
-COMPONENT_ORDER = ("gray", "binary", "edges", "structure")
+COMPONENT_ORDER = ("gray", "binary", "edges", "structure", "hog")
 
 
 def _run(command: list[str]) -> None:
@@ -139,34 +139,21 @@ def _print_real_frame_rankings(evaluation: dict, scores: dict) -> None:
             f"best={best} best_score={score_text} margin={margin_text} correct={correct}"
         )
 
-        # Se houver erro de ranking, mostra os quatro componentes da classe
-        # esperada e da vencedora. Isso permite corrigir o método sem escolher
-        # pesos/heurísticas no escuro a partir de apenas um score agregado.
         if correct is False:
             score_row = score_by_candidate.get(candidate_id, {})
             expected_template = _best_template_for_class(score_row, expected)
             best_template = _best_template_for_class(score_row, best)
-            print(
-                "    expected_components: "
-                + _format_components(expected_template)
-            )
-            print(
-                "    winner_components:   "
-                + _format_components(best_template)
-            )
+            print("    expected_components: " + _format_components(expected_template))
+            print("    winner_components:   " + _format_components(best_template))
 
 
 def main() -> None:
     expected_active_classes = _expected_active_classes()
 
-    # Position/Profile são templates-base locais já validados no caso 41.
     _check_base_templates()
 
-    # 1) Prepara referências e exige cobertura completa de cotas/ pelo manifesto.
     _run([sys.executable, str(SCRIPTS_DIR / "sync_phase4_templates.py")])
 
-    # 2) Diagnóstico auxiliar de competição visual entre classes. Não é uma
-    # validação em CAD e não produz threshold; serve para apontar pares próximos.
     _run(
         [
             sys.executable,
@@ -180,9 +167,6 @@ def main() -> None:
         ]
     )
 
-    # 3) Pontua o caso 41 com todas as classes válidas. O círculo usado no
-    # experimento inicial como controle negativo é excluído porque agora ele é
-    # um símbolo válido de Circularity e não pode competir como classe negativa.
     _run(
         [
             sys.executable,
@@ -198,7 +182,6 @@ def main() -> None:
         ]
     )
 
-    # 4) Avalia somente contra o ground truth independente já existente.
     _run(
         [
             sys.executable,
