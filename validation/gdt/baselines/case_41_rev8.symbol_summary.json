@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "case_id": "case_41_rev8",
+  "phase": "symbol_scoring",
+  "baseline_type": "diagnostic_summary",
+  "decision_threshold_calibrated": false,
+  "candidate_count": 11,
+  "template_count": 3,
+  "classes": [
+    "negative_controls",
+    "position",
+    "profile"
+  ],
+  "real_frames": 6,
+  "ranking_correct": 6,
+  "ranking_accuracy": 1.0,
+  "extra_candidates": 5,
+  "separation": {
+    "best_score_gap": 0.046,
+    "margin_gap": 0.030
+  },
+  "status": "PASS_DIAGNOSTIC",
+  "notes": [
+    "Reproduced by the local Phase 2 pipeline after strict internal-cell refinement.",
+    "This baseline validates ranking on case 41 only; it must not be used to choose final acceptance thresholds.",
+    "Threshold calibration is deferred until multiple independently annotated CADs are aggregated."
+  ]
+}
