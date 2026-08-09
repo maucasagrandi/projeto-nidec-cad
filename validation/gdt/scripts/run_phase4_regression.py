@@ -30,9 +30,11 @@ CASE_PATH = PROJECT_ROOT / "validation" / "gdt" / "cases" / f"{CASE_ID}.json"
 GT_PATH = PROJECT_ROOT / "validation" / "gdt" / "ground_truth" / f"{CASE_ID}.json"
 GEOMETRY_BASELINE = PROJECT_ROOT / "validation" / "gdt" / "baselines" / f"{CASE_ID}.geometry.json"
 REFERENCE_CATALOG = PROJECT_ROOT / "validation" / "gdt" / "reference_catalog.json"
+TEMPLATE_ROOT = PROJECT_ROOT / "assets" / "gdt" / "templates"
 OUTPUT_DIR = PROJECT_ROOT / "validation" / "gdt" / "outputs" / "phase4" / CASE_ID
 SCORES_PATH = OUTPUT_DIR / "symbol_scores.json"
 EVALUATION_PATH = OUTPUT_DIR / "symbol_evaluation.json"
+IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp"}
 
 
 def _run(command: list[str]) -> None:
@@ -56,8 +58,34 @@ def _expected_active_classes() -> set[str]:
     return classes
 
 
+def _has_image_template(class_name: str) -> bool:
+    class_dir = TEMPLATE_ROOT / class_name
+    if not class_dir.exists():
+        return False
+    return any(
+        path.is_file() and path.suffix.lower() in IMAGE_SUFFIXES
+        for path in class_dir.iterdir()
+    )
+
+
+def _check_base_templates() -> None:
+    missing = [name for name in ("position", "profile") if not _has_image_template(name)]
+    if not missing:
+        return
+
+    print("missing_base_templates=" + ",".join(missing))
+    print(
+        "Rode register_templates.py novamente com os arquivos de Position/Profile "
+        "antes da regressão da Fase 4."
+    )
+    raise SystemExit(2)
+
+
 def main() -> None:
     expected_active_classes = _expected_active_classes()
+
+    # Position/Profile são templates-base locais já validados no caso 41.
+    _check_base_templates()
 
     # 1) Prepara referências e exige cobertura completa de cotas/ pelo manifesto.
     _run([sys.executable, str(SCRIPTS_DIR / "sync_phase4_templates.py")])
@@ -72,7 +100,7 @@ def main() -> None:
             "--case",
             str(CASE_PATH),
             "--templates",
-            str(PROJECT_ROOT / "assets" / "gdt" / "templates"),
+            str(TEMPLATE_ROOT),
             "--exclude-class",
             "negative_controls",
             "--output-root",
