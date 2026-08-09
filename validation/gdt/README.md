@@ -165,7 +165,7 @@ Os scripts de descoberta, inicialização e agregação permanecem versionados p
 
 A Fase 4 amplia as classes visuais sem alterar a geometria nem criar regras de compliance.
 
-### Referências humanas
+### Referências humanas e manifesto
 
 As imagens fornecidas ficam versionadas em:
 
@@ -181,24 +181,49 @@ validation/gdt/reference_catalog.json
 
 Isso torna a expansão data-driven: novas referências entram pelo manifesto, sem hardcode no classificador.
 
-### Primeiro lote
+O catálogo atual possui 12 referências novas que resultam em 11 classes visuais canônicas. Com `position` e `profile`, a regressão espera 13 classes ativas:
 
 ```text
-position       # já existente
-profile        # já existente
+position
+profile
 straightness
 flatness
-circularity    # referência recebida como Roundness
+circularity            # Roundness -> circularity
 cylindricity
+parallelism
+perpendicularity
+angularity
+circular_runout
+total_runout
+concentricity_coaxiality
+symmetry
 ```
 
-Sincronizar `cotas/` para o catálogo semântico:
+`Concentricity.png` e `Coaxiality.png` são preservados como duas referências humanas, mas alimentam a mesma classe visual `concentricity_coaxiality`. Se a norma/edição exigir uma distinção semântica, ela será resolvida na camada determinística, não inventada pelo crop visual.
+
+Da mesma forma, a presença de `symmetry` no catálogo visual não afirma ainda sua aplicabilidade em qualquer edição da ISO 1101. Aplicabilidade normativa é uma etapa posterior.
+
+### Sincronização e cobertura
 
 ```powershell
 python validation/gdt/scripts/sync_phase4_templates.py
 ```
 
-O script aplica apenas normalização de contraste e trim de whitespace externo. Ele não redesenha o símbolo.
+O script:
+
+1. lê `reference_catalog.json`;
+2. localiza cada referência em `cotas/`;
+3. aplica somente normalização de contraste e trim de whitespace externo;
+4. grava cópias semânticas em `assets/gdt/templates/<classe>/`;
+5. falha se uma referência do manifesto estiver ausente;
+6. falha se existir uma imagem em `cotas/` sem entrada no manifesto;
+7. falha se houver colisão/duplicidade de destino.
+
+Existe também um teste de consistência do catálogo:
+
+```powershell
+pytest tests/gdt/test_reference_catalog.py -q
+```
 
 ### Mudança importante nos controles negativos
 
@@ -214,13 +239,14 @@ python validation/gdt/scripts/run_phase4_regression.py
 
 Esse comando:
 
-1. sincroniza as referências ativas do manifesto;
-2. pontua o caso 41 com todas as classes válidas;
+1. sincroniza e valida cobertura de todas as referências ativas do manifesto;
+2. pontua o caso 41 com as 13 classes visuais esperadas;
 3. exclui `negative_controls` da competição;
-4. avalia contra o ground truth independente já existente;
-5. exige que os 3 Position + 3 Profile continuem 6/6 no ranking.
+4. rejeita classes ausentes **e classes inesperadas/stale**;
+5. avalia contra o ground truth independente já existente;
+6. exige que os 3 Position + 3 Profile continuem 6/6 no ranking.
 
-Ele **não valida as novas classes em CAD real** e **não calibra threshold**. É um teste de regressão/competição entre classes.
+Ele **não valida as classes novas em CAD real** e **não calibra threshold**. É um teste de regressão/competição entre classes.
 
 ---
 
