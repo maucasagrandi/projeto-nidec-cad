@@ -18,7 +18,14 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from pathlib import Path
+
+# Permite executar este arquivo diretamente com `python validation/.../script.py`
+# sem exigir instalação do pacote nem configuração manual de PYTHONPATH.
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.gdt.detector import GdtFrameDetector
 
@@ -42,19 +49,25 @@ def _candidate_to_dict(candidate) -> dict:
     }
 
 
+def _project_path(path_value: str | Path) -> Path:
+    """Resolve caminhos relativos sempre a partir da raiz do repositório."""
+    path = Path(path_value)
+    return path if path.is_absolute() else PROJECT_ROOT / path
+
+
 def _resolve_case(args) -> tuple[str, Path, int, dict]:
     if args.case:
-        config_path = Path(args.case)
+        config_path = _project_path(args.case)
         config = json.loads(config_path.read_text(encoding="utf-8"))
         case_id = str(config["case_id"])
-        pdf_path = Path(config["pdf"])
+        pdf_path = _project_path(config["pdf"])
         page_index = int(config.get("page_index", 0))
         return case_id, pdf_path, page_index, config
 
     if not args.pdf or not args.case_id:
         raise SystemExit("Use --case OU informe --pdf e --case-id.")
 
-    return args.case_id, Path(args.pdf), args.page_index, {}
+    return args.case_id, _project_path(args.pdf), args.page_index, {}
 
 
 def main() -> None:
@@ -76,7 +89,7 @@ def main() -> None:
     candidates = detector.detect_frames(pdf_bytes, page_index=page_index)
     debug_image = detector.render_debug_image(candidates)
 
-    output_dir = Path(args.output_root) / case_id
+    output_dir = _project_path(args.output_root) / case_id
     output_dir.mkdir(parents=True, exist_ok=True)
 
     payload = {
