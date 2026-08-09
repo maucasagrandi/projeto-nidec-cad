@@ -24,28 +24,47 @@ assets/gdt/templates/
 
 - nomes de pasta são semânticos e canônicos;
 - uma pasta por classe visual;
-- várias imagens da mesma classe podem coexistir (`position_01.png`, `position_02.png`...);
-- screenshots de tabelas ISO inteiras não entram aqui: somente símbolos/templates usados para comparação;
-- `Roundness` é tratado como alias de entrada de `circularity`;
+- várias imagens da mesma classe podem coexistir;
+- screenshots de tabelas ISO inteiras não entram como template;
+- `Roundness` é normalizado para `circularity`;
 - `Concentricity` e `Coaxiality` são preservados como termos de origem, mas entram na mesma classe visual `concentricity_coaxiality`;
 - reconhecer uma classe visual não decide ainda se aquela característica é válida/aplicável para uma edição específica da ISO 1101;
 - as imagens humanas/versionadas ficam em `cotas/`; `sync_phase4_templates.py` prepara as cópias usadas pelo scorer.
 
-## Importante: círculo não é mais controle negativo
+## Scoring visual
 
-No primeiro experimento, um círculo simples foi usado como `negative_controls`. A partir
-da Fase 4 isso deixa de ser válido, porque o círculo é o símbolo de
-`circularity`/roundness.
+A Fase 4 usa quatro componentes por comparação template/crop:
 
-Por isso a regressão da Fase 4 executa o scorer com:
+```text
+gray
+binary
+edges
+structure
+```
+
+Os três primeiros medem correlação visual local. `structure` compara a forma inteira do símbolo por meio de:
+
+- mapa de ocupação em baixa resolução;
+- projeção horizontal dos traços;
+- projeção vertical dos traços.
+
+A motivação é evitar que um símbolo simples, como `straightness`, vença por encaixar apenas em um subtrecho de um símbolo mais complexo, como `position`.
+
+O score do template é a média simples desses quatro componentes e a classe usa o melhor template disponível.
+
+**O resultado continua sendo somente ranking diagnóstico.** Não é probabilidade, não é regra ISO e nenhum threshold `ACCEPTED / AMBIGUOUS / UNKNOWN` foi calibrado.
+
+## Importante: círculo não é controle negativo
+
+No primeiro experimento, um círculo simples foi usado como `negative_controls`. A partir da Fase 4 isso deixa de ser válido, porque o círculo é o símbolo de `circularity`/roundness.
+
+Por isso a regressão executa o scorer com:
 
 ```text
 --exclude-class negative_controls
 ```
 
-Candidatos geométricos extras continuam sendo a população negativa para
-calibração futura de `ACCEPTED / AMBIGUOUS / UNKNOWN`; não precisamos de uma
-classe visual artificial chamada "negative".
+Candidatos geométricos extras continuam sendo a população negativa para calibração futura.
 
 ## Fase 4 — catálogo expandido
 
@@ -71,21 +90,20 @@ O mapeamento completo filename -> classe canônica está em:
 validation/gdt/reference_catalog.json
 ```
 
-Sincronização das referências versionadas em `cotas/`:
+Sincronização:
 
 ```powershell
 python validation/gdt/scripts/sync_phase4_templates.py
 ```
 
-O sync também verifica cobertura: se existir uma imagem em `cotas/` que não
-esteja registrada no manifesto, ele falha explicitamente.
+O sync também verifica cobertura: se existir uma imagem em `cotas/` não registrada no manifesto, ele falha explicitamente.
 
-Regressão no caso 41:
+Regressão:
 
 ```powershell
 python validation/gdt/scripts/run_phase4_regression.py
 ```
 
-Essa regressão verifica apenas que a expansão do catálogo não rouba as seis
-classificações `Position/Profile` já validadas. Ela **não** valida ainda as
-classes novas em CAD real e **não** calibra threshold.
+A regressão agora imprime os seis quadros reais individualmente e exige que os 3 `Position` + 3 `Profile` continuem 6/6.
+
+Ela **não** valida ainda as classes novas em CAD real e **não** calibra threshold.
