@@ -23,7 +23,10 @@ class FrameMatch:
     ground_truth_id: str
     candidate_id: Optional[str]
     iou: float
+    overlap_smallest: float
+    area_ratio: float
     matched: bool
+    match_reason: str = ""
 
 
 @dataclass
@@ -82,7 +85,10 @@ class GeometryMetrics:
                     "ground_truth_id": match.ground_truth_id,
                     "candidate_id": match.candidate_id,
                     "iou": round(match.iou, 4),
+                    "overlap_smallest": round(match.overlap_smallest, 4),
+                    "area_ratio": round(match.area_ratio, 4),
                     "matched": match.matched,
+                    "match_reason": match.match_reason,
                 }
                 for match in self.matches
             ],
