@@ -26,7 +26,9 @@ from typing import List, Optional, Sequence
 from src.gdt.detector import GdtFrameCandidate
 
 _DIAMETER_GLYPHS = {"⌀", "Ø", "∅"}
-_NUMBER_RE = re.compile(r"(?<![A-Za-z0-9])([+-]?\d+(?:[.,]\d+)?)(?![A-Za-z0-9])")
+_NUMBER_RE = re.compile(
+    r"(?<![A-Za-z0-9])([+-]?(?:\d+(?:[.,]\d+)?|[.,]\d+))(?![A-Za-z0-9])"
+)
 _SINGLE_LETTER_RE = re.compile(r"^[A-Z]$")
 
 
@@ -74,8 +76,15 @@ def _extract_first_number(tokens: Sequence[str]) -> tuple[Optional[str], Optiona
         if not match:
             continue
         raw = match.group(1)
+        normalized = raw.replace(",", ".")
+        if normalized.startswith("."):
+            normalized = "0" + normalized
+        elif normalized.startswith("+."):
+            normalized = "+0" + normalized[1:]
+        elif normalized.startswith("-."):
+            normalized = "-0" + normalized[1:]
         try:
-            value = float(raw.replace(",", "."))
+            value = float(normalized)
         except ValueError:
             continue
         return raw, value
