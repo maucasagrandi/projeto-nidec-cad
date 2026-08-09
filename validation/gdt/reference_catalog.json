@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "source_root": "cotas",
+  "template_root": "assets/gdt/templates",
+  "notes": [
+    "As imagens em cotas/ sao referencias humanas/versionadas.",
+    "O sync prepara copias semanticas para o classificador.",
+    "Roundness e normalizado para a classe canonica circularity.",
+    "negative_controls nao deve conter um circulo quando circularity estiver ativa."
+  ],
+  "entries": [
+    {
+      "source": "straightness.png",
+      "class_name": "straightness",
+      "target_name": "straightness_01.png",
+      "status": "active"
+    },
+    {
+      "source": "flatness.png",
+      "class_name": "flatness",
+      "target_name": "flatness_01.png",
+      "status": "active"
+    },
+    {
+      "source": "Roundness.png",
+      "class_name": "circularity",
+      "target_name": "circularity_01.png",
+      "status": "active",
+      "source_term": "Roundness"
+    },
+    {
+      "source": "Cylindricity .png",
+      "class_name": "cylindricity",
+      "target_name": "cylindricity_01.png",
+      "status": "active"
+    }
+  ]
+}
