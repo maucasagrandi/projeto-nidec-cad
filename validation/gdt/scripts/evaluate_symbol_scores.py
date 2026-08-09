@@ -1,16 +1,10 @@
-"""Avalia os scores visuais da Fase 2 contra a baseline geométrica.
+"""Avalia os scores visuais contra a baseline geometrica.
 
-Este script NÃO calibra threshold. Ele mede apenas:
-- acerto de ranking da classe nos quadros reais localizados;
-- scores/margens dos quadros reais;
-- comportamento dos candidatos geométricos extras;
-- existência (ou não) de gap entre reais e extras.
+A avaliacao distingue classes SUPORTADAS pelo catalogo atual de classes ainda
+nao suportadas (por exemplo ``unknown`` durante a Fase 3). Classes nao
+suportadas continuam registradas, mas nao contam como erro de ranking.
 
-Uso:
-    python validation/gdt/scripts/evaluate_symbol_scores.py \
-      --scores validation/gdt/outputs/case_41_rev8/symbol_scores.json \
-      --ground-truth validation/gdt/ground_truth/case_41_rev8.json \
-      --geometry-baseline validation/gdt/baselines/case_41_rev8.geometry.json
+Este script NAO calibra threshold.
 """
 
 from __future__ import annotations
@@ -20,6 +14,7 @@ import json
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
+NEGATIVE_CLASS_NAMES = {"negative_controls", "negative", "background"}
 
 
 def _project_path(value: str | Path) -> Path:
@@ -56,12 +51,19 @@ def main() -> None:
     ground_truth = _load(gt_path)
     baseline = _load(baseline_path)
 
+    supported_classes = {
+        str(name).lower()
+        for name in scores.get("classes", [])
+        if str(name).lower() not in NEGATIVE_CLASS_NAMES
+    }
+
     gt_by_id = {item["id"]: item for item in ground_truth.get("frames", [])}
     score_by_candidate = {item["candidate_id"]: item for item in scores.get("results", [])}
 
-    real_rows = []
+    supported_rows: list[dict] = []
+    unsupported_rows: list[dict] = []
     correct = 0
-    total = 0
+
     for match in baseline.get("matches", []):
         gt_id = match["ground_truth_id"]
         candidate_id = match.get("candidate_id")
@@ -71,23 +73,27 @@ def main() -> None:
         expected = str(gt_by_id[gt_id]["characteristic"]).lower()
         scored = score_by_candidate[candidate_id]
         predicted = scored.get("best_class")
-        is_correct = predicted == expected
-        correct += int(is_correct)
-        total += 1
-        real_rows.append(
-            {
-                "ground_truth_id": gt_id,
-                "candidate_id": candidate_id,
-                "expected_class": expected,
-                "best_class": predicted,
-                "best_score": scored.get("best_score"),
-                "second_best_class": scored.get("second_best_class"),
-                "second_best_score": scored.get("second_best_score"),
-                "margin": scored.get("margin"),
-                "class_scores": scored.get("class_scores", {}),
-                "ranking_correct": is_correct,
-            }
-        )
+        row = {
+            "ground_truth_id": gt_id,
+            "candidate_id": candidate_id,
+            "expected_class": expected,
+            "best_class": predicted,
+            "best_score": scored.get("best_score"),
+            "second_best_class": scored.get("second_best_class"),
+            "second_best_score": scored.get("second_best_score"),
+            "margin": scored.get("margin"),
+            "class_scores": scored.get("class_scores", {}),
+        }
+
+        if expected in supported_classes:
+            is_correct = predicted == expected
+            correct += int(is_correct)
+            row["ranking_correct"] = is_correct
+            supported_rows.append(row)
+        else:
+            row["ranking_correct"] = None
+            row["evaluation_status"] = "unsupported_class_not_scored_as_error"
+            unsupported_rows.append(row)
 
     unmatched = set(baseline.get("unmatched_candidates", []))
     extra_rows = []
@@ -107,11 +113,15 @@ def main() -> None:
             }
         )
 
-    ranking_accuracy = correct / total if total else 0.0
+    total_supported = len(supported_rows)
+    ranking_accuracy = correct / total_supported if total_supported else 0.0
 
-    real_best = _numeric(real_rows, "best_score")
+    # Separacao e calculada SOMENTE com frames de classes suportadas. Um simbolo
+    # ainda desconhecido nao deve ser tratado como falso positivo/erro do
+    # classificador Position/Profile.
+    real_best = _numeric(supported_rows, "best_score")
     extra_best = _numeric(extra_rows, "best_score")
-    real_margin = _numeric(real_rows, "margin")
+    real_margin = _numeric(supported_rows, "margin")
     extra_margin = _numeric(extra_rows, "margin")
 
     min_real_best = min(real_best) if real_best else None
@@ -131,30 +141,35 @@ def main() -> None:
     )
 
     payload = {
-        "schema_version": 2,
+        "schema_version": 3,
         "phase": "symbol_scoring_evaluation",
         "decision_threshold_calibrated": False,
         "case_id": scores.get("case_id"),
-        "real_frame_count": total,
+        "supported_classes": sorted(supported_classes),
+        "matched_real_frame_count": len(supported_rows) + len(unsupported_rows),
+        "supported_real_frame_count": len(supported_rows),
+        "unsupported_real_frame_count": len(unsupported_rows),
         "extra_candidate_count": len(extra_rows),
         "ranking_metrics": {
             "correct": correct,
-            "total": total,
+            "total": total_supported,
             "accuracy": round(ranking_accuracy, 4),
-            "note": "Top-ranked class on geometrically matched real frames; not final acceptance accuracy.",
+            "note": "Only currently supported ground-truth classes count toward ranking accuracy.",
         },
         "separation_diagnostics": {
-            "min_real_best_score": round(min_real_best, 6) if min_real_best is not None else None,
+            "population": "supported_real_frames_vs_extra_geometric_candidates",
+            "min_supported_real_best_score": round(min_real_best, 6) if min_real_best is not None else None,
             "max_extra_best_score": round(max_extra_best, 6) if max_extra_best is not None else None,
             "best_score_gap": round(best_gap, 6) if best_gap is not None else None,
             "clean_best_score_separation": bool(best_gap is not None and best_gap > 0),
-            "min_real_margin": round(min_real_margin, 6) if min_real_margin is not None else None,
+            "min_supported_real_margin": round(min_real_margin, 6) if min_real_margin is not None else None,
             "max_extra_margin": round(max_extra_margin, 6) if max_extra_margin is not None else None,
             "margin_gap": round(margin_gap, 6) if margin_gap is not None else None,
             "clean_margin_separation": bool(margin_gap is not None and margin_gap > 0),
-            "note": "Diagnostics only. Do not convert these gaps into production thresholds from a single CAD.",
+            "note": "Diagnostics only. Do not derive production thresholds from one CAD.",
         },
-        "real_frames": real_rows,
+        "supported_real_frames": supported_rows,
+        "unsupported_real_frames": unsupported_rows,
         "extra_candidates": extra_rows,
     }
 
@@ -164,7 +179,9 @@ def main() -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
 
-    print(f"real_frames={total}")
+    print(f"matched_real_frames={len(supported_rows) + len(unsupported_rows)}")
+    print(f"supported_real_frames={len(supported_rows)}")
+    print(f"unsupported_real_frames={len(unsupported_rows)}")
     print(f"ranking_correct={correct}")
     print(f"ranking_accuracy={ranking_accuracy:.3f}")
     print(f"extra_candidates={len(extra_rows)}")
