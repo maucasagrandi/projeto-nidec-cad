@@ -9,20 +9,16 @@ from dotenv import load_dotenv
 # Carrega variáveis do arquivo .env
 load_dotenv()
 
-from prompts import classificacao_e_normas_prompt
+from prompts import classificacao_enriquecida_prompt
 from src.modeling.llm_models import (
-    classify_and_extract_norms,
-    infer_missing_norms,
+    classify_cad_enriched,
     extract_text_from_pdf,
 )
-from src.utils.helper_func import (
-    pdf_to_pil_images,
-)
+from src.utils.helper_func import pdf_to_pil_images
 from src.utils.cost_logger import CostLogger
-from src.utils.json_display import (
-    display_json_card,
-    display_json_expandable,
-    create_json_report,
+from src.utils.standards_applicability import (
+    get_applicable_standards,
+    compare_standards,
 )
 
 # Inicializa o logger de custos
@@ -34,19 +30,18 @@ cost_logger = CostLogger("custos.csv")
 st.set_page_config(page_title="Part Classification", layout="wide")
 
 # ==============================================================================
-# Sidebar (Minimal)
+# Sidebar
 # ==============================================================================
 logo = Image.open("./logo.png")
 st.sidebar.image(logo, width=280)
 st.sidebar.divider()
 st.sidebar.markdown("#### Powered by [MadeinWeb](https://madeinweb.com.br/)")
 
-# Botão para voltar ao menu
 if st.sidebar.button("🏠 Voltar ao Menu Principal"):
     st.switch_page("front.py")
 
 # ==============================================================================
-# Autenticação por usuário e senha
+# Autenticação
 # ==============================================================================
 def check_login() -> bool:
     """Retorna True se o usuário digitou credenciais corretas."""
@@ -85,17 +80,18 @@ if not check_login():
 # Header
 # ==============================================================================
 st.title("🔍 PART CLASSIFICATION")
-st.write("### Análise estruturada de peças CAD com extração de normas")
+st.write("### Análise estruturada de peças CAD com verificação de conformidade normativa")
 
 with st.expander("📋 INSTRUÇÕES"):
     st.markdown(
         """
         1. Faça o upload do arquivo PDF do CAD que deseja analisar.
         2. O sistema irá:
-           - **Classificar a peça** baseado no texto extraído do CAD
-           - **Extrair normas** mencionadas nas NOTES do CAD
-           - **Inferir normas faltantes** baseado no tipo de peça
-        3. Resultados serão exibidos em formato estruturado JSON para integração com sistemas externos.
+           - **Classificar a peça** (component, material, finish, series) com evidências e confiança
+           - **Determinar normas aplicáveis** via correspondência com tabela Normas.xlsx
+           - **Comparar normas citadas vs esperadas** (matching, missing, unexpected)
+           - **Calcular conformidade percentual** baseada nas normas obrigatórias
+        3. Resultados exibidos com evidências por campo, fontes de correspondência e análise de conformidade.
         """
     )
 
@@ -108,12 +104,11 @@ st.write("#### Selecione o arquivo CAD para análise")
 pdf_file = st.file_uploader("Upload do PDF", type=["pdf"], key="pdf_classification")
 
 # ==============================================================================
-# Preview do PDF carregado (primeira página)
+# Preview do PDF carregado
 # ==============================================================================
 if pdf_file:
     st.divider()
     st.write("#### Preview da primeira página")
-    
     with st.columns(1)[0]:
         pages = pdf_to_pil_images(pdf_file.read(), dpi=100)
         pdf_file.seek(0)
@@ -128,88 +123,70 @@ st.divider()
 if st.button("🚀 Analisar Peça", disabled=not pdf_file, use_container_width=True):
 
     start_time = time.time()
-    
-    # Inicializa containers para feedback
-    progress_container = st.container()
-    results_container = st.container()
 
+    progress_container = st.container()
     with progress_container:
         progress_bar = st.progress(0)
         status_text = st.empty()
 
     try:
-        # ==============================================================================
-        # ETAPA 1: Extração de texto e preparação de preview
-        # ==============================================================================
+        # ------------------------------------------------------------------
+        # ETAPA 1: Extração de texto do PDF
+        # ------------------------------------------------------------------
         status_text.text("📄 Etapa 1/3: Extraindo texto do PDF...")
-        progress_bar.progress(20)
-        
+        progress_bar.progress(10)
+
         pdf_bytes = pdf_file.read()
         pages_pil = pdf_to_pil_images(pdf_bytes, dpi=300)
         texto_notas = extract_text_from_pdf(pdf_bytes, page_index=0)
-        
-        # ==============================================================================
-        # ETAPA 2: Classificação + Extração de Normas (LLM única)
-        # ==============================================================================
-        status_text.text("🔍 Etapa 2/3: Classificando peça e extraindo normas...")
-        progress_bar.progress(50)
-        
-        # Substitui placeholder no prompt unificado
-        prompt_completo = classificacao_e_normas_prompt.replace("{{texto_extraido}}", texto_notas)
-        
-        classificacao_normas_result, classificacao_normas_metadata = classify_and_extract_norms(
+
+        # ------------------------------------------------------------------
+        # ETAPA 2: Classificação Enriquecida (LLM com evidências)
+        # ------------------------------------------------------------------
+        status_text.text("🔍 Etapa 2/3: Classificando peça com evidências...")
+        progress_bar.progress(35)
+
+        classif_result, classif_metadata = classify_cad_enriched(
             texto_notas=texto_notas,
-            system_prompt=prompt_completo,
         )
-        cost_logger.log_analysis(classificacao_normas_metadata, page_number=1)
-        
-        # ==============================================================================
-        # ETAPA 3: Inferência de Normas Faltantes (LLM 2)
-        # ==============================================================================
-        status_text.text("🎯 Etapa 3/3: Inferindo normas faltantes...")
-        progress_bar.progress(80)
-        
-        inferencia_prompt = f"""
-Você é um especialista em normas técnicas de engenharia.
+        cost_logger.log_analysis(classif_metadata, page_number=1)
 
-Baseado na seguinte informação:
-- Tipo de peça: {classificacao_normas_result.classificacao}
-- Normas encontradas: {', '.join(classificacao_normas_result.lista_normas) if classificacao_normas_result.lista_normas else 'Nenhuma'}
+        # ------------------------------------------------------------------
+        # ETAPA 3: Determinação de Normas Aplicáveis e Comparação
+        # ------------------------------------------------------------------
+        status_text.text("📊 Etapa 3/3: Verificando conformidade normativa...")
+        progress_bar.progress(60)
 
-Identifique quais outras normas técnicas (ISO, ABNT, DIN, etc) deveriam estar aplicadas a este tipo de peça e por quê.
-Considere normas de:
-- Material e tratamento
-- Dimensionamento e tolerâncias
-- Acabamento e qualidade
-- Segurança e conformidade
-
-Retorne apenas as normas que são RECOMENDADAS e não foram encontradas no desenho.
-"""
-        
-        inferencia_result, inferencia_metadata = infer_missing_norms(
-            classificacao=classificacao_normas_result.classificacao,
-            lista_normas_atuais=classificacao_normas_result.lista_normas,
-            system_prompt=inferencia_prompt,
+        # Buscar normas aplicáveis
+        applicability_result = get_applicable_standards(
+            component=classif_result.component.value,
+            material=classif_result.material.value if classif_result.material else None,
+            finish=classif_result.finish.value if classif_result.finish else None,
         )
-        cost_logger.log_analysis(inferencia_metadata, page_number=1)
-        
+
+        # Comparar normas citadas vs esperadas
+        comparison_result = compare_standards(
+            cited_standards=classif_result.cited_standards,
+            applicable_standards=applicability_result.applicable_standards,
+        )
+
         progress_bar.progress(100)
         status_text.text("✅ Análise concluída com sucesso!")
-        
+
         total_time = time.time() - start_time
-        
-        # Salva no session_state
+
+        # Salva tudo no session_state
         st.session_state["classification_results"] = {
-            "classificacao_normas": classificacao_normas_result,
-            "inferencia": inferencia_result,
+            "classif": classif_result,
+            "applicability": applicability_result,
+            "comparison": comparison_result,
             "metadata": {
-                "classificacao_normas": classificacao_normas_metadata,
-                "inferencia": inferencia_metadata,
+                "classif": classif_metadata,
             },
             "image": pages_pil[0],
             "total_time": total_time,
         }
-        
+
         st.rerun()
 
     except Exception as e:
@@ -224,63 +201,241 @@ Retorne apenas as normas que são RECOMENDADAS e não foram encontradas no desen
 # ==============================================================================
 if "classification_results" in st.session_state:
     results = st.session_state["classification_results"]
-    
+    classif = results["classif"]
+    applicability = results["applicability"]
+    comparison = results["comparison"]
+
     st.divider()
     st.write("## 📊 Resultados da Análise")
-    
-    # Imagem da peça analisada
+
+    # --- Imagem + métricas lado a lado ---
     col_img, col_info = st.columns([1, 1])
-    
+
     with col_img:
         st.write("#### Imagem Analisada")
         image_zoom(results["image"])
-    
+
     with col_info:
         st.write("#### Informações da Análise")
-        
-        total_input_tokens = (
-            results["metadata"]["classificacao_normas"].prompt_tokens +
-            results["metadata"]["inferencia"].prompt_tokens
-        )
-        total_output_tokens = (
-            results["metadata"]["classificacao_normas"].completion_tokens +
-            results["metadata"]["inferencia"].completion_tokens
-        )
-        total_tokens = total_input_tokens + total_output_tokens
-        
-        col_tokens1, col_tokens2, col_tokens3 = st.columns(3)
-        with col_tokens1:
-            st.metric("Input Tokens", total_input_tokens)
-        with col_tokens2:
-            st.metric("Output Tokens", total_output_tokens)
-        with col_tokens3:
-            st.metric("Total Tokens", total_tokens)
-        
-        st.metric("Tempo Total de Processamento", f"{results['total_time']:.2f}s")
-    
+
+        total_input = results["metadata"]["classif"].prompt_tokens
+        total_output = results["metadata"]["classif"].completion_tokens
+
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Input Tokens", total_input)
+        c2.metric("Output Tokens", total_output)
+        c3.metric("Total Tokens", total_input + total_output)
+        st.metric("Tempo Total", f"{results['total_time']:.2f}s")
+
     st.divider()
-    
-    # ==============================================================================
-    # Exibição simples do JSON em visual
-    # ==============================================================================
-    st.write("## 📋 Resultado em JSON")
-    
-    # JSON completo
-    resultado_completo = {
-        "classificacao_e_normas": results["classificacao_normas"].model_dump(),
-        "normas_faltantes": results["inferencia"].model_dump(),
-        "metadados": {
-            "tempo_total_segundos": results["total_time"],
-            "tokens": {
-                "input": total_input_tokens,
-                "output": total_output_tokens,
-                "total": total_tokens,
+
+    # ==========================================================================
+    # BLOCO 1: Classificação da Peça com Evidências
+    # ==========================================================================
+    st.write("## 🏷️ Classificação da Peça (com Evidências)")
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.write("### Component")
+        st.info(f"**Valor:** {classif.component.value}")
+        st.caption(f"**Evidência:** {classif.component.evidence}")
+        st.caption(f"**Confiança:** {classif.component.confidence}")
+
+        st.write("### Material")
+        if classif.material:
+            st.info(f"**Valor:** {classif.material.value}")
+            st.caption(f"**Evidência:** {classif.material.evidence}")
+            st.caption(f"**Confiança:** {classif.material.confidence}")
+        else:
+            st.warning("Não identificado")
+
+    with col2:
+        st.write("### Finish")
+        if classif.finish:
+            st.info(f"**Valor:** {classif.finish.value}")
+            st.caption(f"**Evidência:** {classif.finish.evidence}")
+            st.caption(f"**Confiança:** {classif.finish.confidence}")
+        else:
+            st.warning("Não identificado")
+
+        st.write("### Series")
+        if classif.series:
+            st.info(f"**Valor:** {classif.series.value}")
+            st.caption(f"**Evidência:** {classif.series.evidence}")
+            st.caption(f"**Confiança:** {classif.series.confidence}")
+        else:
+            st.warning("Não identificado (esperado)")
+
+    st.divider()
+
+    # ==========================================================================
+    # BLOCO 2: Normas Citadas no CAD
+    # ==========================================================================
+    st.write("## 📝 Normas Citadas no CAD")
+
+    if classif.cited_standards:
+        for cited in classif.cited_standards:
+            with st.expander(f"📌 {cited.standard_code}"):
+                st.markdown(f"**Nota:** {cited.note_number}")
+                st.markdown(f"**Texto:** {cited.note_text}")
+    else:
+        st.info("Nenhuma norma citada encontrada no CAD.")
+
+    st.divider()
+
+    # ==========================================================================
+    # BLOCO 3: Normas Aplicáveis (da Tabela)
+    # ==========================================================================
+    st.write("## 📋 Normas Aplicáveis (Esperadas)")
+
+    st.write(f"**Status:** {applicability.applicability_status}")
+    if applicability.unresolved_fields:
+        st.warning(f"⚠️ Campos não resolvidos: {', '.join(applicability.unresolved_fields)}")
+
+    if applicability.applicable_standards:
+        for app_std in applicability.applicable_standards:
+            with st.expander(f"✅ {app_std.standard} — {app_std.content}"):
+                st.markdown(f"**Categoria:** {app_std.category}")
+                st.markdown(f"**Origem:** {app_std.source}")
+                st.markdown(f"**Razão:** {app_std.reason}")
+                if app_std.component_match:
+                    st.caption(f"Match de componente: {app_std.component_match}")
+                if app_std.material_match:
+                    st.caption(f"Match de material: {app_std.material_match}")
+                if app_std.finish_match:
+                    st.caption(f"Match de acabamento: {app_std.finish_match}")
+    else:
+        st.info("Nenhuma norma aplicável encontrada (campos insuficientes ou não correspondidos).")
+
+    st.divider()
+
+    # ==========================================================================
+    # BLOCO 4: Comparação de Normas
+    # ==========================================================================
+    st.write("## 🔍 Comparação: Citadas vs Esperadas")
+
+    col_match, col_miss, col_unexp = st.columns(3)
+
+    with col_match:
+        st.metric(
+            "✅ Matching",
+            len(comparison.matching_standards),
+        )
+        if comparison.matching_standards:
+            for std in comparison.matching_standards:
+                st.markdown(f"- `{std}`")
+
+    with col_miss:
+        st.metric(
+            "❌ Missing",
+            len(comparison.missing_standards),
+            delta=f"-{len(comparison.missing_standards)}" if comparison.missing_standards else None,
+            delta_color="inverse",
+        )
+        if comparison.missing_standards:
+            for std in comparison.missing_standards:
+                # Buscar detalhes na lista de normas aplicáveis
+                detail = next(
+                    (s for s in applicability.applicable_standards if s.standard == std),
+                    None
+                )
+                label = f"`{std}`"
+                if detail:
+                    label += f" — {detail.content}"
+                st.markdown(f"- {label}")
+
+    with col_unexp:
+        st.metric(
+            "🔸 Unexpected",
+            len(comparison.unexpected_standards),
+        )
+        if comparison.unexpected_standards:
+            for std in comparison.unexpected_standards:
+                st.markdown(f"- `{std}`")
+
+    # Barra de conformidade
+    if applicability.applicable_standards:
+        st.divider()
+        conformity_pct = comparison.conformity_percentage
+        st.write(f"### Conformidade: {conformity_pct:.1%}")
+        st.progress(conformity_pct)
+        
+        if conformity_pct >= 0.8:
+            st.success("✅ Conformidade satisfatória")
+        elif conformity_pct >= 0.5:
+            st.warning("⚠️ Conformidade parcial — revisar normas faltantes")
+        else:
+            st.error("❌ Conformidade insuficiente — múltiplas normas ausentes")
+
+    st.divider()
+
+    # ==========================================================================
+    # BLOCO 5: JSON completo para integração
+    # ==========================================================================
+    st.write("## 🗂️ JSON Completo")
+
+    resultado_json = {
+        "classification": {
+            "component": {
+                "value": classif.component.value,
+                "evidence": classif.component.evidence,
+                "confidence": classif.component.confidence,
+            },
+            "material": {
+                "value": classif.material.value if classif.material else None,
+                "evidence": classif.material.evidence if classif.material else None,
+                "confidence": classif.material.confidence if classif.material else None,
+            },
+            "finish": {
+                "value": classif.finish.value if classif.finish else None,
+                "evidence": classif.finish.evidence if classif.finish else None,
+                "confidence": classif.finish.confidence if classif.finish else None,
+            },
+            "series": {
+                "value": classif.series.value if classif.series else None,
+                "evidence": classif.series.evidence if classif.series else None,
+                "confidence": classif.series.confidence if classif.series else None,
+            },
+        },
+        "cited_standards": [
+            {
+                "standard_code": cs.standard_code,
+                "note_number": cs.note_number,
+                "note_text": cs.note_text,
             }
-        }
+            for cs in classif.cited_standards
+        ],
+        "applicable_standards": [
+            {
+                "standard": app.standard,
+                "content": app.content,
+                "category": app.category,
+                "source": app.source,
+                "reason": app.reason,
+            }
+            for app in applicability.applicable_standards
+        ],
+        "comparison": {
+            "matching": comparison.matching_standards,
+            "missing": comparison.missing_standards,
+            "unexpected": comparison.unexpected_standards,
+            "conformity_percentage": round(comparison.conformity_percentage, 3),
+        },
+        "metadata": {
+            "applicability_status": applicability.applicability_status,
+            "unresolved_fields": applicability.unresolved_fields,
+            "tempo_total_segundos": round(results["total_time"], 2),
+            "tokens": {
+                "input": total_input,
+                "output": total_output,
+                "total": total_input + total_output,
+            },
+        },
     }
-    
-    # Exibe em expandable JSON
-    st.json(resultado_completo)
+
+    st.json(resultado_json)
 
 elif not pdf_file:
     st.info("👆 Faça o upload de um arquivo PDF para iniciar a análise")
+
