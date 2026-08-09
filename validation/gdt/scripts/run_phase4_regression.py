@@ -83,6 +83,25 @@ def _check_base_templates() -> None:
     raise SystemExit(2)
 
 
+def _print_real_frame_rankings(evaluation: dict) -> None:
+    rows = evaluation.get("supported_real_frames", [])
+    print("\ncase41_real_frame_rankings:")
+    for row in rows:
+        expected = row.get("expected_class") or "-"
+        best = row.get("best_class") or "-"
+        candidate_id = row.get("candidate_id") or "-"
+        best_score = row.get("best_score")
+        margin = row.get("margin")
+        correct = row.get("ranking_correct")
+        score_text = f"{float(best_score):.3f}" if isinstance(best_score, (int, float)) else "n/a"
+        margin_text = f"{float(margin):.3f}" if isinstance(margin, (int, float)) else "n/a"
+        print(
+            f"  {candidate_id} expected={expected} best={best} "
+            f"score={score_text} margin={margin_text} "
+            f"correct={correct}"
+        )
+
+
 def main() -> None:
     expected_active_classes = _expected_active_classes()
 
@@ -156,6 +175,8 @@ def main() -> None:
     ranking_pass = total == 6 and correct == 6 and accuracy == 1.0
     catalog_pass = not missing_classes and not unexpected_classes
     passed = ranking_pass and catalog_pass
+
+    _print_real_frame_rankings(evaluation)
 
     print("\n=== Phase 4 regression summary ===")
     print("expected_active_classes=" + ",".join(sorted(expected_active_classes)))
