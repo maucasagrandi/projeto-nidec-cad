@@ -33,6 +33,8 @@ def main() -> None:
     parser.add_argument("--ground-truth", required=True)
     parser.add_argument("--page-index", type=int, default=0)
     parser.add_argument("--min-iou", type=float, default=0.35)
+    parser.add_argument("--min-overlap-smallest", type=float, default=0.50)
+    parser.add_argument("--max-area-ratio", type=float, default=2.50)
     parser.add_argument("--minimum-recall", type=float, default=0.95)
     parser.add_argument("--fail-on-gate", action="store_true")
     parser.add_argument(
@@ -57,18 +59,25 @@ def main() -> None:
         ground_truth_path,
         page_index=args.page_index,
         min_iou=args.min_iou,
+        min_overlap_smallest=args.min_overlap_smallest,
+        max_area_ratio=args.max_area_ratio,
     )
 
     gate_passed = metrics.passes_recall_gate(args.minimum_recall)
     official_benchmark = independent_gt
     payload = {
-        "schema_version": 2,
+        "schema_version": 3,
         "phase": "geometry",
         "official_benchmark": official_benchmark,
         "ground_truth_independent": independent_gt,
         "pdf": str(pdf_path),
         "page_index": args.page_index,
-        "min_iou": args.min_iou,
+        "matching": {
+            "min_iou": args.min_iou,
+            "min_overlap_smallest": args.min_overlap_smallest,
+            "max_area_ratio": args.max_area_ratio,
+            "rule": "iou OR (overlap_smallest AND area_ratio)",
+        },
         "candidate_count": len(candidates),
         "metrics": metrics.to_dict(minimum_recall=args.minimum_recall),
         "candidates": [
