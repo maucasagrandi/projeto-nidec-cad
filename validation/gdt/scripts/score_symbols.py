@@ -33,6 +33,8 @@ from src.gdt.detector import GdtFrameDetector
 from src.gdt.symbol_classifier import (
     DEFAULT_MARGIN,
     DEFAULT_TARGET_SIZE,
+    GLOBAL_FAMILY_WEIGHT,
+    LOCAL_FAMILY_WEIGHT,
     SCORE_COMPONENTS,
     load_template_catalog,
     render_page_gray,
@@ -172,7 +174,7 @@ def main() -> None:
 
     classes = sorted({template.class_name for template in templates})
     payload = {
-        "schema_version": 3,
+        "schema_version": 4,
         "phase": "symbol_scoring",
         "decision_applied": False,
         "case_id": case_id,
@@ -188,8 +190,13 @@ def main() -> None:
             "target_size": args.target_size,
             "margin": args.margin,
             "score_components": list(SCORE_COMPONENTS),
+            "local_family_components": ["gray", "binary", "edges"],
+            "global_family_components": ["structure", "hog"],
+            "local_family_weight": LOCAL_FAMILY_WEIGHT,
+            "global_family_weight": GLOBAL_FAMILY_WEIGHT,
             "structure_descriptor": "occupancy_grid_plus_horizontal_vertical_projections",
-            "template_score": "mean_of_score_components",
+            "hog_descriptor": "spatial_3x3_unsigned_gradient_histograms",
+            "template_score": "weighted_mean_of_local_and_global_families",
             "class_aggregation": "best_template_score_per_class",
         },
         "results": results,
@@ -207,6 +214,8 @@ def main() -> None:
     print(f"templates={len(templates)}")
     print(f"classes={','.join(classes)}")
     print(f"score_components={','.join(SCORE_COMPONENTS)}")
+    print(f"local_family_weight={LOCAL_FAMILY_WEIGHT:.2f}")
+    print(f"global_family_weight={GLOBAL_FAMILY_WEIGHT:.2f}")
     if excluded_classes:
         print(f"excluded_classes={','.join(sorted(excluded_classes))}")
     print("decision_applied=False")
