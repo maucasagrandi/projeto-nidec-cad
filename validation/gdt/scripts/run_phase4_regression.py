@@ -37,6 +37,7 @@ SCORES_PATH = OUTPUT_DIR / "symbol_scores.json"
 EVALUATION_PATH = OUTPUT_DIR / "symbol_evaluation.json"
 COMPETITION_PATH = PROJECT_ROOT / "validation" / "gdt" / "outputs" / "phase4" / "template_competition.json"
 IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp"}
+COMPONENT_ORDER = ("gray", "binary", "edges", "structure")
 
 
 def _run(command: list[str]) -> None:
@@ -83,23 +84,76 @@ def _check_base_templates() -> None:
     raise SystemExit(2)
 
 
-def _print_real_frame_rankings(evaluation: dict) -> None:
+def _best_template_for_class(score_row: dict, class_name: str) -> dict | None:
+    candidates = [
+        item
+        for item in score_row.get("templates", [])
+        if str(item.get("class_name", "")).lower() == class_name.lower()
+    ]
+    if not candidates:
+        return None
+    return max(candidates, key=lambda item: float(item.get("mean_score", -1.0)))
+
+
+def _format_components(template_row: dict | None) -> str:
+    if not template_row:
+        return "n/a"
+    scores = template_row.get("scores", {})
+    pieces: list[str] = []
+    for name in COMPONENT_ORDER:
+        value = scores.get(name)
+        if isinstance(value, (int, float)):
+            pieces.append(f"{name}={float(value):.3f}")
+    return " ".join(pieces) if pieces else "n/a"
+
+
+def _print_real_frame_rankings(evaluation: dict, scores: dict) -> None:
     rows = evaluation.get("supported_real_frames", [])
+    score_by_candidate = {
+        item.get("candidate_id"): item
+        for item in scores.get("results", [])
+        if item.get("candidate_id")
+    }
+
     print("\ncase41_real_frame_rankings:")
     for row in rows:
-        expected = row.get("expected_class") or "-"
-        best = row.get("best_class") or "-"
-        candidate_id = row.get("candidate_id") or "-"
+        expected = str(row.get("expected_class") or "-")
+        best = str(row.get("best_class") or "-")
+        candidate_id = str(row.get("candidate_id") or "-")
         best_score = row.get("best_score")
         margin = row.get("margin")
         correct = row.get("ranking_correct")
+        class_scores = row.get("class_scores", {})
+        expected_score = class_scores.get(expected)
+
         score_text = f"{float(best_score):.3f}" if isinstance(best_score, (int, float)) else "n/a"
-        margin_text = f"{float(margin):.3f}" if isinstance(margin, (int, float)) else "n/a"
-        print(
-            f"  {candidate_id} expected={expected} best={best} "
-            f"score={score_text} margin={margin_text} "
-            f"correct={correct}"
+        expected_score_text = (
+            f"{float(expected_score):.3f}"
+            if isinstance(expected_score, (int, float))
+            else "n/a"
         )
+        margin_text = f"{float(margin):.3f}" if isinstance(margin, (int, float)) else "n/a"
+
+        print(
+            f"  {candidate_id} expected={expected} expected_score={expected_score_text} "
+            f"best={best} best_score={score_text} margin={margin_text} correct={correct}"
+        )
+
+        # Se houver erro de ranking, mostra os quatro componentes da classe
+        # esperada e da vencedora. Isso permite corrigir o método sem escolher
+        # pesos/heurísticas no escuro a partir de apenas um score agregado.
+        if correct is False:
+            score_row = score_by_candidate.get(candidate_id, {})
+            expected_template = _best_template_for_class(score_row, expected)
+            best_template = _best_template_for_class(score_row, best)
+            print(
+                "    expected_components: "
+                + _format_components(expected_template)
+            )
+            print(
+                "    winner_components:   "
+                + _format_components(best_template)
+            )
 
 
 def main() -> None:
@@ -176,7 +230,7 @@ def main() -> None:
     catalog_pass = not missing_classes and not unexpected_classes
     passed = ranking_pass and catalog_pass
 
-    _print_real_frame_rankings(evaluation)
+    _print_real_frame_rankings(evaluation, scores)
 
     print("\n=== Phase 4 regression summary ===")
     print("expected_active_classes=" + ",".join(sorted(expected_active_classes)))
