@@ -1,9 +1,10 @@
-"""Valida recall geometrico de quadros GD&T contra ground truth manual.
+"""Valida recall geométrico de quadros GD&T contra ground truth manual.
 
-Uso:
-    python validation/gdt/scripts/validate_geometry.py \
-        --pdf "CAD_Review_Test_Battery_V1/2. Comparison Analysis/41/13358002_REV_8_draw_2.pdf" \
-        --ground-truth validation/gdt/ground_truth/case_41_rev8.json
+Por padrão, este script aceita somente ground truth com bboxes anotados de
+forma independente da saída do detector. Isso evita métricas circulares.
+
+Use ``--allow-candidate-assisted`` apenas para exploração/debug; nesse modo o
+resultado é marcado explicitamente como não oficial.
 """
 
 from __future__ import annotations
@@ -18,6 +19,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.gdt.geometry_validation import detect_and_validate
+from src.gdt.ground_truth import assert_independent_ground_truth, is_independent_ground_truth
 
 
 def _project_path(path_value: str | Path) -> Path:
@@ -33,12 +35,22 @@ def main() -> None:
     parser.add_argument("--min-iou", type=float, default=0.35)
     parser.add_argument("--minimum-recall", type=float, default=0.95)
     parser.add_argument("--fail-on-gate", action="store_true")
+    parser.add_argument(
+        "--allow-candidate-assisted",
+        action="store_true",
+        help="Permite GT derivado de candidatos somente para exploração/debug.",
+    )
     parser.add_argument("--output", default="validation/gdt/outputs/geometry_metrics.json")
     args = parser.parse_args()
 
     pdf_path = _project_path(args.pdf)
     ground_truth_path = _project_path(args.ground_truth)
     output = _project_path(args.output)
+
+    gt_payload = json.loads(ground_truth_path.read_text(encoding="utf-8"))
+    independent_gt = is_independent_ground_truth(gt_payload)
+    if not args.allow_candidate_assisted:
+        assert_independent_ground_truth(gt_payload)
 
     candidates, metrics = detect_and_validate(
         pdf_path,
@@ -48,9 +60,12 @@ def main() -> None:
     )
 
     gate_passed = metrics.passes_recall_gate(args.minimum_recall)
+    official_benchmark = independent_gt
     payload = {
-        "schema_version": 1,
+        "schema_version": 2,
         "phase": "geometry",
+        "official_benchmark": official_benchmark,
+        "ground_truth_independent": independent_gt,
         "pdf": str(pdf_path),
         "page_index": args.page_index,
         "min_iou": args.min_iou,
@@ -72,6 +87,8 @@ def main() -> None:
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
 
+    status = "OFFICIAL" if official_benchmark else "EXPLORATORY"
+    print(f"benchmark={status}")
     print(f"candidates={len(candidates)}")
     print(f"GT={metrics.ground_truth_count} TP={metrics.true_positives} "
           f"FN={metrics.false_negatives} FP={metrics.false_positives}")
