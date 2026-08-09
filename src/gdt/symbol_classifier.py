@@ -8,11 +8,11 @@ Esta etapa NÃO decide conformidade e NÃO usa LLM. Ela apenas:
 4. compara o crop contra templates organizados por classe;
 5. devolve todos os scores, melhor classe, segunda melhor e margem.
 
-Além das correlações ``gray/binary/edges``, a Fase 4 usa um componente
-``structure`` que compara a forma INTEIRA do símbolo (mapa de ocupação e
-projeções horizontal/vertical). Isso reduz falsos rankings em que um símbolo
-simples, como Straightness, encaixa apenas em um subtrecho de um símbolo mais
-complexo, como Position.
+A Fase 4 combina correlações locais (``gray/binary/edges``) com descritores da
+forma inteira. ``structure`` mede ocupação/projeções e ``hog`` mede a
+orientação espacial dos traços em uma grade 3x3. O objetivo é impedir que um
+símbolo simples vença só porque encaixa em um pequeno subtrecho de um símbolo
+mais complexo.
 
 Nenhum threshold de aceitação é aplicado aqui de propósito. Thresholds serão
 calibrados depois usando a distribuição dos scores em casos rotulados.
@@ -32,11 +32,14 @@ from src.gdt.detector import BBox, GdtFrameCandidate
 
 REPRESENTATIONS = ("gray", "binary", "edges")
 STRUCTURE_COMPONENT = "structure"
-SCORE_COMPONENTS = REPRESENTATIONS + (STRUCTURE_COMPONENT,)
+HOG_COMPONENT = "hog"
+SCORE_COMPONENTS = REPRESENTATIONS + (STRUCTURE_COMPONENT, HOG_COMPONENT)
 DEFAULT_TARGET_SIZE = 48
 DEFAULT_MARGIN = 10
 DEFAULT_STRUCTURE_GRID = 12
 DEFAULT_PROJECTION_BINS = 16
+DEFAULT_HOG_CELLS = 3
+DEFAULT_HOG_BINS = 9
 
 
 @dataclass(frozen=True)
@@ -93,15 +96,26 @@ class CandidateSymbolScore:
         }
 
 
-def render_page_gray(pdf_bytes: bytes, page_index: int = 0, dpi: int = 300) -> Tuple[np.ndarray, float]:
+def render_page_gray(
+    pdf_bytes: bytes,
+    page_index: int = 0,
+    dpi: int = 300,
+) -> Tuple[np.ndarray, float]:
     """Renderiza uma página PDF em grayscale e retorna (imagem, zoom)."""
 
     zoom = dpi / 72.0
     doc = fitz.open(stream=pdf_bytes, filetype="pdf")
     try:
         page = doc[page_index]
-        pix = page.get_pixmap(matrix=fitz.Matrix(zoom, zoom), colorspace=fitz.csGRAY, alpha=False)
-        arr = np.frombuffer(pix.samples, dtype=np.uint8).reshape(pix.height, pix.width)
+        pix = page.get_pixmap(
+            matrix=fitz.Matrix(zoom, zoom),
+            colorspace=fitz.csGRAY,
+            alpha=False,
+        )
+        arr = np.frombuffer(pix.samples, dtype=np.uint8).reshape(
+            pix.height,
+            pix.width,
+        )
         return arr.copy(), zoom
     finally:
         doc.close()
@@ -148,11 +162,20 @@ def normalize_gray(gray: np.ndarray) -> np.ndarray:
     low = float(np.percentile(result, 1))
     high = float(np.percentile(result, 99))
     if high - low > 1.0:
-        result = np.clip((result.astype(np.float32) - low) / (high - low) * 255.0, 0, 255).astype(np.uint8)
+        result = np.clip(
+            (result.astype(np.float32) - low) / (high - low) * 255.0,
+            0,
+            255,
+        ).astype(np.uint8)
     return result
 
 
-def crop_foreground(gray: np.ndarray, *, threshold: int = 245, padding: int = 2) -> np.ndarray:
+def crop_foreground(
+    gray: np.ndarray,
+    *,
+    threshold: int = 245,
+    padding: int = 2,
+) -> np.ndarray:
     """Remove whitespace externo do template/crop sem deformar o conteúdo."""
 
     if gray.size == 0:
@@ -181,7 +204,11 @@ def canonicalize(
     h, w = gray.shape[:2]
     if h == 0 or w == 0:
         return (
-            np.full((target_size + 2 * margin, target_size + 2 * margin), 255, np.uint8),
+            np.full(
+                (target_size + 2 * margin, target_size + 2 * margin),
+                255,
+                np.uint8,
+            ),
             np.full((target_size, target_size), 255, np.uint8),
         )
 
@@ -208,18 +235,32 @@ def derive_representations(gray: np.ndarray) -> Dict[str, np.ndarray]:
     """Gera representações complementares para comparação local."""
 
     gray = normalize_gray(gray)
-    _, binary = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+    _, binary = cv2.threshold(
+        gray,
+        0,
+        255,
+        cv2.THRESH_BINARY + cv2.THRESH_OTSU,
+    )
     edges = cv2.Canny(gray, 50, 150)
     return {"gray": gray, "binary": binary, "edges": edges}
 
 
-def _prepare_forms(gray: np.ndarray, *, target_size: int, margin: int) -> Tuple[Dict[str, np.ndarray], Dict[str, np.ndarray]]:
-    search, tight = canonicalize(gray, target_size=target_size, margin=margin)
+def _prepare_forms(
+    gray: np.ndarray,
+    *,
+    target_size: int,
+    margin: int,
+) -> Tuple[Dict[str, np.ndarray], Dict[str, np.ndarray]]:
+    search, tight = canonicalize(
+        gray,
+        target_size=target_size,
+        margin=margin,
+    )
     return derive_representations(search), derive_representations(tight)
 
 
 def _foreground_mask(gray: np.ndarray) -> np.ndarray:
-    """Máscara binária de tinta (1=traço, 0=fundo), robusta a espessura básica."""
+    """Máscara binária de tinta (1=traço, 0=fundo)."""
 
     normalized = normalize_gray(gray)
     if normalized.size == 0:
@@ -239,20 +280,14 @@ def _structural_descriptor(
     grid_size: int = DEFAULT_STRUCTURE_GRID,
     projection_bins: int = DEFAULT_PROJECTION_BINS,
 ) -> np.ndarray:
-    """Descreve a forma global sem tentar reconhecer nenhuma classe específica.
-
-    O vetor combina:
-    - ocupação espacial em uma grade baixa resolução;
-    - projeção de tinta ao longo do eixo horizontal;
-    - projeção de tinta ao longo do eixo vertical.
-
-    Isso diferencia, por exemplo, um alvo Position de uma linha Straightness
-    mesmo quando a linha horizontal do alvo produz alta correlação local.
-    """
+    """Descreve ocupação global e projeções horizontal/vertical dos traços."""
 
     mask = _foreground_mask(gray)
     if mask.size == 0 or float(mask.sum()) == 0.0:
-        return np.zeros(grid_size * grid_size + 2 * projection_bins, dtype=np.float32)
+        return np.zeros(
+            grid_size * grid_size + 2 * projection_bins,
+            dtype=np.float32,
+        )
 
     horizontal = mask.mean(axis=1).astype(np.float32)
     vertical = mask.mean(axis=0).astype(np.float32)
@@ -281,8 +316,55 @@ def _structural_descriptor(
     return descriptor
 
 
-def _structure_score(a: np.ndarray, b: np.ndarray) -> float:
-    """Similaridade cosseno entre descritores estruturais, limitada a [-1, 1]."""
+def _hog_descriptor(
+    gray: np.ndarray,
+    *,
+    cells: int = DEFAULT_HOG_CELLS,
+    bins: int = DEFAULT_HOG_BINS,
+) -> np.ndarray:
+    """HOG espacial simples para comparar orientação/distribuição dos traços.
+
+    O canvas canônico de 48x48 é dividido em uma grade 3x3. Em cada célula é
+    calculado um histograma de orientações de gradiente sem sinal (0..pi).
+    Isso preserva informação que projeções simples perdem: uma linha horizontal
+    isolada não parece igual a um alvo com traços horizontal/vertical e arco.
+    """
+
+    normalized = normalize_gray(gray)
+    if normalized.size == 0:
+        return np.zeros(cells * cells * bins, dtype=np.float32)
+
+    gx = cv2.Sobel(normalized, cv2.CV_32F, 1, 0, ksize=3)
+    gy = cv2.Sobel(normalized, cv2.CV_32F, 0, 1, ksize=3)
+    magnitude, angle = cv2.cartToPolar(gx, gy, angleInDegrees=False)
+    angle = np.mod(angle, np.pi)
+
+    height, width = normalized.shape[:2]
+    bin_edges = np.linspace(0.0, np.pi, bins + 1, dtype=np.float32)
+    parts: list[np.ndarray] = []
+
+    for cell_y in range(cells):
+        y0 = cell_y * height // cells
+        y1 = (cell_y + 1) * height // cells
+        for cell_x in range(cells):
+            x0 = cell_x * width // cells
+            x1 = (cell_x + 1) * width // cells
+            hist, _ = np.histogram(
+                angle[y0:y1, x0:x1],
+                bins=bin_edges,
+                weights=magnitude[y0:y1, x0:x1],
+            )
+            parts.append(hist.astype(np.float32))
+
+    descriptor = np.concatenate(parts).astype(np.float32)
+    norm = float(np.linalg.norm(descriptor))
+    if norm > 1e-8:
+        descriptor /= norm
+    return descriptor
+
+
+def _cosine_score(a: np.ndarray, b: np.ndarray) -> float:
+    """Similaridade cosseno limitada a [-1, 1]."""
 
     if a.size == 0 or b.size == 0:
         return -1.0
@@ -294,6 +376,12 @@ def _structure_score(a: np.ndarray, b: np.ndarray) -> float:
     if not np.isfinite(score):
         return -1.0
     return max(-1.0, min(1.0, score))
+
+
+def _structure_score(a: np.ndarray, b: np.ndarray) -> float:
+    """Compatibilidade retroativa para o descritor de ocupação/projeções."""
+
+    return _cosine_score(a, b)
 
 
 def _match_score(search: np.ndarray, template: np.ndarray) -> float:
@@ -331,7 +419,11 @@ def load_template_catalog(
             gray = cv2.imread(str(path), cv2.IMREAD_GRAYSCALE)
             if gray is None:
                 continue
-            _, tight_reps = _prepare_forms(gray, target_size=target_size, margin=margin)
+            _, tight_reps = _prepare_forms(
+                gray,
+                target_size=target_size,
+                margin=margin,
+            )
             templates.append(
                 TemplateImage(
                     class_name=class_name,
@@ -353,30 +445,45 @@ def score_crop(
     target_size: int = DEFAULT_TARGET_SIZE,
     margin: int = DEFAULT_MARGIN,
 ) -> Tuple[Dict[str, float], List[TemplateScore]]:
-    """Compara um crop contra todos os templates e agrega melhor score por classe.
+    """Compara um crop contra todos os templates e agrega o melhor por classe.
 
-    O score final de cada template é a média simples de quatro componentes:
-    ``gray``, ``binary``, ``edges`` e ``structure``. A média continua sendo
-    apenas ranking diagnóstico; não é probabilidade nem threshold de aceitação.
+    O score final é a média simples de cinco componentes diagnósticos:
+    ``gray``, ``binary``, ``edges``, ``structure`` e ``hog``.
+    Não é probabilidade e não aplica threshold de aceitação.
     """
 
-    search_reps, tight_reps = _prepare_forms(crop, target_size=target_size, margin=margin)
+    search_reps, tight_reps = _prepare_forms(
+        crop,
+        target_size=target_size,
+        margin=margin,
+    )
     crop_structure = _structural_descriptor(tight_reps["gray"])
+    crop_hog = _hog_descriptor(tight_reps["gray"])
 
     template_scores: List[TemplateScore] = []
     class_scores: Dict[str, float] = {}
 
     for template in templates:
         rep_scores = {
-            rep: _match_score(search_reps[rep], template.representations[rep])
+            rep: _match_score(
+                search_reps[rep],
+                template.representations[rep],
+            )
             for rep in REPRESENTATIONS
         }
-        rep_scores[STRUCTURE_COMPONENT] = _structure_score(
+        template_gray = template.representations["gray"]
+        rep_scores[STRUCTURE_COMPONENT] = _cosine_score(
             crop_structure,
-            _structural_descriptor(template.representations["gray"]),
+            _structural_descriptor(template_gray),
+        )
+        rep_scores[HOG_COMPONENT] = _cosine_score(
+            crop_hog,
+            _hog_descriptor(template_gray),
         )
 
-        mean_score = float(np.mean([rep_scores[rep] for rep in SCORE_COMPONENTS]))
+        mean_score = float(
+            np.mean([rep_scores[rep] for rep in SCORE_COMPONENTS])
+        )
         item = TemplateScore(
             class_name=template.class_name,
             template_name=template.template_name,
@@ -424,11 +531,21 @@ def score_candidate_symbol(
         target_size=target_size,
         margin=margin,
     )
-    ranked = sorted(class_scores.items(), key=lambda item: item[1], reverse=True)
+    ranked = sorted(
+        class_scores.items(),
+        key=lambda item: item[1],
+        reverse=True,
+    )
 
     best_class, best_score = ranked[0] if ranked else (None, -1.0)
-    second_class, second_score = ranked[1] if len(ranked) > 1 else (None, -1.0)
-    margin_value = best_score - second_score if best_class is not None and second_class is not None else 0.0
+    second_class, second_score = (
+        ranked[1] if len(ranked) > 1 else (None, -1.0)
+    )
+    margin_value = (
+        best_score - second_score
+        if best_class is not None and second_class is not None
+        else 0.0
+    )
 
     result = CandidateSymbolScore(
         candidate_id=candidate.candidate_id,
