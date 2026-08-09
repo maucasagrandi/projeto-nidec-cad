@@ -93,7 +93,7 @@ def main() -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
 
     payload = {
-        "schema_version": 1,
+        "schema_version": 2,
         "case_id": case_id,
         "pdf": str(pdf_path),
         "page": page_index + 1,
@@ -113,7 +113,9 @@ def main() -> None:
             "line_tolerance": detector.line_tolerance,
             "merge_gap": detector.merge_gap,
             "endpoint_tolerance": detector.endpoint_tolerance,
+            "cell_endpoint_tolerance": detector.cell_endpoint_tolerance,
             "page_border_margin": detector.page_border_margin,
+            "cell_refinement": "strict_internal_vertical_connectors_after_frame_detection",
         },
         "candidates": [_candidate_to_dict(candidate) for candidate in candidates],
     }
@@ -128,6 +130,7 @@ def main() -> None:
     print(f"case={case_id}")
     print(f"pdf={pdf_path}")
     print(f"candidates={len(candidates)}")
+    print(f"cell_endpoint_tolerance={detector.cell_endpoint_tolerance}")
     if case_config.get("expected"):
         print(f"expected_frames={case_config['expected'].get('frame_count')}")
     print(f"json={json_path}")
