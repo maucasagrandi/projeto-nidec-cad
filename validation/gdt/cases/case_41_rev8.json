@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "case_id": "case_41_rev8",
+  "pdf": "CAD_Review_Test_Battery_V1/2. Comparison Analysis/41/13358002_REV_8_draw_2.pdf",
+  "page_index": 0,
+  "expected": {
+    "frame_count": 6,
+    "by_characteristic": {
+      "position": 3,
+      "profile": 3
+    }
+  },
+  "geometry_gate": {
+    "minimum_recall": 0.95,
+    "min_iou": 0.35
+  },
+  "notes": "Caso inicial de referência. A revisão visual deve confirmar os seis quadros; candidatos não são ground truth por si só."
+}
