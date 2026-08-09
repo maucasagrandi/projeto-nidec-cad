@@ -33,6 +33,7 @@ from src.gdt.detector import GdtFrameDetector
 from src.gdt.symbol_classifier import (
     DEFAULT_MARGIN,
     DEFAULT_TARGET_SIZE,
+    SCORE_COMPONENTS,
     load_template_catalog,
     render_page_gray,
     score_candidates,
@@ -171,7 +172,7 @@ def main() -> None:
 
     classes = sorted({template.class_name for template in templates})
     payload = {
-        "schema_version": 2,
+        "schema_version": 3,
         "phase": "symbol_scoring",
         "decision_applied": False,
         "case_id": case_id,
@@ -186,8 +187,10 @@ def main() -> None:
             "dpi": args.dpi,
             "target_size": args.target_size,
             "margin": args.margin,
-            "representations": ["gray", "binary", "edges"],
-            "class_aggregation": "best_template_mean_of_representations",
+            "score_components": list(SCORE_COMPONENTS),
+            "structure_descriptor": "occupancy_grid_plus_horizontal_vertical_projections",
+            "template_score": "mean_of_score_components",
+            "class_aggregation": "best_template_score_per_class",
         },
         "results": results,
     }
@@ -203,6 +206,7 @@ def main() -> None:
     print(f"candidates={len(candidates)}")
     print(f"templates={len(templates)}")
     print(f"classes={','.join(classes)}")
+    print(f"score_components={','.join(SCORE_COMPONENTS)}")
     if excluded_classes:
         print(f"excluded_classes={','.join(sorted(excluded_classes))}")
     print("decision_applied=False")
