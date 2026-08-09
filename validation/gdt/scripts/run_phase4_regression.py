@@ -3,6 +3,9 @@
 Objetivo: adicionar novas classes ao catálogo SEM perder o ranking correto dos
 3 Position + 3 Profile já validados no caso 41.
 
+As novas classes esperadas são lidas de ``validation/gdt/reference_catalog.json``.
+Assim o mesmo teste continua válido à medida que o catálogo cresce.
+
 Este script NÃO calibra threshold e NÃO valida as novas classes em CAD real.
 Ele apenas testa competição entre classes no caso de referência.
 
@@ -26,18 +29,10 @@ CASE_ID = "case_41_rev8"
 CASE_PATH = PROJECT_ROOT / "validation" / "gdt" / "cases" / f"{CASE_ID}.json"
 GT_PATH = PROJECT_ROOT / "validation" / "gdt" / "ground_truth" / f"{CASE_ID}.json"
 GEOMETRY_BASELINE = PROJECT_ROOT / "validation" / "gdt" / "baselines" / f"{CASE_ID}.geometry.json"
+REFERENCE_CATALOG = PROJECT_ROOT / "validation" / "gdt" / "reference_catalog.json"
 OUTPUT_DIR = PROJECT_ROOT / "validation" / "gdt" / "outputs" / "phase4" / CASE_ID
 SCORES_PATH = OUTPUT_DIR / "symbol_scores.json"
 EVALUATION_PATH = OUTPUT_DIR / "symbol_evaluation.json"
-
-EXPECTED_ACTIVE_CLASSES = {
-    "position",
-    "profile",
-    "straightness",
-    "flatness",
-    "circularity",
-    "cylindricity",
-}
 
 
 def _run(command: list[str]) -> None:
@@ -49,13 +44,27 @@ def _load(path: Path) -> dict:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def _expected_active_classes() -> set[str]:
+    catalog = _load(REFERENCE_CATALOG)
+    classes = {"position", "profile"}
+    for entry in catalog.get("entries", []):
+        if str(entry.get("status", "active")).lower() != "active":
+            continue
+        class_name = str(entry.get("class_name", "")).strip().lower()
+        if class_name:
+            classes.add(class_name)
+    return classes
+
+
 def main() -> None:
+    expected_active_classes = _expected_active_classes()
+
     # 1) Copia/prepara as referências versionadas de cotas/ para o catálogo local.
     _run([sys.executable, str(SCRIPTS_DIR / "sync_phase4_templates.py")])
 
-    # 2) Pontua o caso 41 com as seis classes válidas. O círculo que era usado
-    # como controle negativo é excluído porque agora ele é um símbolo válido de
-    # Circularity e não pode competir como classe negativa.
+    # 2) Pontua o caso 41 com todas as classes válidas. O círculo usado no
+    # experimento inicial como controle negativo é excluído porque agora ele é
+    # um símbolo válido de Circularity e não pode competir como classe negativa.
     _run(
         [
             sys.executable,
@@ -91,7 +100,7 @@ def main() -> None:
     evaluation = _load(EVALUATION_PATH)
 
     active_classes = set(scores.get("classes", []))
-    missing_classes = sorted(EXPECTED_ACTIVE_CLASSES - active_classes)
+    missing_classes = sorted(expected_active_classes - active_classes)
     metrics = evaluation.get("ranking_metrics", {})
     correct = int(metrics.get("correct", 0))
     total = int(metrics.get("total", 0))
@@ -102,6 +111,7 @@ def main() -> None:
     passed = ranking_pass and catalog_pass
 
     print("\n=== Phase 4 regression summary ===")
+    print("expected_active_classes=" + ",".join(sorted(expected_active_classes)))
     print("active_classes=" + ",".join(sorted(active_classes)))
     print("negative_controls_active=False")
     print(f"case41_ranking={correct}/{total}")
