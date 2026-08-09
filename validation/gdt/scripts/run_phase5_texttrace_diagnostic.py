@@ -3,11 +3,12 @@
 Motivação:
 - page.get_text('words'/'rawdict') não encontrou texto nas células do caso 41;
 - o usuário consegue selecionar/copiar conteúdo no leitor de PDF;
-- portanto testamos APIs mais próximas do content stream: get_texttrace() e get_bboxlog().
+- get_texttrace() confirmou uma camada textual de baixo nível;
+- agora filtramos SOMENTE glyphs cuja posição individual pertence à célula.
 
-Este script NÃO usa OCR/LLM e NÃO classifica o conteúdo. Ele apenas registra
-operações de texto e suas posições para verificar se há glyphs textuais que o
-caminho de extração comum não expôs como words/chars.
+Este script NÃO usa OCR/LLM e NÃO classifica o conteúdo. Ele registra glyphs,
+posições e operações do content stream para descobrir se números/datums podem
+ser recuperados diretamente do PDF.
 """
 
 from __future__ import annotations
@@ -46,6 +47,17 @@ def _rect_intersects_bbox(rect_like: Any, bbox) -> bool:
     return not intersection.is_empty and intersection.width > 0 and intersection.height > 0
 
 
+def _rect_center_in_bbox(rect_like: Any, bbox) -> bool:
+    """Critério estrito: o centro do bbox do glyph precisa estar na célula."""
+
+    try:
+        rect = fitz.Rect(rect_like)
+    except Exception:
+        return False
+    center = rect.tl + (rect.br - rect.tl) * 0.5
+    return bbox.contains_point(float(center.x), float(center.y))
+
+
 def _safe_json(value: Any) -> Any:
     if isinstance(value, (str, int, float, bool)) or value is None:
         return value
@@ -62,7 +74,7 @@ def _safe_json(value: Any) -> Any:
 def _decode_trace_chars(span: dict) -> list[dict]:
     decoded: list[dict] = []
     for item in span.get("chars", []) or []:
-        # PyMuPDF texttrace chars commonly expose: (unicode, glyph_id, origin, bbox)
+        # PyMuPDF texttrace chars: (unicode, glyph_id, origin, bbox)
         row: dict[str, Any] = {"raw": _safe_json(item)}
         if isinstance(item, (list, tuple)):
             if len(item) >= 1:
@@ -81,6 +93,22 @@ def _decode_trace_chars(span: dict) -> list[dict]:
                 row["bbox"] = _safe_json(item[3])
         decoded.append(row)
     return decoded
+
+
+def _dedupe_chars(rows: list[dict]) -> list[dict]:
+    """Remove duplicatas exatas de glyph sobreposto sem alterar a ordem."""
+
+    seen: set[tuple] = set()
+    result: list[dict] = []
+    for row in rows:
+        bbox = row.get("bbox") or []
+        bbox_key = tuple(round(float(v), 3) for v in bbox) if len(bbox) == 4 else tuple()
+        key = (row.get("codepoint"), bbox_key)
+        if key in seen:
+            continue
+        seen.add(key)
+        result.append(row)
+    return result
 
 
 def main() -> None:
@@ -112,25 +140,53 @@ def main() -> None:
             cells = []
             for index, cell in enumerate(candidate.cells):
                 trace_rows = []
-                for span in trace:
+                span_bbox_hits_without_chars = 0
+
+                for span_index, span in enumerate(trace):
                     span_bbox = span.get("bbox")
                     chars = _decode_trace_chars(span)
                     char_hits = [
-                        row for row in chars
-                        if row.get("bbox") is not None and _rect_intersects_bbox(row["bbox"], cell.bbox)
+                        row
+                        for row in chars
+                        if row.get("bbox") is not None
+                        and _rect_center_in_bbox(row["bbox"], cell.bbox)
                     ]
-                    span_hit = span_bbox is not None and _rect_intersects_bbox(span_bbox, cell.bbox)
-                    if not span_hit and not char_hits:
+
+                    # Importante: NÃO fazer fallback para todos os chars do span.
+                    # O bug anterior vinha exatamente daí: spans enormes tocavam a
+                    # célula e o script atribuía o texto da página inteira a ela.
+                    if not char_hits:
+                        if span_bbox is not None and _rect_intersects_bbox(span_bbox, cell.bbox):
+                            span_bbox_hits_without_chars += 1
                         continue
+
                     trace_rows.append(
                         {
+                            "span_index": span_index,
+                            "seqno": span.get("seqno"),
                             "font": span.get("font"),
                             "size": span.get("size"),
                             "type": span.get("type"),
                             "bbox": _safe_json(span_bbox),
-                            "chars": char_hits if char_hits else chars,
+                            "chars": char_hits,
+                            "text": "".join(
+                                row.get("char") or ""
+                                for row in char_hits
+                            ),
                         }
                     )
+
+                all_char_hits = _dedupe_chars(
+                    [
+                        char
+                        for span in trace_rows
+                        for char in span.get("chars", [])
+                    ]
+                )
+                reconstructed_text = "".join(
+                    row.get("char") or ""
+                    for row in all_char_hits
+                )
 
                 bboxlog_rows = []
                 for order, entry in enumerate(bboxlog):
@@ -152,6 +208,9 @@ def main() -> None:
                         "cell_index": index,
                         "bbox": [round(v, 3) for v in cell.bbox.to_list()],
                         "texttrace": trace_rows,
+                        "glyph_count": len(all_char_hits),
+                        "reconstructed_text": reconstructed_text,
+                        "span_bbox_hits_without_chars": span_bbox_hits_without_chars,
                         "bboxlog": bboxlog_rows,
                     }
                 )
@@ -165,12 +224,16 @@ def main() -> None:
             )
 
         payload = {
-            "schema_version": 1,
+            "schema_version": 2,
             "phase": "phase5_texttrace_diagnostic",
             "case_id": CASE_ID,
             "validation_status": "DIAGNOSTIC_ONLY",
             "ocr_used": False,
             "llm_used": False,
+            "glyph_assignment_rule": "glyph_bbox_center_inside_cell",
+            "page_rotation": int(page.rotation),
+            "page_rect": [float(v) for v in page.rect],
+            "page_cropbox": [float(v) for v in page.cropbox],
             "page_texttrace_span_count": len(trace),
             "page_bboxlog_count": len(bboxlog),
             "results": results,
@@ -179,30 +242,38 @@ def main() -> None:
         OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
         OUTPUT_PATH.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
 
-        print("phase=phase5_texttrace_diagnostic")
+        print("phase=phase5_texttrace_diagnostic_v2")
         print("validation_status=DIAGNOSTIC_ONLY")
         print("ocr_used=False")
         print("llm_used=False")
+        print("glyph_assignment_rule=glyph_bbox_center_inside_cell")
+        print(f"page_rotation={page.rotation}")
         print(f"page_texttrace_spans={len(trace)}")
         print(f"page_bboxlog_entries={len(bboxlog)}")
         print("\nbenchmark_real_frame_texttrace:")
+
         for row in results:
             print(f"  {row['candidate_id']} cells={row['cell_count']}")
             for cell in row["cells"]:
-                chars = []
-                fonts = []
-                for span in cell["texttrace"]:
-                    if span.get("font"):
-                        fonts.append(str(span["font"]))
-                    for char in span.get("chars", []):
-                        value = char.get("char")
-                        if value is not None:
-                            chars.append(value)
+                span_texts = [
+                    span.get("text", "")
+                    for span in cell["texttrace"]
+                ]
+                fonts = sorted(
+                    {
+                        str(span["font"])
+                        for span in cell["texttrace"]
+                        if span.get("font")
+                    }
+                )
                 kinds = [entry["kind"] for entry in cell["bboxlog"]]
                 print(
                     f"    cell[{cell['cell_index']}] "
-                    f"trace_spans={len(cell['texttrace'])} chars={chars!r} "
-                    f"fonts={sorted(set(fonts))!r} bboxlog={kinds!r}"
+                    f"glyphs={cell['glyph_count']} "
+                    f"text={cell['reconstructed_text']!r} "
+                    f"span_texts={span_texts!r} fonts={fonts!r} "
+                    f"span_only_hits={cell['span_bbox_hits_without_chars']} "
+                    f"bboxlog={kinds!r}"
                 )
 
         print(f"\noutput={OUTPUT_PATH}")
