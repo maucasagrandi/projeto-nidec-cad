@@ -3,13 +3,17 @@
 O desenho mostrado NÃO contém candidatos nem overlays do detector. Assim os
 bboxes do ground truth são independentes da saída que será avaliada.
 
+IMPORTANTE: cada ROI deve envolver o QUADRO GD&T COMPLETO, da borda esquerda
+da célula do símbolo até a borda direita da última célula. Não marque apenas
+o símbolo/primeira célula e não inclua a leader line fora do quadro.
+
 Uso:
     python validation/gdt/scripts/annotate_ground_truth.py \
       --case validation/gdt/cases/case_41_rev8.json
 
 Fluxo:
 1. Uma janela abre com a página original.
-2. Arraste um retângulo sobre cada quadro GD&T real.
+2. Arraste um retângulo sobre cada QUADRO GD&T COMPLETO.
 3. ENTER/SPACE confirma a seleção; ESC cancela.
 4. No terminal, informe a classe de cada ROI: p=position, r=profile, u=unknown.
 5. O script salva o JSON independente + uma imagem de revisão.
@@ -60,7 +64,7 @@ def _render_page_rgb(pdf_bytes: bytes, page_index: int, dpi: int) -> tuple[np.nd
 
 def _ask_class(index: int) -> str:
     while True:
-        raw = input(f"Classe ROI {index} [p=position, r=profile, u=unknown]: ").strip().lower()
+        raw = input(f"Classe FRAME {index} [p=position, r=profile, u=unknown]: ").strip().lower()
         if raw in CLASS_KEYS:
             return CLASS_KEYS[raw]
         print("Valor inválido. Use p, r ou u.")
@@ -86,10 +90,12 @@ def main() -> None:
 
     page_bgr, zoom = _render_page_rgb(pdf_path.read_bytes(), page_index, args.dpi)
 
-    window = "GD&T ground truth - selecione TODOS os quadros reais"
+    window = "GD&T ground truth - selecione o FRAME COMPLETO (todas as celulas)"
     cv2.namedWindow(window, cv2.WINDOW_NORMAL)
     cv2.resizeWindow(window, 1600, 900)
-    print("Selecione cada quadro GD&T real no CAD ORIGINAL.")
+    print("Selecione cada QUADRO GD&T COMPLETO no CAD ORIGINAL.")
+    print("Inclua todas as células do frame: símbolo + tolerância + datum/modificadores.")
+    print("NÃO marque apenas a primeira célula/símbolo e NÃO inclua a leader line.")
     print("ENTER/SPACE finaliza. ESC cancela a seleção atual.")
     rois = cv2.selectROIs(window, page_bgr, showCrosshair=True, fromCenter=False)
     cv2.destroyAllWindows()
@@ -114,7 +120,7 @@ def main() -> None:
                 "characteristic": characteristic,
                 "bbox": [round(float(v), 3) for v in bbox_pdf],
                 "source": "manual_annotation",
-                "notes": "Annotated on original PDF page without detector overlay.",
+                "notes": "Full GD&T frame annotated on original PDF page without detector overlay.",
             }
         )
         cv2.rectangle(preview, (x, y), (x + w, y + h), (0, 0, 255), 2)
@@ -143,7 +149,8 @@ def main() -> None:
         "independent_annotation": True,
         "benchmark_grade": True,
         "annotation": {
-            "method": "manual_roi_on_original_pdf",
+            "method": "manual_full_frame_roi_on_original_pdf",
+            "scope": "full_gdt_frame",
             "detector_overlay_visible": False,
             "dpi": args.dpi,
             "zoom": zoom,
@@ -171,6 +178,7 @@ def main() -> None:
     print(f"frames={len(frames)}")
     print(f"classes={by_class}")
     print("independent_annotation=True")
+    print("annotation_scope=full_gdt_frame")
 
 
 if __name__ == "__main__":
