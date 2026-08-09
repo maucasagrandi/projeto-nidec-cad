@@ -6,8 +6,8 @@ import json
 from pathlib import Path
 from typing import Iterable, List, Sequence, Tuple
 
+from src.gdt.detector import GdtFrameCandidate, GdtFrameDetector
 from src.gdt.types import FrameMatch, GeometryMetrics, GroundTruthFrame
-from src.utils.gdt_detector import BBox, GdtFrameCandidate, GdtFrameDetector
 
 
 def _bbox_iou(a: Sequence[float], b: Sequence[float]) -> float:
@@ -31,7 +31,7 @@ def _bbox_iou(a: Sequence[float], b: Sequence[float]) -> float:
 
 
 def load_ground_truth(path: str | Path) -> List[GroundTruthFrame]:
-    """Carrega ground truth no formato versionado em `validation/gdt/ground_truth`."""
+    """Carrega ground truth no formato versionado em ``validation/gdt/ground_truth``."""
 
     data = json.loads(Path(path).read_text(encoding="utf-8"))
     frames = data.get("frames", [])
@@ -59,9 +59,9 @@ def match_ground_truth(
 ) -> GeometryMetrics:
     """Faz matching 1:1 entre GT e candidatos usando maior IoU disponivel.
 
-    A meta desta etapa e recall. `min_iou` nao deve ser calibrado para esconder
-    deteccoes ruins; ele apenas evita considerar qualquer sobreposicao minima
-    como acerto.
+    A meta desta etapa e recall. ``min_iou`` nao deve ser calibrado para
+    esconder deteccoes ruins; ele apenas evita considerar qualquer
+    sobreposicao minima como acerto.
     """
 
     gt_list = list(ground_truth)
