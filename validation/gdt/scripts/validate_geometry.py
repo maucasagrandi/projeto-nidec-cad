@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from pathlib import Path
 
 from src.gdt.geometry_validation import detect_and_validate
@@ -21,6 +22,8 @@ def main() -> None:
     parser.add_argument("--ground-truth", required=True)
     parser.add_argument("--page-index", type=int, default=0)
     parser.add_argument("--min-iou", type=float, default=0.35)
+    parser.add_argument("--minimum-recall", type=float, default=0.95)
+    parser.add_argument("--fail-on-gate", action="store_true")
     parser.add_argument("--output", default="validation/gdt/outputs/geometry_metrics.json")
     args = parser.parse_args()
 
@@ -31,11 +34,15 @@ def main() -> None:
         min_iou=args.min_iou,
     )
 
+    gate_passed = metrics.passes_recall_gate(args.minimum_recall)
     payload = {
+        "schema_version": 1,
+        "phase": "geometry",
         "pdf": str(args.pdf),
         "page_index": args.page_index,
+        "min_iou": args.min_iou,
         "candidate_count": len(candidates),
-        "metrics": metrics.to_dict(),
+        "metrics": metrics.to_dict(minimum_recall=args.minimum_recall),
         "candidates": [
             {
                 "candidate_id": candidate.candidate_id,
@@ -54,9 +61,14 @@ def main() -> None:
     output.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
 
     print(f"candidates={len(candidates)}")
-    print(f"TP={metrics.true_positives} FN={metrics.false_negatives} FP={metrics.false_positives}")
-    print(f"recall={metrics.recall:.3f} precision={metrics.precision:.3f}")
+    print(f"GT={metrics.ground_truth_count} TP={metrics.true_positives} "
+          f"FN={metrics.false_negatives} FP={metrics.false_positives}")
+    print(f"recall={metrics.recall:.3f} precision={metrics.precision:.3f} f1={metrics.f1:.3f}")
+    print(f"recall_gate>={args.minimum_recall:.3f}: {'PASS' if gate_passed else 'FAIL'}")
     print(f"output={output}")
+
+    if args.fail_on_gate and not gate_passed:
+        sys.exit(2)
 
 
 if __name__ == "__main__":
