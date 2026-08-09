@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "case_id": "case_31_revd",
+  "pdf": "CAD_Review_Test_Battery_V1/2. Comparison Analysis/31/113941142_Rev_D_draw_1.pdf",
+  "page_index": 0,
+  "geometry_gate": {
+    "minimum_recall": 0.95,
+    "min_iou": 0.35
+  },
+  "phase3": {
+    "discovery_candidate_count": 25,
+    "purpose": "medium-density generalization case with different revision format"
+  },
+  "notes": "Fase 3. Contagem real de frames e classes deve vir de anotacao manual independente; os 25 itens da descoberta sao apenas candidatos geometricos."
+}
