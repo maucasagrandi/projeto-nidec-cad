@@ -2,3 +2,5 @@ __pycache__
 .venv
 .env
 
+# Artefatos locais de validacao GD&T
+validation/gdt/outputs/
