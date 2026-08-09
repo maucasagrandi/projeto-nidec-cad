@@ -1,13 +1,9 @@
-"""Sincroniza as referências da pasta ``cotas/`` para o catálogo da Fase 4.
+"""Sincroniza referências versionadas de ``cotas/`` para o catálogo visual.
 
-As imagens de referência permanecem em ``cotas/`` como fonte humana/auditável.
-O runtime usa somente cópias semânticas em ``assets/gdt/templates/<classe>/``.
+O mapeamento é data-driven e fica em:
+    validation/gdt/reference_catalog.json
 
-Mapeamento inicial da Fase 4:
-- straightness.png   -> straightness
-- flatness.png       -> flatness
-- Roundness.png      -> circularity (nome canônico)
-- Cylindricity .png  -> cylindricity
+Assim novas classes podem ser adicionadas ao manifesto sem alterar este script.
 
 Uso:
     python validation/gdt/scripts/sync_phase4_templates.py
@@ -15,6 +11,7 @@ Uso:
 
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
 
@@ -26,60 +23,78 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from src.gdt.symbol_classifier import crop_foreground, normalize_gray
 
-SOURCE_ROOT = PROJECT_ROOT / "cotas"
-TEMPLATE_ROOT = PROJECT_ROOT / "assets" / "gdt" / "templates"
-
-# Nome normalizado da referência -> classe canônica.
-REFERENCE_SPECS = {
-    "straightness.png": "straightness",
-    "flatness.png": "flatness",
-    "roundness.png": "circularity",
-    "cylindricity.png": "cylindricity",
-}
+DEFAULT_MANIFEST = PROJECT_ROOT / "validation" / "gdt" / "reference_catalog.json"
 
 
 def _normalize_filename(name: str) -> str:
-    # Tolera o espaço existente em ``Cylindricity .png`` sem perpetuá-lo.
+    # Tolera diferenças de caixa e espaços antes da extensão.
     return name.strip().casefold().replace(" .", ".")
 
 
-def _source_index() -> dict[str, Path]:
-    if not SOURCE_ROOT.exists():
-        raise FileNotFoundError(f"Pasta de referências não encontrada: {SOURCE_ROOT}")
+def _load_manifest(path: Path) -> dict:
+    if not path.exists():
+        raise FileNotFoundError(f"Manifesto não encontrado: {path}")
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(payload.get("entries"), list):
+        raise ValueError("reference_catalog.json deve conter uma lista 'entries'.")
+    return payload
+
+
+def _source_index(source_root: Path) -> dict[str, Path]:
+    if not source_root.exists():
+        raise FileNotFoundError(f"Pasta de referências não encontrada: {source_root}")
 
     index: dict[str, Path] = {}
-    for path in SOURCE_ROOT.iterdir():
+    for path in source_root.iterdir():
         if path.is_file():
             index[_normalize_filename(path.name)] = path
     return index
 
 
 def main() -> None:
-    index = _source_index()
+    manifest = _load_manifest(DEFAULT_MANIFEST)
+    source_root = PROJECT_ROOT / str(manifest.get("source_root", "cotas"))
+    template_root = PROJECT_ROOT / str(manifest.get("template_root", "assets/gdt/templates"))
+    index = _source_index(source_root)
+
     written: list[tuple[Path, Path, str]] = []
     missing: list[str] = []
+    active_classes: set[str] = set()
 
-    for expected_name, class_name in REFERENCE_SPECS.items():
-        source = index.get(_normalize_filename(expected_name))
+    for entry in manifest["entries"]:
+        if str(entry.get("status", "active")).lower() != "active":
+            continue
+
+        source_name = str(entry["source"])
+        class_name = str(entry["class_name"]).strip().lower()
+        target_name = str(entry.get("target_name") or f"{class_name}_01.png")
+
+        # Primeiro tenta o caminho exato; depois tolera caixa/espaço de filename.
+        exact_source = source_root / source_name
+        source = exact_source if exact_source.exists() else index.get(_normalize_filename(source_name))
         if source is None:
-            missing.append(expected_name)
+            missing.append(source_name)
             continue
 
         gray = cv2.imread(str(source), cv2.IMREAD_GRAYSCALE)
         if gray is None:
             raise ValueError(f"Não foi possível ler a imagem: {source}")
 
-        # Remove somente whitespace externo/contraste. Não altera a geometria do símbolo.
+        # Somente normalização de contraste + remoção de whitespace externo.
+        # A geometria interna do símbolo não é redesenhada nem sintetizada.
         prepared = crop_foreground(normalize_gray(gray), padding=3)
-        destination_dir = TEMPLATE_ROOT / class_name
+        destination_dir = template_root / class_name
         destination_dir.mkdir(parents=True, exist_ok=True)
-        destination = destination_dir / f"{class_name}_01.png"
+        destination = destination_dir / target_name
 
         if not cv2.imwrite(str(destination), prepared):
             raise OSError(f"Falha ao gravar template: {destination}")
+
+        active_classes.add(class_name)
         written.append((source, destination, class_name))
 
     print("phase=4_template_sync")
+    print(f"manifest={DEFAULT_MANIFEST.relative_to(PROJECT_ROOT)}")
     for source, destination, class_name in written:
         print(
             f"registered class={class_name} "
@@ -92,7 +107,7 @@ def main() -> None:
         raise SystemExit(2)
 
     print(f"registered_count={len(written)}")
-    print("canonical_classes=straightness,flatness,circularity,cylindricity")
+    print("canonical_classes=" + ",".join(sorted(active_classes)))
 
 
 if __name__ == "__main__":
