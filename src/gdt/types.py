@@ -36,22 +36,47 @@ class GeometryMetrics:
     matches: List[FrameMatch] = field(default_factory=list)
 
     @property
+    def ground_truth_count(self) -> int:
+        return self.true_positives + self.false_negatives
+
+    @property
+    def candidate_count(self) -> int:
+        return self.true_positives + self.false_positives
+
+    @property
     def recall(self) -> float:
-        denom = self.true_positives + self.false_negatives
+        denom = self.ground_truth_count
         return self.true_positives / denom if denom else 0.0
 
     @property
     def precision(self) -> float:
-        denom = self.true_positives + self.false_positives
+        denom = self.candidate_count
         return self.true_positives / denom if denom else 0.0
 
-    def to_dict(self) -> Dict[str, object]:
+    @property
+    def f1(self) -> float:
+        denom = self.precision + self.recall
+        return 2 * self.precision * self.recall / denom if denom else 0.0
+
+    def passes_recall_gate(self, minimum_recall: float = 0.95) -> bool:
+        """Gate da Fase 1: nesta etapa recall tem prioridade sobre precisão."""
+
+        return self.ground_truth_count > 0 and self.recall >= minimum_recall
+
+    def to_dict(self, *, minimum_recall: float = 0.95) -> Dict[str, object]:
         return {
+            "ground_truth_count": self.ground_truth_count,
+            "candidate_count": self.candidate_count,
             "true_positives": self.true_positives,
             "false_negatives": self.false_negatives,
             "false_positives": self.false_positives,
             "recall": round(self.recall, 4),
             "precision": round(self.precision, 4),
+            "f1": round(self.f1, 4),
+            "recall_gate": {
+                "minimum": minimum_recall,
+                "passed": self.passes_recall_gate(minimum_recall),
+            },
             "matches": [
                 {
                     "ground_truth_id": match.ground_truth_id,
