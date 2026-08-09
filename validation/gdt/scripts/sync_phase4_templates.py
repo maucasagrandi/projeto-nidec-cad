@@ -3,7 +3,10 @@
 O mapeamento é data-driven e fica em:
     validation/gdt/reference_catalog.json
 
-Assim novas classes podem ser adicionadas ao manifesto sem alterar este script.
+Além de preparar os templates, o script verifica cobertura: toda imagem de
+referência em ``cotas/`` deve estar explicitamente registrada no manifesto.
+Isso evita adicionar uma cota ao repositório e ela ficar silenciosamente fora
+do classificador.
 
 Uso:
     python validation/gdt/scripts/sync_phase4_templates.py
@@ -24,6 +27,7 @@ if str(PROJECT_ROOT) not in sys.path:
 from src.gdt.symbol_classifier import crop_foreground, normalize_gray
 
 DEFAULT_MANIFEST = PROJECT_ROOT / "validation" / "gdt" / "reference_catalog.json"
+ALLOWED_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp"}
 
 
 def _normalize_filename(name: str) -> str:
@@ -46,8 +50,15 @@ def _source_index(source_root: Path) -> dict[str, Path]:
 
     index: dict[str, Path] = {}
     for path in source_root.iterdir():
-        if path.is_file():
-            index[_normalize_filename(path.name)] = path
+        if not path.is_file() or path.suffix.lower() not in ALLOWED_SUFFIXES:
+            continue
+        normalized = _normalize_filename(path.name)
+        if normalized in index:
+            raise ValueError(
+                "Dois arquivos de referência colidem após normalização: "
+                f"{index[normalized].name} / {path.name}"
+            )
+        index[normalized] = path
     return index
 
 
@@ -57,17 +68,35 @@ def main() -> None:
     template_root = PROJECT_ROOT / str(manifest.get("template_root", "assets/gdt/templates"))
     index = _source_index(source_root)
 
+    entries = [
+        entry
+        for entry in manifest["entries"]
+        if str(entry.get("status", "active")).lower() == "active"
+    ]
+
+    registered_sources = {
+        _normalize_filename(str(entry.get("source", "")))
+        for entry in entries
+        if str(entry.get("source", "")).strip()
+    }
+    unregistered = sorted(
+        path.name
+        for normalized, path in index.items()
+        if normalized not in registered_sources
+    )
+
     written: list[tuple[Path, Path, str]] = []
     missing: list[str] = []
     active_classes: set[str] = set()
+    target_paths: set[Path] = set()
 
-    for entry in manifest["entries"]:
-        if str(entry.get("status", "active")).lower() != "active":
-            continue
-
+    for entry in entries:
         source_name = str(entry["source"])
         class_name = str(entry["class_name"]).strip().lower()
         target_name = str(entry.get("target_name") or f"{class_name}_01.png")
+
+        if not class_name:
+            raise ValueError(f"class_name vazio para source={source_name!r}")
 
         # Primeiro tenta o caminho exato; depois tolera caixa/espaço de filename.
         exact_source = source_root / source_name
@@ -87,6 +116,10 @@ def main() -> None:
         destination_dir.mkdir(parents=True, exist_ok=True)
         destination = destination_dir / target_name
 
+        if destination in target_paths:
+            raise ValueError(f"target_name duplicado no manifesto: {destination}")
+        target_paths.add(destination)
+
         if not cv2.imwrite(str(destination), prepared):
             raise OSError(f"Falha ao gravar template: {destination}")
 
@@ -95,6 +128,8 @@ def main() -> None:
 
     print("phase=4_template_sync")
     print(f"manifest={DEFAULT_MANIFEST.relative_to(PROJECT_ROOT)}")
+    print(f"reference_count={len(index)}")
+    print(f"manifest_active_entries={len(entries)}")
     for source, destination, class_name in written:
         print(
             f"registered class={class_name} "
@@ -104,10 +139,14 @@ def main() -> None:
 
     if missing:
         print("missing=" + ",".join(missing))
+    if unregistered:
+        print("unregistered=" + ",".join(unregistered))
+    if missing or unregistered:
         raise SystemExit(2)
 
     print(f"registered_count={len(written)}")
     print("canonical_classes=" + ",".join(sorted(active_classes)))
+    print("reference_coverage=PASS")
 
 
 if __name__ == "__main__":
