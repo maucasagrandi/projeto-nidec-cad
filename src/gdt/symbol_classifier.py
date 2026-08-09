@@ -14,8 +14,16 @@ orientação espacial dos traços em uma grade 3x3. O objetivo é impedir que um
 símbolo simples vença só porque encaixa em um pequeno subtrecho de um símbolo
 mais complexo.
 
-Nenhum threshold de aceitação é aplicado aqui de propósito. Thresholds serão
-calibrados depois usando a distribuição dos scores em casos rotulados.
+Os cinco componentes NÃO recebem peso individual igual. Eles são agrupados em
+duas famílias para evitar que três variantes da mesma evidência local contem
+como três votos independentes:
+
+- aparência local = média de ``gray/binary/edges`` (40%);
+- forma global = média de ``structure/hog`` (60%).
+
+Os pesos são uma heurística de arquitetura, não um threshold calibrado e não
+são específicos de nenhuma classe. Thresholds de aceitação serão calibrados
+posteriormente usando vários casos rotulados.
 """
 
 from __future__ import annotations
@@ -34,6 +42,10 @@ REPRESENTATIONS = ("gray", "binary", "edges")
 STRUCTURE_COMPONENT = "structure"
 HOG_COMPONENT = "hog"
 SCORE_COMPONENTS = REPRESENTATIONS + (STRUCTURE_COMPONENT, HOG_COMPONENT)
+LOCAL_FAMILY_COMPONENTS = REPRESENTATIONS
+GLOBAL_FAMILY_COMPONENTS = (STRUCTURE_COMPONENT, HOG_COMPONENT)
+LOCAL_FAMILY_WEIGHT = 0.40
+GLOBAL_FAMILY_WEIGHT = 0.60
 DEFAULT_TARGET_SIZE = 48
 DEFAULT_MARGIN = 10
 DEFAULT_STRUCTURE_GRID = 12
@@ -89,11 +101,46 @@ class CandidateSymbolScore:
                         rep: round(float(score), 6)
                         for rep, score in item.scores.items()
                     },
+                    "family_scores": {
+                        key: round(float(value), 6)
+                        for key, value in _family_scores(item.scores).items()
+                    },
                     "mean_score": round(float(item.mean_score), 6),
                 }
                 for item in self.template_scores
             ],
         }
+
+
+def _family_scores(component_scores: Mapping[str, float]) -> Dict[str, float]:
+    """Resume componentes em duas famílias de evidência independentes."""
+
+    local_values = [
+        float(component_scores[name])
+        for name in LOCAL_FAMILY_COMPONENTS
+        if name in component_scores
+    ]
+    global_values = [
+        float(component_scores[name])
+        for name in GLOBAL_FAMILY_COMPONENTS
+        if name in component_scores
+    ]
+    local = float(np.mean(local_values)) if local_values else -1.0
+    global_shape = float(np.mean(global_values)) if global_values else -1.0
+    return {
+        "local": local,
+        "global_shape": global_shape,
+    }
+
+
+def _combine_family_scores(component_scores: Mapping[str, float]) -> float:
+    """Combina aparência local e forma global sem viés específico de classe."""
+
+    families = _family_scores(component_scores)
+    return float(
+        LOCAL_FAMILY_WEIGHT * families["local"]
+        + GLOBAL_FAMILY_WEIGHT * families["global_shape"]
+    )
 
 
 def render_page_gray(
@@ -447,9 +494,13 @@ def score_crop(
 ) -> Tuple[Dict[str, float], List[TemplateScore]]:
     """Compara um crop contra todos os templates e agrega o melhor por classe.
 
-    O score final é a média simples de cinco componentes diagnósticos:
-    ``gray``, ``binary``, ``edges``, ``structure`` e ``hog``.
-    Não é probabilidade e não aplica threshold de aceitação.
+    O score final combina duas famílias:
+    - 40% aparência local: média de ``gray/binary/edges``;
+    - 60% forma global: média de ``structure/hog``.
+
+    Essa combinação evita triplicar evidência local correlacionada. O resultado
+    continua sendo ranking diagnóstico: não é probabilidade e não aplica
+    threshold de aceitação.
     """
 
     search_reps, tight_reps = _prepare_forms(
@@ -481,9 +532,7 @@ def score_crop(
             _hog_descriptor(template_gray),
         )
 
-        mean_score = float(
-            np.mean([rep_scores[rep] for rep in SCORE_COMPONENTS])
-        )
+        mean_score = _combine_family_scores(rep_scores)
         item = TemplateScore(
             class_name=template.class_name,
             template_name=template.template_name,
