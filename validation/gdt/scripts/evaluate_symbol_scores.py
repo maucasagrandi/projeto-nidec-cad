@@ -1,9 +1,10 @@
 """Avalia os scores visuais da Fase 2 contra a baseline geométrica.
 
 Este script NÃO calibra threshold. Ele mede apenas:
-- acerto de ranking da classe nos 6 quadros reais localizados;
+- acerto de ranking da classe nos quadros reais localizados;
 - scores/margens dos quadros reais;
-- comportamento dos candidatos geométricos extras.
+- comportamento dos candidatos geométricos extras;
+- existência (ou não) de gap entre reais e extras.
 
 Uso:
     python validation/gdt/scripts/evaluate_symbol_scores.py \
@@ -28,6 +29,15 @@ def _project_path(value: str | Path) -> Path:
 
 def _load(path: Path) -> dict:
     return json.loads(path.read_text(encoding="utf-8"))
+
+
+def _numeric(rows: list[dict], field: str) -> list[float]:
+    values = []
+    for row in rows:
+        value = row.get(field)
+        if isinstance(value, (int, float)):
+            values.append(float(value))
+    return values
 
 
 def main() -> None:
@@ -98,8 +108,30 @@ def main() -> None:
         )
 
     ranking_accuracy = correct / total if total else 0.0
+
+    real_best = _numeric(real_rows, "best_score")
+    extra_best = _numeric(extra_rows, "best_score")
+    real_margin = _numeric(real_rows, "margin")
+    extra_margin = _numeric(extra_rows, "margin")
+
+    min_real_best = min(real_best) if real_best else None
+    max_extra_best = max(extra_best) if extra_best else None
+    min_real_margin = min(real_margin) if real_margin else None
+    max_extra_margin = max(extra_margin) if extra_margin else None
+
+    best_gap = (
+        min_real_best - max_extra_best
+        if min_real_best is not None and max_extra_best is not None
+        else None
+    )
+    margin_gap = (
+        min_real_margin - max_extra_margin
+        if min_real_margin is not None and max_extra_margin is not None
+        else None
+    )
+
     payload = {
-        "schema_version": 1,
+        "schema_version": 2,
         "phase": "symbol_scoring_evaluation",
         "decision_threshold_calibrated": False,
         "case_id": scores.get("case_id"),
@@ -109,7 +141,18 @@ def main() -> None:
             "correct": correct,
             "total": total,
             "accuracy": round(ranking_accuracy, 4),
-            "note": "Accuracy only measures top-ranked class on geometrically matched real frames; it is not final acceptance accuracy.",
+            "note": "Top-ranked class on geometrically matched real frames; not final acceptance accuracy.",
+        },
+        "separation_diagnostics": {
+            "min_real_best_score": round(min_real_best, 6) if min_real_best is not None else None,
+            "max_extra_best_score": round(max_extra_best, 6) if max_extra_best is not None else None,
+            "best_score_gap": round(best_gap, 6) if best_gap is not None else None,
+            "clean_best_score_separation": bool(best_gap is not None and best_gap > 0),
+            "min_real_margin": round(min_real_margin, 6) if min_real_margin is not None else None,
+            "max_extra_margin": round(max_extra_margin, 6) if max_extra_margin is not None else None,
+            "margin_gap": round(margin_gap, 6) if margin_gap is not None else None,
+            "clean_margin_separation": bool(margin_gap is not None and margin_gap > 0),
+            "note": "Diagnostics only. Do not convert these gaps into production thresholds from a single CAD.",
         },
         "real_frames": real_rows,
         "extra_candidates": extra_rows,
@@ -125,6 +168,10 @@ def main() -> None:
     print(f"ranking_correct={correct}")
     print(f"ranking_accuracy={ranking_accuracy:.3f}")
     print(f"extra_candidates={len(extra_rows)}")
+    if best_gap is not None:
+        print(f"best_score_gap={best_gap:.3f}")
+    if margin_gap is not None:
+        print(f"margin_gap={margin_gap:.3f}")
     print("decision_threshold_calibrated=False")
     print(f"output={output_path}")
 
