@@ -1,7 +1,15 @@
 import cv2
 import numpy as np
 
-from src.gdt.symbol_classifier import SCORE_COMPONENTS, TemplateImage, _prepare_forms, score_crop
+from src.gdt.symbol_classifier import (
+    GLOBAL_FAMILY_WEIGHT,
+    LOCAL_FAMILY_WEIGHT,
+    SCORE_COMPONENTS,
+    TemplateImage,
+    _combine_family_scores,
+    _prepare_forms,
+    score_crop,
+)
 
 
 def _crosshair() -> np.ndarray:
@@ -111,6 +119,23 @@ def test_scores_are_reported_for_every_component():
     assert set(class_scores) == {"position", "profile"}
     assert len(template_scores) == 2
     assert all(set(item.scores) == set(SCORE_COMPONENTS) for item in template_scores)
+
+
+def test_score_balances_local_and_global_families():
+    components = {
+        "gray": 0.9,
+        "binary": 0.6,
+        "edges": 0.3,
+        "structure": 0.8,
+        "hog": 0.4,
+    }
+
+    local_mean = np.mean([0.9, 0.6, 0.3])
+    global_mean = np.mean([0.8, 0.4])
+    expected = LOCAL_FAMILY_WEIGHT * local_mean + GLOBAL_FAMILY_WEIGHT * global_mean
+
+    assert np.isclose(_combine_family_scores(components), expected)
+    assert np.isclose(LOCAL_FAMILY_WEIGHT + GLOBAL_FAMILY_WEIGHT, 1.0)
 
 
 def test_phase4_catalog_keeps_position_as_best_for_position_shape():
