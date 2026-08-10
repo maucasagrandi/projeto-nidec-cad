@@ -4,6 +4,14 @@ The existing LLM remains responsible for extracting component/material/cited
 standards from vector PDF text. Standards applicability remains deterministic.
 Compressor series is external context: Phase 8 temporarily uses ``ALL`` until
 Windchill supplies the real value; the LLM classification itself is not altered.
+
+Important temporary-policy detail:
+``Normas.xlsx`` Parts was historically built by aggregating specific standards
+from every compressor series into one per-part list. While the real series is
+unknown, those aggregated rows must NOT be interpreted as applicable. In the
+Phase-8 ``ALL`` fallback we therefore retain only applicability rows produced
+from the Notes/component matching path, which already enforces an ``All``
+compressor-series row, and we do not run the material-family expansion.
 """
 
 from __future__ import annotations
@@ -47,6 +55,23 @@ def _extract_pdf_text(pdf_bytes: bytes, page_index: int) -> str:
     from src.modeling.llm_models import extract_text_from_pdf
 
     return extract_text_from_pdf(pdf_bytes, page_index=page_index)
+
+
+def _temporary_all_series_rows(applicability_dict: dict) -> list[dict]:
+    """Keep only safely resolved all-series rows while Windchill context is absent.
+
+    ``customer_applicability_matrix`` rows originate from the aggregated Parts
+    sheet and can contain standards from series we do not know. ``component_match``
+    rows originate from Notes after the series filter and are safe for the
+    temporary ALL policy.
+    """
+
+    rows = applicability_dict.get("applicable_standards", []) or []
+    return [
+        dict(row)
+        for row in rows
+        if str(row.get("source", "")) == "component_match"
+    ]
 
 
 def run_part_classification_branch(
@@ -101,14 +126,25 @@ def run_part_classification_branch(
             }
         )
 
+    temporary_all = (
+        str(compressor_series_context).strip().upper() == "ALL"
+        and str(compressor_series_source) == DEFAULT_COMPRESSOR_SERIES_SOURCE
+    )
+
     engine = applicability_engine or StandardsApplicabilityEngine(normas_path)
     applicability = engine.get_applicable_standards(
         component=component,
         compressor_series=str(compressor_series_context),
-        material_family=str(material_family) if material_family else None,
+        # The old material expansion is not series-filtered. Until Windchill gives
+        # us the real series, omit it rather than risk a false applicable standard.
+        material_family=None if temporary_all else (str(material_family) if material_family else None),
     )
     applicability_dict = _dump(applicability)
-    applicable_rows = applicability_dict.get("applicable_standards", []) or []
+    applicable_rows = (
+        _temporary_all_series_rows(applicability_dict)
+        if temporary_all
+        else [dict(row) for row in applicability_dict.get("applicable_standards", []) or []]
+    )
 
     comparison = compare_standards(
         applicable_standards=[str(row.get("standard")) for row in applicable_rows],
@@ -124,12 +160,18 @@ def run_part_classification_branch(
         "review_context": {
             "compressor_series": str(compressor_series_context),
             "compressor_series_source": str(compressor_series_source),
+            "temporary_all_policy": temporary_all,
         },
         "provenance": {
             "classification_source": "existing_llm_part_classification",
             "text_source": "pymupdf_vector_text",
             "standards_applicability_source": str(normas_path),
             "compressor_series_source": str(compressor_series_source),
+            "temporary_all_policy": (
+                "Notes rows resolved for compressor series All only; aggregated Parts rows and material expansion excluded"
+                if temporary_all
+                else None
+            ),
             "llm_metadata": _dump(metadata),
         },
     }
