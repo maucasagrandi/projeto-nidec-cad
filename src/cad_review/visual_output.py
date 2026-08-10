@@ -3,6 +3,14 @@
 The overlay is deliberately evidence-oriented: it shows *where* the pipeline
 looked and what it inferred, without turning an unvalidated detector candidate
 into ground truth. Generic batch detections are therefore labelled ``GDT-CAND``.
+
+Each page produces three views:
+- combined: GD&T candidates + datum definitions;
+- gdt: GD&T candidates only;
+- datums: datum definitions only.
+
+The split views keep dense drawings readable even when labels would overlap in
+the combined evidence image.
 """
 
 from __future__ import annotations
@@ -49,8 +57,6 @@ def _page_index(value: Any, page_count: int) -> Optional[int]:
         page = int(value)
     except (TypeError, ValueError):
         return None
-    # Detector/datum contracts are 1-indexed. Accept zero only as an explicit
-    # first-page value for diagnostic payloads.
     index = 0 if page == 0 else page - 1
     return index if 0 <= index < page_count else None
 
@@ -77,16 +83,120 @@ def _status_maps(findings: Iterable[Mapping[str, Any]]) -> tuple[dict[str, str],
     return by_candidate, by_datum
 
 
-def _draw_label(draw: ImageDraw.ImageDraw, xy: tuple[int, int], text: str, color: tuple[int, int, int], *, size: int = 18) -> None:
+def _draw_label(
+    draw: ImageDraw.ImageDraw,
+    xy: tuple[int, int],
+    text: str,
+    color: tuple[int, int, int],
+    *,
+    size: int = 18,
+) -> None:
     font = _font(size, bold=True)
     x, y = xy
     box = draw.textbbox((x, y), text, font=font)
     pad = 3
-    draw.rectangle((box[0] - pad, box[1] - pad, box[2] + pad, box[3] + pad), fill=(255, 255, 255), outline=color, width=2)
+    draw.rectangle(
+        (box[0] - pad, box[1] - pad, box[2] + pad, box[3] + pad),
+        fill=(255, 255, 255),
+        outline=color,
+        width=2,
+    )
     draw.text((x, y), text, fill=color, font=font)
 
 
-def _crop_from_pdf_bbox(image: Image.Image, bbox: tuple[float, float, float, float], scale: float, *, padding_pt: float = 8.0) -> Image.Image:
+def _draw_header(
+    image: Image.Image,
+    *,
+    page_number: int,
+    layer: str,
+    gdt_count: int,
+    datum_count: int,
+    scale: float,
+) -> None:
+    draw = ImageDraw.Draw(image)
+    font = _font(max(13, int(round(7 * scale))), bold=True)
+    summary = (
+        f"CAD Review | page {page_number} | layer={layer} | "
+        f"GDT candidates: {gdt_count} | datum definitions: {datum_count}"
+    )
+    text_box = draw.textbbox((12, 12), summary, font=font)
+    draw.rectangle(
+        (8, 8, text_box[2] + 8, text_box[3] + 8),
+        fill=(255, 255, 255),
+        outline=(60, 60, 60),
+        width=2,
+    )
+    draw.text((12, 12), summary, fill=(30, 30, 30), font=font)
+
+
+def _draw_gdt_layer(
+    image: Image.Image,
+    rows: Iterable[Mapping[str, Any]],
+    *,
+    candidate_status: Mapping[str, str],
+    scale: float,
+) -> None:
+    draw = ImageDraw.Draw(image)
+    for row in rows:
+        bbox = _bbox(row, "frame_bbox", "bbox")
+        if bbox is None:
+            continue
+        candidate_id = str(row.get("candidate_id") or row.get("gdt_id") or "GDT-CAND")
+        status = candidate_status.get(candidate_id, str(row.get("status") or "NOT_EVALUATED"))
+        color = _STATUS_COLORS.get(status, _STATUS_COLORS["NOT_EVALUATED"])
+        rect = tuple(int(round(v * scale)) for v in bbox)
+        draw.rectangle(rect, outline=color, width=max(3, int(round(scale))))
+        characteristic = row.get("characteristic") or row.get("best_class") or "unclassified"
+        refs = row.get("referenced_datums") or []
+        refs_text = ",".join(str(v) for v in refs) if refs else "-"
+        short_id = candidate_id.replace("GDT-CAND-P", "P")
+        label = f"GDT-CAND {short_id} | {characteristic} | refs:{refs_text} | {status}"
+        _draw_label(
+            draw,
+            (rect[0], max(0, rect[1] - 27)),
+            label,
+            color,
+            size=max(12, int(round(7.5 * scale))),
+        )
+
+
+def _draw_datum_layer(
+    image: Image.Image,
+    rows: Iterable[Mapping[str, Any]],
+    *,
+    datum_status: Mapping[str, str],
+    scale: float,
+) -> None:
+    draw = ImageDraw.Draw(image)
+    for row in rows:
+        box_bbox = _bbox(row, "box_bbox", "bbox")
+        marker_bbox = _bbox(row, "marker_bbox")
+        if box_bbox is None:
+            continue
+        label = str(row.get("label") or row.get("datum") or "?").upper()
+        status = datum_status.get(label, "PASS")
+        color = _STATUS_COLORS["WARNING"] if status == "WARNING" else _DATUM_COLOR
+        rect = tuple(int(round(v * scale)) for v in box_bbox)
+        draw.rectangle(rect, outline=color, width=max(3, int(round(scale))))
+        if marker_bbox is not None:
+            marker_rect = tuple(int(round(v * scale)) for v in marker_bbox)
+            draw.rectangle(marker_rect, outline=color, width=2)
+        _draw_label(
+            draw,
+            (rect[0], max(0, rect[1] - 27)),
+            f"DATUM-{label}",
+            color,
+            size=max(12, int(round(7.5 * scale))),
+        )
+
+
+def _crop_from_pdf_bbox(
+    image: Image.Image,
+    bbox: tuple[float, float, float, float],
+    scale: float,
+    *,
+    padding_pt: float = 8.0,
+) -> Image.Image:
     x0, y0, x1, y1 = bbox
     p = padding_pt * scale
     box = (
@@ -108,10 +218,10 @@ def render_visual_evidence(
     dpi: int = 180,
     save_crops: bool = True,
 ) -> dict:
-    """Render annotated pages and evidence crops.
+    """Render combined/split annotated pages and evidence crops.
 
-    Returns paths relative to ``output_dir`` so the caller can embed them in the
-    per-CAD JSON without leaking machine-specific absolute paths.
+    Returned paths are relative to ``output_dir`` so the JSON remains portable
+    across machines and can be moved together with its RESULTS directory.
     """
 
     output = Path(output_dir)
@@ -132,75 +242,101 @@ def render_visual_evidence(
         scale = float(dpi) / 72.0
         for page_index in range(len(doc)):
             page = doc[page_index]
-            pix = page.get_pixmap(matrix=fitz.Matrix(scale, scale), colorspace=fitz.csRGB, alpha=False)
-            image = Image.frombytes("RGB", (pix.width, pix.height), pix.samples)
-            draw = ImageDraw.Draw(image)
+            pix = page.get_pixmap(
+                matrix=fitz.Matrix(scale, scale),
+                colorspace=fitz.csRGB,
+                alpha=False,
+            )
+            base = Image.frombytes("RGB", (pix.width, pix.height), pix.samples)
+            page_gdt = [
+                row for row in gdt_rows
+                if _page_index(row.get("page", 1), len(doc)) == page_index
+            ]
+            page_datums = [
+                row for row in datum_rows
+                if _page_index(row.get("page", 1), len(doc)) == page_index
+            ]
 
-            page_gdt = [row for row in gdt_rows if _page_index(row.get("page", 1), len(doc)) == page_index]
-            page_datums = [row for row in datum_rows if _page_index(row.get("page", 1), len(doc)) == page_index]
+            combined = base.copy()
+            gdt_only = base.copy()
+            datums_only = base.copy()
+            _draw_gdt_layer(combined, page_gdt, candidate_status=candidate_status, scale=scale)
+            _draw_datum_layer(combined, page_datums, datum_status=datum_status, scale=scale)
+            _draw_gdt_layer(gdt_only, page_gdt, candidate_status=candidate_status, scale=scale)
+            _draw_datum_layer(datums_only, page_datums, datum_status=datum_status, scale=scale)
 
-            for row in page_gdt:
-                bbox = _bbox(row, "frame_bbox", "bbox")
-                if bbox is None:
-                    continue
-                candidate_id = str(row.get("candidate_id") or row.get("gdt_id") or "GDT-CAND")
-                status = candidate_status.get(candidate_id, str(row.get("status") or "NOT_EVALUATED"))
-                color = _STATUS_COLORS.get(status, _STATUS_COLORS["NOT_EVALUATED"])
-                rect = tuple(int(round(v * scale)) for v in bbox)
-                draw.rectangle(rect, outline=color, width=max(3, int(round(scale))))
-                characteristic = row.get("characteristic") or row.get("best_class") or "unclassified"
-                refs = row.get("referenced_datums") or []
-                refs_text = ",".join(str(v) for v in refs) if refs else "-"
-                short_id = candidate_id.replace("GDT-CAND-P", "P")
-                label = f"GDT-CAND {short_id} | {characteristic} | refs:{refs_text} | {status}"
-                _draw_label(draw, (rect[0], max(0, rect[1] - 27)), label, color, size=max(12, int(round(7.5 * scale))))
-                if save_crops:
-                    crop = _crop_from_pdf_bbox(image, bbox, scale)
+            _draw_header(
+                combined,
+                page_number=page_index + 1,
+                layer="combined",
+                gdt_count=len(page_gdt),
+                datum_count=len(page_datums),
+                scale=scale,
+            )
+            _draw_header(
+                gdt_only,
+                page_number=page_index + 1,
+                layer="gdt",
+                gdt_count=len(page_gdt),
+                datum_count=0,
+                scale=scale,
+            )
+            _draw_header(
+                datums_only,
+                page_number=page_index + 1,
+                layer="datums",
+                gdt_count=0,
+                datum_count=len(page_datums),
+                scale=scale,
+            )
+
+            combined_path = output / f"page_{page_index + 1:03d}_annotated.png"
+            gdt_path = output / f"page_{page_index + 1:03d}_gdt.png"
+            datums_path = output / f"page_{page_index + 1:03d}_datums.png"
+            combined.save(combined_path)
+            gdt_only.save(gdt_path)
+            datums_only.save(datums_path)
+
+            if save_crops:
+                for row in page_gdt:
+                    bbox = _bbox(row, "frame_bbox", "bbox")
+                    if bbox is None:
+                        continue
+                    candidate_id = str(row.get("candidate_id") or row.get("gdt_id") or "GDT-CAND")
+                    crop = _crop_from_pdf_bbox(combined, bbox, scale)
                     path = crop_dir / f"{candidate_id.replace(':', '_')}_frame.png"
                     crop.save(path)
                     crop_paths.append(str(path.relative_to(output)))
 
-            for index, row in enumerate(page_datums, start=1):
-                box_bbox = _bbox(row, "box_bbox", "bbox")
-                marker_bbox = _bbox(row, "marker_bbox")
-                if box_bbox is None:
-                    continue
-                label = str(row.get("label") or row.get("datum") or "?").upper()
-                status = datum_status.get(label, "PASS")
-                color = _STATUS_COLORS.get(status, _DATUM_COLOR) if status == "WARNING" else _DATUM_COLOR
-                rect = tuple(int(round(v * scale)) for v in box_bbox)
-                draw.rectangle(rect, outline=color, width=max(3, int(round(scale))))
-                if marker_bbox is not None:
-                    marker_rect = tuple(int(round(v * scale)) for v in marker_bbox)
-                    draw.rectangle(marker_rect, outline=color, width=2)
-                _draw_label(draw, (rect[0], max(0, rect[1] - 27)), f"DATUM-{label}", color, size=max(12, int(round(7.5 * scale))))
-                if save_crops:
+                for index, row in enumerate(page_datums, start=1):
+                    box_bbox = _bbox(row, "box_bbox", "bbox")
+                    marker_bbox = _bbox(row, "marker_bbox")
+                    if box_bbox is None:
+                        continue
+                    label = str(row.get("label") or row.get("datum") or "?").upper()
                     union = box_bbox
                     if marker_bbox is not None:
                         union = (
-                            min(box_bbox[0], marker_bbox[0]), min(box_bbox[1], marker_bbox[1]),
-                            max(box_bbox[2], marker_bbox[2]), max(box_bbox[3], marker_bbox[3]),
+                            min(box_bbox[0], marker_bbox[0]),
+                            min(box_bbox[1], marker_bbox[1]),
+                            max(box_bbox[2], marker_bbox[2]),
+                            max(box_bbox[3], marker_bbox[3]),
                         )
-                    crop = _crop_from_pdf_bbox(image, union, scale, padding_pt=12.0)
+                    crop = _crop_from_pdf_bbox(combined, union, scale, padding_pt=12.0)
                     path = crop_dir / f"DATUM-{label}_{page_index + 1:03d}_{index:02d}.png"
                     crop.save(path)
                     crop_paths.append(str(path.relative_to(output)))
 
-            # Compact legend / page summary.
-            legend_font = _font(max(13, int(round(7 * scale))), bold=True)
-            summary = f"CAD Review | page {page_index + 1} | GDT candidates: {len(page_gdt)} | datum definitions: {len(page_datums)}"
-            text_box = draw.textbbox((12, 12), summary, font=legend_font)
-            draw.rectangle((8, 8, text_box[2] + 8, text_box[3] + 8), fill=(255, 255, 255), outline=(60, 60, 60), width=2)
-            draw.text((12, 12), summary, fill=(30, 30, 30), font=legend_font)
-
-            page_path = output / f"page_{page_index + 1:03d}_annotated.png"
-            image.save(page_path)
-            artifacts.append({
-                "page": page_index + 1,
-                "annotated_image": str(page_path.relative_to(output)),
-                "gdt_candidate_count": len(page_gdt),
-                "datum_definition_count": len(page_datums),
-            })
+            artifacts.append(
+                {
+                    "page": page_index + 1,
+                    "annotated_image": str(combined_path.relative_to(output)),
+                    "gdt_image": str(gdt_path.relative_to(output)),
+                    "datums_image": str(datums_path.relative_to(output)),
+                    "gdt_candidate_count": len(page_gdt),
+                    "datum_definition_count": len(page_datums),
+                }
+            )
     finally:
         doc.close()
 
@@ -209,6 +345,7 @@ def render_visual_evidence(
         "pages": artifacts,
         "crops": crop_paths,
         "label_policy": "GDT-CAND until independently validated",
+        "layers": ["combined", "gdt", "datums"],
     }
 
 
