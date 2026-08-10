@@ -3,7 +3,8 @@
 This is a convenience wrapper around ``run_gdt_detection_debug.py``. It keeps
 one failure from stopping the remaining CADs and writes a small manifest.
 
-Default detector is V2 shadow/diagnostic mode.
+Default detector is V2.1: V2 proposal generation plus rectangle geometry
+refinement before symbol/content validation.
 """
 
 from __future__ import annotations
@@ -20,8 +21,8 @@ PROJECT_ROOT = Path(__file__).resolve().parent
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run GD&T detector diagnostics for a folder")
     parser.add_argument("--input-folder", type=Path, default=PROJECT_ROOT / "CADS")
-    parser.add_argument("--output-folder", type=Path, default=PROJECT_ROOT / "DEBUG_RESULTS_V2")
-    parser.add_argument("--detector-version", choices=("v1", "v2"), default="v2")
+    parser.add_argument("--output-folder", type=Path, default=PROJECT_ROOT / "DEBUG_RESULTS_V21")
+    parser.add_argument("--detector-version", choices=("v1", "v2", "v21"), default="v21")
     parser.add_argument("--recursive", action="store_true")
     parser.add_argument("--skip-template-sync", action="store_true")
     parser.add_argument("--detector-only", action="store_true")
@@ -51,9 +52,6 @@ def main() -> None:
             "--detector-version",
             args.detector_version,
         ]
-        # The single-file runner synchronizes templates by default. For a folder,
-        # only the first CAD needs to do it; following CADs reuse the synchronized
-        # catalog to avoid repeated work.
         if args.skip_template_sync or index > 1:
             cmd.append("--skip-template-sync")
         if args.detector_only:
