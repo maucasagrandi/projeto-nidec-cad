@@ -155,8 +155,8 @@ def _phase7_findings(payload: Mapping[str, Any], findings: list[CadReviewFinding
                 datum=finding.get("datum"),
                 normative_claim=bool(finding.get("normative_claim", False)),
                 evidence={
-                    "defined": finding.get("defined"),
                     "definition_count": finding.get("definition_count"),
+                    "definition_evidence": finding.get("definition_evidence", []),
                 },
             )
 
