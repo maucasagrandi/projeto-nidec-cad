@@ -3,13 +3,11 @@
 This diagnostic intentionally starts from the already-detected cell bboxes.
 It does NOT revisit frame or cell localization.
 
-Compared with the earlier glyph-segmentation diagnostic, this version:
-- renders the FULL cell bbox (no 0.8 pt inset, which clipped some A/B/D glyphs);
-- keeps connected components intact;
-- labels each component deterministically as structural_line, arrow_like,
-  text_candidate, or other;
-- saves a candidate-only mask so we can see what remains after ignoring obvious
-  frame / leader geometry.
+This version renders a small context margin around each logical cell so glyph
+strokes that cross a detected bbox by a fraction of a point are not clipped.
+The original cell bbox remains the ownership gate: only text candidates whose
+centroids fall inside that logical core are retained. Neighboring-cell glyphs
+visible because of the context margin are therefore rejected.
 
 No OCR, no LLM, and no character classification are performed here.
 """
@@ -29,7 +27,12 @@ PROJECT_ROOT = Path(__file__).resolve().parents[3]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from src.gdt.cell_visual_content import analyze_components, binarize_cell, build_text_candidate_mask
+from src.gdt.cell_visual_content import (
+    analyze_components,
+    binarize_cell,
+    build_text_candidate_mask,
+    select_text_candidates_for_core,
+)
 from src.gdt.detector import GdtFrameDetector
 
 CASE_ID = "case_41_rev8"
@@ -40,6 +43,7 @@ OUTPUT_PATH = OUTPUT_DIR / "cell_content_filter.json"
 CONTACT_SHEET_PATH = OUTPUT_DIR / "cell_content_filter_contact_sheet.png"
 
 RENDER_DPI = 1200
+CELL_CONTEXT_PT = 1.5
 MIN_COMPONENT_AREA_PX = 8
 CONTACT_TILE_WIDTH = 960
 CONTACT_TILE_HEIGHT = 285
@@ -67,21 +71,51 @@ def _render_gray(page: fitz.Page, rect: fitz.Rect) -> np.ndarray:
     return np.frombuffer(pix.samples, dtype=np.uint8).reshape(pix.height, pix.width).copy()
 
 
+def _context_rect_and_core(page: fitz.Page, cell_rect: fitz.Rect) -> tuple[fitz.Rect, tuple[float, float, float, float]]:
+    """Return padded render rect plus original logical cell in crop pixels."""
+
+    page_rect = page.rect
+    clip = fitz.Rect(
+        max(page_rect.x0, cell_rect.x0 - CELL_CONTEXT_PT),
+        max(page_rect.y0, cell_rect.y0 - CELL_CONTEXT_PT),
+        min(page_rect.x1, cell_rect.x1 + CELL_CONTEXT_PT),
+        min(page_rect.y1, cell_rect.y1 + CELL_CONTEXT_PT),
+    )
+    scale = RENDER_DPI / 72.0
+    core = (
+        (cell_rect.x0 - clip.x0) * scale,
+        (cell_rect.y0 - clip.y0) * scale,
+        (cell_rect.x1 - clip.x0) * scale,
+        (cell_rect.y1 - clip.y0) * scale,
+    )
+    return clip, core
+
+
 def _save_visible_binary(binary: np.ndarray, path: Path) -> None:
     cv2.imwrite(str(path), 255 - binary)
 
 
-def _save_annotated(gray: np.ndarray, components, path: Path) -> None:
+def _save_annotated(gray: np.ndarray, components, selected_labels: set[int], core_bbox_px, path: Path) -> None:
     image = cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
+    x0, y0, x1, y1 = [int(round(value)) for value in core_bbox_px]
+    cv2.rectangle(
+        image,
+        (max(0, x0), max(0, y0)),
+        (min(image.shape[1] - 1, x1), min(image.shape[0] - 1, y1)),
+        (0, 180, 180),
+        2,
+    )
     for index, component in enumerate(components, start=1):
-        x0, y0, x1, y1 = component.bbox_px
+        bx0, by0, bx1, by1 = component.bbox_px
         color = CLASS_COLORS_BGR.get(component.component_class, (0, 0, 0))
-        cv2.rectangle(image, (x0, y0), (max(x0, x1 - 1), max(y0, y1 - 1)), color, 2)
-        label = f"{index}:{component.component_class}"
+        thickness = 3 if component.label in selected_labels else 1
+        cv2.rectangle(image, (bx0, by0), (max(bx0, bx1 - 1), max(by0, by1 - 1)), color, thickness)
+        ownership = "*" if component.label in selected_labels else ""
+        label = f"{index}:{component.component_class}{ownership}"
         cv2.putText(
             image,
             label,
-            (x0, max(14, y0 - 4)),
+            (bx0, max(14, by0 - 4)),
             cv2.FONT_HERSHEY_SIMPLEX,
             0.40,
             color,
@@ -112,7 +146,7 @@ def _build_contact_sheet(rows: list[dict]) -> None:
         top = row_index * CONTACT_TILE_HEIGHT
         title = (
             f"{row['candidate_id']} cell[{row['cell_index']}] role={row['expected_role']} "
-            f"text_candidates={row['text_candidate_count']} "
+            f"selected_text={row['text_candidate_count']} raw_text={row['raw_text_candidate_count']} "
             f"structural={row['structural_count']} arrows={row['arrow_like_count']} other={row['other_count']}"
         )
         draw.text((10, top + 8), title, fill="black", font=font)
@@ -128,9 +162,9 @@ def _build_contact_sheet(rows: list[dict]) -> None:
         sheet.paste(original, (10, top + 50))
         sheet.paste(annotated, (330, top + 50))
         sheet.paste(candidate_only, (650, top + 50))
-        draw.text((10, top + 245), "full cell", fill="black", font=font)
-        draw.text((330, top + 245), "classified components", fill="black", font=font)
-        draw.text((650, top + 245), "text candidates only", fill="black", font=font)
+        draw.text((10, top + 245), "cell + 1.5pt context", fill="black", font=font)
+        draw.text((330, top + 245), "yellow=logical cell; *=selected", fill="black", font=font)
+        draw.text((650, top + 245), "selected text only", fill="black", font=font)
 
         if row_index < len(rows) - 1:
             draw.line((0, top + CONTACT_TILE_HEIGHT - 1, CONTACT_TILE_WIDTH, top + CONTACT_TILE_HEIGHT - 1), fill="gray")
@@ -163,11 +197,14 @@ def main() -> None:
         page = doc[page_index]
         for candidate in candidates:
             for cell_index, cell in enumerate(candidate.cells[1:], start=1):
-                rect = fitz.Rect(cell.bbox.to_list())
-                gray = _render_gray(page, rect)
+                cell_rect = fitz.Rect(cell.bbox.to_list())
+                render_rect, core_bbox_px = _context_rect_and_core(page, cell_rect)
+                gray = _render_gray(page, render_rect)
                 binary = binarize_cell(gray)
                 components = analyze_components(binary, min_area_px=MIN_COMPONENT_AREA_PX)
-                text_mask = build_text_candidate_mask(binary, components)
+                selected_text = select_text_candidates_for_core(components, core_bbox_px)
+                text_mask = build_text_candidate_mask(binary, selected_text)
+                selected_labels = {component.label for component in selected_text}
 
                 prefix = f"{candidate.candidate_id}_cell_{cell_index:02d}"
                 original_name = f"{prefix}_full.png"
@@ -175,10 +212,10 @@ def main() -> None:
                 text_name = f"{prefix}_text_candidates.png"
 
                 cv2.imwrite(str(OUTPUT_DIR / original_name), gray)
-                _save_annotated(gray, components, OUTPUT_DIR / annotated_name)
+                _save_annotated(gray, components, selected_labels, core_bbox_px, OUTPUT_DIR / annotated_name)
                 _save_visible_binary(text_mask, OUTPUT_DIR / text_name)
 
-                counts = {
+                raw_counts = {
                     key: sum(component.component_class == key for component in components)
                     for key in ("text_candidate", "structural_line", "arrow_like", "other")
                 }
@@ -189,13 +226,18 @@ def main() -> None:
                         "cell_index": cell_index,
                         "expected_role": "tolerance" if cell_index == 1 else "datum_or_modifier",
                         "cell_bbox": [round(value, 4) for value in cell.bbox.to_list()],
+                        "render_bbox": [round(value, 4) for value in (render_rect.x0, render_rect.y0, render_rect.x1, render_rect.y1)],
+                        "logical_core_bbox_px": [round(float(value), 3) for value in core_bbox_px],
                         "render_dpi": RENDER_DPI,
+                        "cell_context_pt": CELL_CONTEXT_PT,
                         "image_size_px": [int(gray.shape[1]), int(gray.shape[0])],
                         "component_count": len(components),
-                        "text_candidate_count": counts["text_candidate"],
-                        "structural_count": counts["structural_line"],
-                        "arrow_like_count": counts["arrow_like"],
-                        "other_count": counts["other"],
+                        "text_candidate_count": len(selected_text),
+                        "raw_text_candidate_count": raw_counts["text_candidate"],
+                        "structural_count": raw_counts["structural_line"],
+                        "arrow_like_count": raw_counts["arrow_like"],
+                        "other_count": raw_counts["other"],
+                        "selected_text_labels": sorted(selected_labels),
                         "components": [component.to_dict() for component in components],
                         "original_crop": original_name,
                         "annotated_crop": annotated_name,
@@ -206,7 +248,7 @@ def main() -> None:
         doc.close()
 
     payload = {
-        "schema_version": 1,
+        "schema_version": 2,
         "phase": "phase5_cell_content_filter_diagnostic",
         "case_id": CASE_ID,
         "validation_status": "DIAGNOSTIC_ONLY",
@@ -215,6 +257,8 @@ def main() -> None:
         "character_classification_performed": False,
         "cell_localization_revisited": False,
         "render_dpi": RENDER_DPI,
+        "cell_context_pt": CELL_CONTEXT_PT,
+        "ownership_rule": "text_candidate centroid must be inside original logical cell bbox",
         "benchmark_real_frame_count": len(candidates),
         "content_cell_count": len(rows),
         "rows": rows,
@@ -228,17 +272,20 @@ def main() -> None:
     print("llm_used=False")
     print("character_classification_performed=False")
     print("cell_localization_revisited=False")
+    print(f"cell_context_pt={CELL_CONTEXT_PT}")
+    print("ownership_rule=centroid_inside_logical_cell")
     print(f"content_cells={len(rows)}")
     print("\nbenchmark_real_frame_cell_content_filter:")
     for row in rows:
         print(
             f"  {row['candidate_id']} cell[{row['cell_index']}] role={row['expected_role']} "
-            f"text_candidates={row['text_candidate_count']} "
+            f"selected_text={row['text_candidate_count']} raw_text={row['raw_text_candidate_count']} "
             f"structural={row['structural_count']} arrows={row['arrow_like_count']} other={row['other_count']}"
         )
         for index, component in enumerate(row["components"], start=1):
+            selected = " selected" if component["label"] in row["selected_text_labels"] else ""
             print(
-                f"    {index}: class={component['component_class']} bbox={component['bbox_px']} "
+                f"    {index}: class={component['component_class']}{selected} bbox={component['bbox_px']} "
                 f"holes={component['hole_count']} solidity={component['solidity']:.3f} "
                 f"vertices={component['approx_vertices']} reasons={component['reasons']}"
             )
