@@ -816,22 +816,24 @@ def export_comparison(
     result: CompareResult,
     output_dir: str | Path,
     page_index: int = 0,
+    page_prefix: str = "",
 ) -> Path:
-    """Export production artifacts from a comparison result.
+    """Export production artifacts from a single-page comparison result.
 
     Produces:
-    1. `original.png` — hi-res image of drawing 1 (the reference)
-    2. `crops/<id>.png` — cropped sections from the aligned image 2 (revision),
+    1. `{prefix}original.png` — hi-res image of drawing 1 (the reference)
+    2. `crops/{prefix}<id>.png` — cropped sections from the aligned image 2 (revision),
        one per detected difference region
-    3. `manifest.json` — bounding boxes with IDs, in image1 coordinates
+    3. Entries for the manifest (or standalone `manifest.json` when called directly)
 
-    The bounding boxes in the manifest correspond to coordinates on `original.png`.
+    The bounding boxes in the manifest correspond to coordinates on the original image.
     Each crop is the same region extracted from the aligned revision image.
 
     Args:
         result: CompareResult from compare_cad_pages_opencv().
         output_dir: Directory to write outputs into (created if needed).
-        page_index: Page number, used for naming when processing multi-page PDFs.
+        page_index: Page number for the manifest metadata.
+        page_prefix: Filename prefix for multi-page exports (e.g., 'page_01_').
 
     Returns:
         Path to the manifest.json file.
@@ -844,7 +846,7 @@ def export_comparison(
     crops_dir.mkdir(parents=True, exist_ok=True)
 
     # 1. Save hi-res original image
-    original_path = output_dir / "original.png"
+    original_path = output_dir / f"{page_prefix}original.png"
     cv2.imwrite(str(original_path), result.image1)
 
     # 2. Crop regions from aligned image2 and build manifest entries
@@ -853,7 +855,7 @@ def export_comparison(
     for idx, ((x, y, w, h), div_pct) in enumerate(
         zip(result.diff_bboxes, result.diff_divergences), start=1
     ):
-        region_id = f"diff_{idx:03d}"
+        region_id = f"{page_prefix}diff_{idx:03d}"
 
         # Crop from the aligned revision image
         crop = result.image2_aligned[y : y + h, x : x + w]
@@ -874,12 +876,123 @@ def export_comparison(
         "page_index": page_index,
         "image_width": result.image1.shape[1],
         "image_height": result.image1.shape[0],
+        "original_file": f"{page_prefix}original.png",
         "alignment": {
             "method": "homography" if result.homography_matrix is not None else "resize",
             "score": round(result.alignment_score, 4),
         },
         "num_regions": len(regions),
         "regions": regions,
+    }
+
+    manifest_path = output_dir / "manifest.json"
+    manifest_path.write_text(json.dumps(manifest, indent=2, ensure_ascii=False))
+
+    return manifest_path
+
+
+def export_comparison_all_pages(
+    pdf1_bytes: bytes,
+    pdf2_bytes: bytes,
+    output_dir: str | Path,
+    config: Optional[CompareConfig] = None,
+) -> Path:
+    """Export production artifacts for ALL pages of a multi-page CAD PDF comparison.
+
+    Processes every common page between the two PDFs and produces a unified
+    output directory:
+
+    ```
+    output_dir/
+    ├── manifest.json              # Combined manifest for all pages
+    ├── page_01_original.png       # Hi-res image 1, page 1
+    ├── page_02_original.png       # Hi-res image 1, page 2
+    ├── ...
+    └── crops/
+        ├── page_01_diff_001.png   # Crop from page 1, region 1
+        ├── page_01_diff_002.png   # Crop from page 1, region 2
+        ├── page_02_diff_001.png   # Crop from page 2, region 1
+        └── ...
+    ```
+
+    The manifest contains per-page entries with bounding boxes in each page's
+    coordinate system. Region IDs are globally unique across pages.
+
+    Args:
+        pdf1_bytes: Raw bytes of the original (reference) PDF.
+        pdf2_bytes: Raw bytes of the revised PDF.
+        output_dir: Directory to write all outputs into (created if needed).
+        config: Pipeline configuration. Uses defaults if None.
+
+    Returns:
+        Path to the combined manifest.json file.
+    """
+    import json
+
+    if config is None:
+        config = CompareConfig()
+
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    crops_dir = output_dir / "crops"
+    crops_dir.mkdir(parents=True, exist_ok=True)
+
+    # Determine page count
+    doc1 = fitz.open(stream=pdf1_bytes, filetype="pdf")
+    doc2 = fitz.open(stream=pdf2_bytes, filetype="pdf")
+    n_pages = min(len(doc1), len(doc2))
+    doc1.close()
+    doc2.close()
+
+    pages_data: list[dict] = []
+
+    for page_idx in range(n_pages):
+        page_prefix = f"page_{page_idx + 1:02d}_"
+
+        # Run comparison for this page
+        result = compare_cad_pages_opencv(pdf1_bytes, pdf2_bytes, page_idx, config)
+
+        # Save hi-res original
+        original_filename = f"{page_prefix}original.png"
+        cv2.imwrite(str(output_dir / original_filename), result.image1)
+
+        # Crop regions and collect metadata
+        regions: list[dict] = []
+        for idx, ((x, y, w, h), div_pct) in enumerate(
+            zip(result.diff_bboxes, result.diff_divergences), start=1
+        ):
+            region_id = f"{page_prefix}diff_{idx:03d}"
+
+            crop = result.image2_aligned[y : y + h, x : x + w]
+            cv2.imwrite(str(crops_dir / f"{region_id}.png"), crop)
+
+            regions.append({
+                "id": region_id,
+                "x": x,
+                "y": y,
+                "width": w,
+                "height": h,
+                "divergence_pct": round(div_pct, 2),
+            })
+
+        pages_data.append({
+            "page_index": page_idx,
+            "image_width": result.image1.shape[1],
+            "image_height": result.image1.shape[0],
+            "original_file": original_filename,
+            "alignment": {
+                "method": "homography" if result.homography_matrix is not None else "resize",
+                "score": round(result.alignment_score, 4),
+            },
+            "num_regions": len(regions),
+            "regions": regions,
+        })
+
+    # Write combined manifest
+    manifest = {
+        "total_pages": n_pages,
+        "total_regions": sum(p["num_regions"] for p in pages_data),
+        "pages": pages_data,
     }
 
     manifest_path = output_dir / "manifest.json"

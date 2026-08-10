@@ -2,3 +2,6 @@ __pycache__
 .venv
 .env
 
+
+# OpenCV comparison test outputs
+opencv_compare_results/
