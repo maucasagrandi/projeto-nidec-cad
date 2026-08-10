@@ -62,7 +62,7 @@ def _sample_result():
     }
 
 
-def test_engineering_layout_matches_existing_validation_sheet_and_uses_deterministic_missing_standards():
+def test_engineering_layout_matches_existing_validation_sheet_and_keeps_legacy_suggestion_columns_empty():
     row = engineering_row(_sample_result())
     assert ENGINEERING_HEADERS == [
         "CAD",
@@ -83,7 +83,9 @@ def test_engineering_layout_matches_existing_validation_sheet_and_uses_determini
     ]
     assert row["Classificação_Ground_Truth"] == ""
     assert row["Match_Classif"] == ""
-    assert row["Normas_Sugeridas_LLM"] == "TSS 002420"
+    assert row["Normas_Sugeridas_LLM"] == ""
+    assert row["Reasoning_Sugeridas"] == ""
+    assert "TSS 002420" in row["Observações"]
     assert "free-form" in row["Observações"]
 
 
