@@ -82,25 +82,25 @@ def test_phase8_aggregates_standards_iso1101_and_iso5459_findings():
                 "findings": [
                     {
                         "status": "PASS",
-                        "code": "DATUM_REFERENCE_DEFINED",
+                        "code": "ISO5459_DATUM_DEFINITION_FOUND",
                         "datum": "A",
                         "standard": "ISO 5459",
-                        "finding": "Datum A is referenced and defined.",
-                        "recommended_action": None,
+                        "finding": "Datum A is referenced and a corresponding datum feature indicator was identified in the drawing.",
+                        "recommended_action": "No action required for datum-definition presence.",
                         "normative_claim": False,
-                        "defined": True,
                         "definition_count": 1,
+                        "definition_evidence": [{"label": "A", "page": 1}],
                     },
                     {
                         "status": "WARNING",
-                        "code": "DATUM_REFERENCE_NOT_DEFINED",
+                        "code": "ISO5459_REFERENCED_DATUM_NOT_DEFINED",
                         "datum": "D",
                         "standard": "ISO 5459",
-                        "finding": "Datum D is referenced but not defined.",
-                        "recommended_action": "Define datum D or correct the reference.",
+                        "finding": "Potential violation of ISO 5459: datum D is referenced but not defined.",
+                        "recommended_action": "Verify that datum D is correctly defined in the drawing or correct the GD&T datum reference.",
                         "normative_claim": False,
-                        "defined": False,
                         "definition_count": 0,
+                        "definition_evidence": [],
                     },
                 ],
             }
@@ -126,5 +126,6 @@ def test_phase8_aggregates_standards_iso1101_and_iso5459_findings():
     by_code = {row.code: row for row in result.findings}
     assert by_code["APPLICABLE_STANDARD_MISSING"].standard == "TSS 002420"
     assert by_code["ISO1101_DATUM_REQUIREMENT_CONDITIONAL"].candidate_id == "GDT-CAND-P01-004"
-    assert by_code["DATUM_REFERENCE_NOT_DEFINED"].datum == "D"
-    assert by_code["DATUM_REFERENCE_NOT_DEFINED"].standard == "ISO 5459"
+    assert by_code["ISO5459_REFERENCED_DATUM_NOT_DEFINED"].datum == "D"
+    assert by_code["ISO5459_REFERENCED_DATUM_NOT_DEFINED"].standard == "ISO 5459"
+    assert by_code["ISO5459_DATUM_DEFINITION_FOUND"].evidence["definition_count"] == 1
