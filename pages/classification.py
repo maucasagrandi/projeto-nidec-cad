@@ -30,6 +30,69 @@ cost_logger = CostLogger("custos.csv")
 st.set_page_config(page_title="Part Classification", layout="wide")
 
 # ==============================================================================
+# Customização de Tema (CSS)
+# ==============================================================================
+st.markdown(
+    """
+    <style>
+    /* Fundo branco da aplicação */
+    .main {
+        background-color: #FFFFFF !important;
+    }
+    
+    /* Sidebar com cor verde */
+    [data-testid="stSidebar"] {
+        background-color: #13A344 !important;
+    }
+    
+    /* Texto da sidebar em branco para contraste */
+    [data-testid="stSidebar"] * {
+        color: #FFFFFF !important;
+    }
+    
+    /* Divisor da sidebar */
+    [data-testid="stSidebar"] hr {
+        background-color: rgba(255, 255, 255, 0.2) !important;
+        border: none !important;
+        height: 1px !important;
+    }
+    
+    /* Links na sidebar */
+    [data-testid="stSidebar"] a {
+        color: #FFFFFF !important;
+    }
+    
+    /* Botões na sidebar */
+    [data-testid="stSidebar"] button {
+        color: #FFFFFF !important;
+        background-color: rgba(255, 255, 255, 0.2) !important;
+    }
+    
+    [data-testid="stSidebar"] button:hover {
+        background-color: rgba(255, 255, 255, 0.3) !important;
+    }
+    
+    /* Área de conteúdo principal */
+    .block-container {
+        background-color: #FFFFFF !important;
+    }
+    
+    /* Inputs na sidebar */
+    [data-testid="stSidebar"] input {
+        background-color: rgba(255, 255, 255, 0.1) !important;
+        color: #FFFFFF !important;
+        border: 1px solid rgba(255, 255, 255, 0.3) !important;
+    }
+    
+    [data-testid="stSidebar"] input::placeholder {
+        color: rgba(255, 255, 255, 0.7) !important;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
+# ==============================================================================
 # Sidebar
 # ==============================================================================
 logo = Image.open("./logo.png")
