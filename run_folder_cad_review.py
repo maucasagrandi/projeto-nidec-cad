@@ -163,7 +163,14 @@ def main() -> None:
             print(f"  ERROR {error_text}")
 
         engineering_rows.append(engineering_row(result))
-        technical_rows.append(technical_row(result, result_json_path=result_rel, error=error_text))
+        tech_row = technical_row(result, result_json_path=result_rel, error=error_text)
+        if tech_row.get("Annotated_Images"):
+            tech_row["Annotated_Images"] = "; ".join(
+                str(Path(dirname) / item.strip())
+                for item in str(tech_row["Annotated_Images"]).split(";")
+                if item.strip()
+            )
+        technical_rows.append(tech_row)
         manifest_entries.append(
             {
                 "cad": pdf.name,
