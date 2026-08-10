@@ -1,14 +1,11 @@
 """Run isolated GD&T detector diagnostics for one CAD PDF.
 
-Default mode is Candidate Detector V2 in diagnostic/shadow mode. It does NOT
+Default mode is Candidate Detector V2.1 in diagnostic/shadow mode. It does NOT
 call Gemini, Normas.xlsx, ISO rules, datum consistency, or the Compliance Engine.
 
-V2 separates:
-1. raw proposals from three sources (V1 legacy, normalized vector, raster);
-2. structural validation (accepted/rejected, with reasons);
-3. symbol ranking diagnostics.
-
-Use ``--detector-version v1`` to reproduce the legacy Phase-1 behavior.
+V2.1 keeps V2 proposal generation, then improves the rectangle/cell-chain
+geometry before symbol ranking. Use ``--detector-version v2`` to reproduce the
+unrefined hybrid proposal detector or ``--detector-version v1`` for legacy Phase 1.
 Nothing is called TP/FP without independent ground truth.
 """
 
@@ -31,6 +28,7 @@ if str(PROJECT_ROOT) not in sys.path:
 from src.cad_review.detection_diagnostics import render_detection_diagnostics
 from src.cad_review.detection_diagnostics_v2 import render_v2_detection_diagnostics
 from src.gdt.candidate_detector_v2 import GdtCandidateDetectorV2, validate_proposals
+from src.gdt.candidate_detector_v21 import GdtCandidateDetectorV21
 from src.gdt.detector import GdtFrameDetector
 from src.gdt.symbol_classifier import load_template_catalog, render_page_gray, score_candidates
 
@@ -114,15 +112,16 @@ def _run_v1(pdf_bytes: bytes, page_count: int, templates: list, symbol_dpi: int)
     return rows, pages
 
 
-def _run_v2(
+def _run_hybrid(
     pdf_bytes: bytes,
     page_count: int,
     templates: list,
     *,
     symbol_dpi: int,
     detector_only: bool,
+    detector_version: str,
 ) -> tuple[list[dict], list[dict], list[dict]]:
-    detector = GdtCandidateDetectorV2()
+    detector = GdtCandidateDetectorV21() if detector_version == "v21" else GdtCandidateDetectorV2()
     accepted_rows: list[dict] = []
     raw_rows: list[dict] = []
     page_results: list[dict] = []
@@ -156,6 +155,7 @@ def _run_v2(
                     "validation_status": proposal.validation_status,
                     "rejection_reasons": list(proposal.rejection_reasons),
                     "evidence": dict(proposal.validator_evidence),
+                    "rectangle_geometry": dict(proposal.primitive_evidence.get("rectangle_geometry") or {}),
                 },
             )
             row["proposal_id"] = proposal.proposal_id
@@ -172,6 +172,7 @@ def _run_v2(
                         "validation_status": proposal.validation_status,
                         "rejection_reasons": [],
                         "evidence": dict(proposal.validator_evidence),
+                        "rectangle_geometry": dict(proposal.primitive_evidence.get("rectangle_geometry") or {}),
                     },
                 )
             )
@@ -196,11 +197,11 @@ def main() -> None:
     parser.add_argument("--symbol-dpi", type=int, default=300)
     parser.add_argument("--top-k", type=int, default=3)
     parser.add_argument("--skip-template-sync", action="store_true")
-    parser.add_argument("--detector-version", choices=("v1", "v2"), default="v2")
+    parser.add_argument("--detector-version", choices=("v1", "v2", "v21"), default="v21")
     parser.add_argument(
         "--detector-only",
         action="store_true",
-        help="Generate proposals only. In V2, structural validation is skipped because it uses symbol evidence.",
+        help="Generate geometry proposals only. Structural symbol/content validation is skipped.",
     )
     args = parser.parse_args()
 
@@ -235,16 +236,15 @@ def main() -> None:
         rows, page_results = _run_v1(pdf_bytes, page_count, templates, args.symbol_dpi)
         raw_rows = rows
     else:
-        rows, raw_rows, page_results = _run_v2(
+        rows, raw_rows, page_results = _run_hybrid(
             pdf_bytes,
             page_count,
             templates,
             symbol_dpi=args.symbol_dpi,
             detector_only=args.detector_only,
+            detector_version=args.detector_version,
         )
 
-    # Existing contact-sheet diagnostic is intentionally fed *raw* V2 proposals,
-    # so rejected table/geometry crops remain visible for classifier analysis.
     diagnostics = render_detection_diagnostics(
         pdf_bytes,
         output_dir=output,
@@ -254,7 +254,7 @@ def main() -> None:
     )
 
     v2_visual = None
-    if args.detector_version == "v2":
+    if args.detector_version != "v1":
         v2_visual = render_v2_detection_diagnostics(
             pdf_bytes,
             output_dir=output,
@@ -270,7 +270,7 @@ def main() -> None:
         "drawing": {"name": pdf.name, "source_path": str(pdf)},
         "page_count": page_count,
         "raw_proposal_count": len(raw_rows),
-        "accepted_candidate_count": len(rows) if args.detector_version == "v2" else len(raw_rows),
+        "accepted_candidate_count": len(rows) if args.detector_version != "v1" else len(raw_rows),
         "ground_truth_used": False,
         "candidate_semantics": "unvalidated detector proposals",
         "template_classes": template_classes,
@@ -278,14 +278,14 @@ def main() -> None:
         "symbol_ranking_error": classification_error,
         "accepted_candidates": rows,
         "raw_proposals_materialized": raw_rows,
-        "v2_pages": page_results if args.detector_version == "v2" else [],
+        "v2_pages": page_results if args.detector_version != "v1" else [],
         "artifacts": {
             "candidate_contact_diagnostics": diagnostics,
             "v2_stage_diagnostics": v2_visual,
         },
         "next_validation_step": (
-            "Annotate real FCF ground truth independently, then match GT against raw proposals and accepted candidates. "
-            "Measure proposal recall first, validator precision/recall second, and symbol accuracy only on matched real FCFs."
+            "Annotate real FCF ground truth independently, then match GT against geometry-refined proposals and accepted candidates. "
+            "Measure rectangle proposal recall first, validator precision/recall second, and symbol accuracy only on matched real FCFs."
         ),
     }
     result_path = output / "debug_result.json"
@@ -300,7 +300,7 @@ def main() -> None:
     print(f"symbol_ranking_enabled={bool(templates)}")
     print(f"output={output}")
     print(f"result={result_path}")
-    if args.detector_version == "v2":
+    if args.detector_version != "v1":
         for page in page_results:
             audit = page.get("primitive_audit") or {}
             print(
@@ -308,6 +308,9 @@ def main() -> None:
                 f"vector={audit.get('normalized_vector_proposals', 0)} "
                 f"raster={audit.get('raster_proposals', 0)} "
                 f"dedup={audit.get('combined_after_dedup', 0)} "
+                f"rectangle_in={audit.get('v21_pre_rectangle_refinement', audit.get('combined_after_dedup', 0))} "
+                f"rectangle_kept={audit.get('v21_post_rectangle_refinement', audit.get('combined_after_dedup', 0))} "
+                f"rectangle_rejected={audit.get('v21_geometry_rejected', 0)} "
                 f"accepted={len(page.get('accepted_candidate_ids') or [])} "
                 f"rejected={len(page.get('rejected_proposal_ids') or [])}"
             )
