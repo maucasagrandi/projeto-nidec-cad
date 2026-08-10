@@ -14,6 +14,7 @@ from typing import Any
 import fitz
 
 from src.cad_review.compliance_engine import build_cad_review_result
+from src.cad_review.detection_diagnostics import render_detection_diagnostics
 from src.cad_review.orchestrator import run_part_classification_branch
 from src.cad_review.visual_output import render_visual_evidence
 from src.gdt.datum_consistency import assess_referenced_datum_definitions
@@ -63,7 +64,7 @@ def process_cad_pdf(
     symbol_dpi: int = 300,
     allow_incomplete_symbol_catalog: bool = False,
 ) -> dict:
-    """Process one CAD and write its JSON + visual evidence directory."""
+    """Process one CAD and write its JSON + visual/diagnostic evidence."""
 
     pdf = Path(pdf_path)
     cad_output = Path(output_dir)
@@ -223,6 +224,10 @@ def process_cad_pdf(
     ]
     integrated["symbol_catalog"] = catalog_status
 
+    # Keep the normal final overlay and the stage-separated debug artifacts side
+    # by side.  The diagnostics make it possible to answer independently:
+    # (A) did Phase 1 propose the true FCF? and (B) if so, how did Phase 2 rank
+    # the symbol?  Neither artifact makes a TP/FP claim without human GT.
     visual = render_visual_evidence(
         pdf_bytes,
         output_dir=cad_output,
@@ -232,7 +237,17 @@ def process_cad_pdf(
         dpi=visual_dpi,
         save_crops=True,
     )
-    integrated["artifacts"] = {"visual_evidence": visual}
+    diagnostics = render_detection_diagnostics(
+        pdf_bytes,
+        output_dir=cad_output,
+        gdt_candidates=raw_frames,
+        dpi=visual_dpi,
+        top_k=3,
+    )
+    integrated["artifacts"] = {
+        "visual_evidence": visual,
+        "detection_diagnostics": diagnostics,
+    }
 
     result_path = cad_output / "result.json"
     integrated["artifacts"]["result_json"] = result_path.name
