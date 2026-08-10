@@ -12,6 +12,8 @@ Default layout:
       <cad_stem>/
         result.json
         page_001_annotated.png
+        page_001_gdt.png
+        page_001_datums.png
         crops/
           ...
 
@@ -52,6 +54,17 @@ def _safe_stem(path: Path) -> str:
 def _pdfs(folder: Path, recursive: bool) -> list[Path]:
     pattern = "**/*.pdf" if recursive else "*.pdf"
     return sorted(path for path in folder.glob(pattern) if path.is_file())
+
+
+def _visual_paths(result: dict, dirname: str) -> list[str]:
+    paths: list[str] = []
+    pages = ((result.get("artifacts") or {}).get("visual_evidence") or {}).get("pages", [])
+    for page in pages:
+        for key in ("annotated_image", "gdt_image", "datums_image"):
+            value = page.get(key)
+            if value:
+                paths.append(str(Path(dirname) / str(value)))
+    return paths
 
 
 def _error_result(pdf: Path, error: Exception) -> dict:
@@ -162,25 +175,17 @@ def main() -> None:
             )
             print(f"  ERROR {error_text}")
 
+        visual_paths = _visual_paths(result, dirname)
         engineering_rows.append(engineering_row(result))
         tech_row = technical_row(result, result_json_path=result_rel, error=error_text)
-        if tech_row.get("Annotated_Images"):
-            tech_row["Annotated_Images"] = "; ".join(
-                str(Path(dirname) / item.strip())
-                for item in str(tech_row["Annotated_Images"]).split(";")
-                if item.strip()
-            )
+        tech_row["Annotated_Images"] = "; ".join(visual_paths)
         technical_rows.append(tech_row)
         manifest_entries.append(
             {
                 "cad": pdf.name,
                 "status": "ERROR" if error_text else "OK",
                 "result_json": result_rel,
-                "annotated_images": [
-                    str(Path(dirname) / row["annotated_image"])
-                    for row in ((result.get("artifacts") or {}).get("visual_evidence") or {}).get("pages", [])
-                    if row.get("annotated_image")
-                ],
+                "annotated_images": visual_paths,
                 "error": error_text,
             }
         )
