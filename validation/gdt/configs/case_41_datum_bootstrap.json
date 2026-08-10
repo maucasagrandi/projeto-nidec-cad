@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "case_id": "case_41_rev8",
+  "methodology": "manual_visual_label",
+  "diagnostic_only": true,
+  "note": "Labels are explicit bootstrap references for Phase 5 datum-glyph development. Template-source cells are not counted as independent validation. Only holdout cells whose label was not used as that cell's template source may contribute to the diagnostic ranking check.",
+  "template_sources": [
+    {
+      "label": "A",
+      "candidate_id": "GDT-CAND-P01-004",
+      "cell_index": 2
+    },
+    {
+      "label": "B",
+      "candidate_id": "GDT-CAND-P01-008",
+      "cell_index": 3
+    },
+    {
+      "label": "D",
+      "candidate_id": "GDT-CAND-P01-004",
+      "cell_index": 3
+    }
+  ],
+  "expected_datum_cells": [
+    {
+      "candidate_id": "GDT-CAND-P01-001",
+      "cell_index": 2,
+      "label": "A",
+      "evaluation_role": "holdout"
+    },
+    {
+      "candidate_id": "GDT-CAND-P01-004",
+      "cell_index": 2,
+      "label": "A",
+      "evaluation_role": "template_source"
+    },
+    {
+      "candidate_id": "GDT-CAND-P01-004",
+      "cell_index": 3,
+      "label": "D",
+      "evaluation_role": "template_source"
+    },
+    {
+      "candidate_id": "GDT-CAND-P01-008",
+      "cell_index": 2,
+      "label": "A",
+      "evaluation_role": "holdout"
+    },
+    {
+      "candidate_id": "GDT-CAND-P01-008",
+      "cell_index": 3,
+      "label": "B",
+      "evaluation_role": "template_source"
+    }
+  ]
+}
