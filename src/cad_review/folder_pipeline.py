@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any, Mapping, Optional
+from typing import Any
 
 import fitz
 
@@ -88,16 +88,21 @@ def process_cad_pdf(
     raw_frames: list[dict] = []
     phase5_frames: list[dict] = []
     phase6_frames: list[dict] = []
-    phase7_frames: list[dict] = []
-    datum_definitions: list[dict] = []
+    parsed_by_candidate: list[tuple[str, list[str]]] = []
 
     with fitz.open(stream=pdf_bytes, filetype="pdf") as doc:
         page_count = len(doc)
 
+    # First pass: definitions are drawing-level evidence. A datum referenced on
+    # page 1 can legitimately be defined on page 2, so collect every definition
+    # before evaluating any reference.
+    datum_definitions: list[dict] = []
     for page_index in range(page_count):
         definitions = detect_datum_feature_indicators(pdf_bytes, page_index=page_index)
         datum_definitions.extend(row.to_dict() for row in definitions)
 
+    # Second pass: GD&T detection / parsing / ISO 1101 assessment.
+    for page_index in range(page_count):
         candidates = detector.detect_frames(pdf_bytes, page_index=page_index)
         score_rows: list[tuple[Any, Any]] = []
         if classification_enabled and candidates:
@@ -148,6 +153,7 @@ def process_cad_pdf(
             }
             raw_frames.append(candidate_row)
             phase5_frames.append({"candidate_id": candidate.candidate_id, "parsed": parsed_dict})
+            parsed_by_candidate.append((candidate.candidate_id, list(parsed.referenced_datums)))
 
             iso_finding = assess_iso1101_datum_rule(
                 characteristic=characteristic,
@@ -158,19 +164,18 @@ def process_cad_pdf(
             )
             phase6_frames.append({"candidate_id": candidate.candidate_id, "finding": iso_finding.to_dict()})
 
-            datum_findings = assess_referenced_datum_definitions(
-                referenced_datums=parsed.referenced_datums,
-                defined_indicators=datum_definitions,
-                mode="reference",
-                standard="ISO 5459",
-                source_ref="Datum Feature Indicator -> ISO 5459 (reference baseline; exact edition/clause unresolved)",
-            )
-            phase7_frames.append(
-                {
-                    "candidate_id": candidate.candidate_id,
-                    "findings": [row.to_dict() for row in datum_findings],
-                }
-            )
+    phase7_frames: list[dict] = []
+    for candidate_id, referenced_datums in parsed_by_candidate:
+        datum_findings = assess_referenced_datum_definitions(
+            referenced_datums=referenced_datums,
+            defined_indicators=datum_definitions,
+            mode="reference",
+            standard="ISO 5459",
+            source_ref="Datum Feature Indicator -> ISO 5459 (reference baseline; exact edition/clause unresolved)",
+        )
+        phase7_frames.append(
+            {"candidate_id": candidate_id, "findings": [row.to_dict() for row in datum_findings]}
+        )
 
     phase5_payload = {
         "phase": "batch_phase5_structured_candidates",
