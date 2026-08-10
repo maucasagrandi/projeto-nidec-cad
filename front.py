@@ -44,7 +44,11 @@ st.markdown(
     """
     <style>
     /* Fundo branco da aplicação */
-    .main {
+    .main, .main > div {
+        background-color: #FFFFFF !important;
+    }
+    
+    .stApp {
         background-color: #FFFFFF !important;
     }
     
@@ -53,8 +57,21 @@ st.markdown(
         background-color: #13A344 !important;
     }
     
+    /* Sidebar content */
+    [data-testid="stSidebar"] > div:first-child {
+        background-color: #13A344 !important;
+    }
+    
     /* Texto da sidebar em branco para contraste */
-    [data-testid="stSidebar"] * {
+    [data-testid="stSidebar"] h1,
+    [data-testid="stSidebar"] h2,
+    [data-testid="stSidebar"] h3,
+    [data-testid="stSidebar"] h4,
+    [data-testid="stSidebar"] h5,
+    [data-testid="stSidebar"] h6,
+    [data-testid="stSidebar"] p,
+    [data-testid="stSidebar"] label,
+    [data-testid="stSidebar"] span {
         color: #FFFFFF !important;
     }
     
@@ -74,6 +91,7 @@ st.markdown(
     [data-testid="stSidebar"] button {
         color: #FFFFFF !important;
         background-color: rgba(255, 255, 255, 0.2) !important;
+        border: 1px solid rgba(255, 255, 255, 0.3) !important;
     }
     
     [data-testid="stSidebar"] button:hover {
@@ -83,6 +101,9 @@ st.markdown(
     /* Área de conteúdo principal */
     .block-container {
         background-color: #FFFFFF !important;
+        max-width: 100%;
+        padding-left: 3rem;
+        padding-right: 3rem;
     }
     
     /* Inputs na sidebar */
@@ -95,6 +116,57 @@ st.markdown(
     [data-testid="stSidebar"] input::placeholder {
         color: rgba(255, 255, 255, 0.7) !important;
     }
+    
+    /* Inputs na área principal */
+    input, textarea {
+        background-color: #F8F9FA !important;
+        color: #2C3E50 !important;
+        border: 1px solid #E0E0E0 !important;
+    }
+    
+    input::placeholder, textarea::placeholder {
+        color: #7F8C8D !important;
+    }
+    
+    /* Títulos e textos na área principal */
+    h1, h2, h3, h4, h5, h6 {
+        color: #2C3E50 !important;
+    }
+    
+    p, label, span {
+        color: #34495E !important;
+    }
+    
+    /* Botões na área principal */
+    button:not([data-testid="stSidebar"] button) {
+        background-color: #13A344 !important;
+        color: #FFFFFF !important;
+        border: none !important;
+    }
+    
+    button:hover:not([data-testid="stSidebar"] button) {
+        background-color: #0F8233 !important;
+    }
+    
+    /* Cards e containers */
+    .stMetric, .stInfo, .stSuccess, .stWarning, .stError {
+        background-color: #F8F9FA !important;
+        border-radius: 8px !important;
+    }
+    
+    /* Separadores */
+    hr {
+        background-color: #E0E0E0 !important;
+        border: none !important;
+        height: 1px !important;
+    }
+    
+    /* Expandable sections */
+    .streamlit-expanderHeader {
+        background-color: #F0F2F6 !important;
+        color: #2C3E50 !important;
+    }
+    
     </style>
     """,
     unsafe_allow_html=True,
