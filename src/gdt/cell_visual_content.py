@@ -236,7 +236,7 @@ def analyze_components(binary: np.ndarray, min_area_px: int = 8) -> list[VisualC
         local = labels[y:y1, x:x1]
         component_mask[local == label] = 255
 
-        contour_area, solidity, hole_count, approx_vertices = _contour_features(component_mask)
+        _contour_area, solidity, hole_count, approx_vertices = _contour_features(component_mask)
         bbox_area = max(1, width * height)
         extent = float(area) / float(bbox_area)
         cx, cy = [float(value) for value in centroids[label]]
@@ -286,8 +286,38 @@ def analyze_components(binary: np.ndarray, min_area_px: int = 8) -> list[VisualC
     return rows
 
 
+def select_text_candidates_for_core(
+    components: Iterable[VisualComponent],
+    core_bbox_px: Sequence[float],
+) -> list[VisualComponent]:
+    """Select text candidates whose centroids belong to the logical cell core.
+
+    A caller may rasterize a cell with extra context around its PDF bbox to
+    avoid clipping glyph strokes at the boundary. ``core_bbox_px`` identifies
+    the original logical cell within that larger raster. Only text candidates
+    whose centroids remain inside the logical cell are retained, preventing a
+    neighboring cell's glyph from being admitted merely because of the context
+    padding.
+    """
+
+    if len(core_bbox_px) != 4:
+        raise ValueError("core_bbox_px must contain x0, y0, x1, y1")
+    x0, y0, x1, y1 = [float(value) for value in core_bbox_px]
+    if x1 < x0 or y1 < y0:
+        raise ValueError("invalid core bbox")
+
+    selected: list[VisualComponent] = []
+    for component in components:
+        if component.component_class != "text_candidate":
+            continue
+        cx, cy = component.centroid_px
+        if x0 <= cx <= x1 and y0 <= cy <= y1:
+            selected.append(component)
+    return selected
+
+
 def build_text_candidate_mask(binary: np.ndarray, components: Iterable[VisualComponent]) -> np.ndarray:
-    """Return mask containing only components currently labelled text_candidate."""
+    """Return mask containing only supplied components labelled text_candidate."""
 
     output = np.zeros_like(binary)
     count, labels = cv2.connectedComponents(binary, connectivity=8)
@@ -303,4 +333,5 @@ __all__ = [
     "analyze_components",
     "binarize_cell",
     "build_text_candidate_mask",
+    "select_text_candidates_for_core",
 ]
