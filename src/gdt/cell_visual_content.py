@@ -167,6 +167,24 @@ def _classify_component(
         reasons.append("large_multi_edge_component")
         return "structural_line", tuple(reasons)
 
+    # A leader arrow can be clipped by the cell boundary, leaving only a small
+    # triangular fragment. In case 41 this happened in tolerance cell 004: the
+    # fragment touched the top edge and was too small for the general arrow
+    # area rule, so it was incorrectly labelled as text. Hole-bearing glyphs
+    # are excluded, and the rule requires a compact convex 3/4-vertex polygon
+    # touching an edge so it does not broadly suppress ordinary datum glyphs.
+    if (
+        hole_count == 0
+        and edge_touch_count >= 1
+        and solidity >= 0.82
+        and 3 <= approx_vertices <= 4
+        and area >= 20
+        and width_fraction <= 0.35
+        and height_fraction <= 0.40
+    ):
+        reasons.extend(("edge_triangle_fragment", "few_vertices", "no_holes"))
+        return "arrow_like", tuple(reasons)
+
     # Compact filled arrow heads are convex and have few polygon vertices.
     # Hole-bearing glyphs such as A/B/D are explicitly excluded from this rule.
     if (
