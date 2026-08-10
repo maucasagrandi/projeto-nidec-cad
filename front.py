@@ -38,48 +38,42 @@ cost_logger = CostLogger("custos.csv")
 st.set_page_config(page_title="CAD Analysis Platform", layout="wide")
 
 # ==============================================================================
-# Customização de Tema (CSS)
+# Customização de Tema (CSS) - Tema Verde e Branco Completo
 # ==============================================================================
 st.markdown(
     """
     <style>
-    /* Fundo branco da aplicação */
-    .main, .main > div {
+    /* ===== FUNDO GERAL ===== */
+    .stApp, .main, [data-testid="stMainBlockContainer"] {
         background-color: #FFFFFF !important;
     }
     
-    .stApp {
+    .block-container {
         background-color: #FFFFFF !important;
     }
     
-    /* Sidebar com cor verde */
+    /* ===== SIDEBAR ===== */
     [data-testid="stSidebar"] {
         background-color: #13A344 !important;
     }
     
-    /* Sidebar content */
-    [data-testid="stSidebar"] > div:first-child {
+    [data-testid="stSidebar"] > div {
         background-color: #13A344 !important;
     }
     
-    /* Texto da sidebar em branco para contraste */
+    /* Todos os textos da sidebar em branco */
+    [data-testid="stSidebar"] * {
+        color: #FFFFFF !important;
+    }
+    
     [data-testid="stSidebar"] h1,
     [data-testid="stSidebar"] h2,
     [data-testid="stSidebar"] h3,
     [data-testid="stSidebar"] h4,
     [data-testid="stSidebar"] h5,
     [data-testid="stSidebar"] h6,
-    [data-testid="stSidebar"] p,
-    [data-testid="stSidebar"] label,
-    [data-testid="stSidebar"] span {
+    [data-testid="stSidebar"] p {
         color: #FFFFFF !important;
-    }
-    
-    /* Divisor da sidebar */
-    [data-testid="stSidebar"] hr {
-        background-color: rgba(255, 255, 255, 0.2) !important;
-        border: none !important;
-        height: 1px !important;
     }
     
     /* Links na sidebar */
@@ -89,82 +83,220 @@ st.markdown(
     
     /* Botões na sidebar */
     [data-testid="stSidebar"] button {
-        color: #FFFFFF !important;
         background-color: rgba(255, 255, 255, 0.2) !important;
+        color: #FFFFFF !important;
         border: 1px solid rgba(255, 255, 255, 0.3) !important;
     }
     
     [data-testid="stSidebar"] button:hover {
-        background-color: rgba(255, 255, 255, 0.3) !important;
-    }
-    
-    /* Área de conteúdo principal */
-    .block-container {
-        background-color: #FFFFFF !important;
-        max-width: 100%;
-        padding-left: 3rem;
-        padding-right: 3rem;
+        background-color: rgba(255, 255, 255, 0.35) !important;
     }
     
     /* Inputs na sidebar */
-    [data-testid="stSidebar"] input {
-        background-color: rgba(255, 255, 255, 0.1) !important;
+    [data-testid="stSidebar"] input,
+    [data-testid="stSidebar"] textarea {
+        background-color: rgba(255, 255, 255, 0.15) !important;
         color: #FFFFFF !important;
         border: 1px solid rgba(255, 255, 255, 0.3) !important;
     }
     
-    [data-testid="stSidebar"] input::placeholder {
+    [data-testid="stSidebar"] input::placeholder,
+    [data-testid="stSidebar"] textarea::placeholder {
         color: rgba(255, 255, 255, 0.7) !important;
     }
     
-    /* Inputs na área principal */
-    input, textarea {
-        background-color: #F8F9FA !important;
-        color: #2C3E50 !important;
-        border: 1px solid #E0E0E0 !important;
-    }
-    
-    input::placeholder, textarea::placeholder {
-        color: #7F8C8D !important;
-    }
-    
-    /* Títulos e textos na área principal */
-    h1, h2, h3, h4, h5, h6 {
-        color: #2C3E50 !important;
-    }
-    
-    p, label, span {
-        color: #34495E !important;
-    }
-    
-    /* Botões na área principal */
-    button:not([data-testid="stSidebar"] button) {
-        background-color: #13A344 !important;
-        color: #FFFFFF !important;
-        border: none !important;
-    }
-    
-    button:hover:not([data-testid="stSidebar"] button) {
-        background-color: #0F8233 !important;
-    }
-    
-    /* Cards e containers */
-    .stMetric, .stInfo, .stSuccess, .stWarning, .stError {
-        background-color: #F8F9FA !important;
-        border-radius: 8px !important;
-    }
-    
-    /* Separadores */
-    hr {
-        background-color: #E0E0E0 !important;
+    /* Divisores */
+    [data-testid="stSidebar"] hr {
+        background-color: rgba(255, 255, 255, 0.2) !important;
         border: none !important;
         height: 1px !important;
     }
     
-    /* Expandable sections */
+    /* ===== CONTEÚDO PRINCIPAL ===== */
+    
+    /* Textos gerais */
+    body, p, span, label, div {
+        color: #2C3E50 !important;
+    }
+    
+    h1, h2, h3, h4, h5, h6 {
+        color: #13A344 !important;
+    }
+    
+    /* ===== INPUTS E CAMPOS DE TEXTO ===== */
+    input[type="text"],
+    input[type="password"],
+    input[type="email"],
+    input[type="number"],
+    textarea,
+    [data-baseweb="input"] {
+        background-color: #F8F9FA !important;
+        color: #2C3E50 !important;
+        border: 1px solid #D5D8DC !important;
+    }
+    
+    input::placeholder,
+    textarea::placeholder {
+        color: #95A5A6 !important;
+    }
+    
+    /* ===== BOTÕES PRIMÁRIOS ===== */
+    [role="button"],
+    button:not([data-testid="stSidebar"] button),
+    .stButton > button {
+        background-color: #13A344 !important;
+        color: #FFFFFF !important;
+        border: none !important;
+        border-radius: 6px !important;
+    }
+    
+    [role="button"]:hover,
+    button:hover:not([data-testid="stSidebar"] button),
+    .stButton > button:hover {
+        background-color: #0F8233 !important;
+    }
+    
+    /* ===== CARDS E CONTAINERS ===== */
+    [data-testid="stVerticalBlock"] > [data-testid="column"] > [data-testid="stVerticalBlock"],
     .streamlit-expanderHeader {
+        background-color: #F8F9FA !important;
+        border-radius: 8px !important;
+    }
+    
+    /* Cards com bordas */
+    [data-testid="stContainer"] {
+        border-radius: 8px !important;
+        border: 1px solid #E0E0E0 !important;
+    }
+    
+    /* ===== CARDS CUSTOMIZADAS (operation-card) ===== */
+    .operation-card {
+        background-color: #F0F5F2 !important;
+        border: 2px solid #13A344 !important;
+        color: #2C3E50 !important;
+    }
+    
+    .operation-card:hover {
+        background-color: #E8F0EB !important;
+        border-color: #0F8233 !important;
+        box-shadow: 0 8px 16px rgba(19, 163, 68, 0.2) !important;
+    }
+    
+    .operation-title {
+        color: #13A344 !important;
+    }
+    
+    .operation-desc {
+        color: #34495E !important;
+    }
+    
+    /* ===== MENSAGENS DE ALERTA/INFO ===== */
+    [data-testid="stAlert"] {
+        background-color: #F0F5F2 !important;
+        border-radius: 8px !important;
+    }
+    
+    .stInfo {
+        background-color: #E8F0EB !important;
+        color: #0F5C2E !important;
+    }
+    
+    .stSuccess {
+        background-color: #E8F0EB !important;
+        color: #0F8233 !important;
+    }
+    
+    .stWarning {
+        background-color: #FEF3CD !important;
+        color: #856404 !important;
+    }
+    
+    .stError {
+        background-color: #FADBD8 !important;
+        color: #7B241C !important;
+    }
+    
+    /* ===== TABS ===== */
+    [data-testid="stTabs"] [role="tab"] {
         background-color: #F0F2F6 !important;
         color: #2C3E50 !important;
+    }
+    
+    [data-testid="stTabs"] [role="tab"][aria-selected="true"] {
+        background-color: #13A344 !important;
+        color: #FFFFFF !important;
+    }
+    
+    /* ===== EXPANDERS ===== */
+    .streamlit-expanderHeader {
+        background-color: #F0F5F2 !important;
+        color: #13A344 !important;
+    }
+    
+    .streamlit-expanderHeader:hover {
+        background-color: #E8F0EB !important;
+    }
+    
+    /* ===== SELECTBOX E DROPDOWNS ===== */
+    [data-baseweb="select"] {
+        background-color: #F8F9FA !important;
+        color: #2C3E50 !important;
+    }
+    
+    /* ===== MÉTRICS ===== */
+    [data-testid="stMetricContainer"] {
+        background-color: #F0F5F2 !important;
+        border-radius: 8px !important;
+        border: 1px solid #D5E8DC !important;
+    }
+    
+    [data-testid="stMetricLabel"] {
+        color: #2C3E50 !important;
+    }
+    
+    [data-testid="stMetricValue"] {
+        color: #13A344 !important;
+    }
+    
+    /* ===== LINKS ===== */
+    a {
+        color: #13A344 !important;
+        text-decoration: none !important;
+    }
+    
+    a:hover {
+        color: #0F8233 !important;
+        text-decoration: underline !important;
+    }
+    
+    /* ===== DIVISORES ===== */
+    hr {
+        background-color: #D5E8DC !important;
+        border: none !important;
+        height: 1px !important;
+    }
+    
+    /* ===== PROGRESS BARS ===== */
+    [data-testid="stProgress"] > div > div > div {
+        background-color: #13A344 !important;
+    }
+    
+    /* ===== SCROLLBAR ===== */
+    ::-webkit-scrollbar {
+        width: 8px;
+    }
+    
+    ::-webkit-scrollbar-track {
+        background: #F0F2F6;
+    }
+    
+    ::-webkit-scrollbar-thumb {
+        background: #13A344;
+        border-radius: 4px;
+    }
+    
+    ::-webkit-scrollbar-thumb:hover {
+        background: #0F8233;
     }
     
     </style>
