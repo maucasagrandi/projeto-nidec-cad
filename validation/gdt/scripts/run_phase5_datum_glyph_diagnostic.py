@@ -1,16 +1,20 @@
 """Phase 5 diagnostic: deterministic recognition of isolated datum letters.
 
-This script starts from the already-detected datum cells. It does not revisit
-frame/cell localization and it does not use OCR or an LLM.
+This script consumes the output of the immediately preceding Phase 5 cell
+content filter. It does NOT re-run connected-component classification.
 
-Methodology for case 41 is explicitly bootstrap-only:
+That separation is intentional:
+- cell-content filtering decides which visible components are plausible text;
+- this diagnostic receives the saved ``text candidates only`` mask;
+- datum recognition normalizes and ranks that already-filtered glyph.
+
+Methodology for case 41 remains bootstrap-only:
 - one visually labelled A cell is registered as the A template;
 - the other two visually labelled A cells are holdouts;
 - B and D each have only one real example in this CAD, so they are template
   sources only and are NOT counted as independent validation.
 
-The goal is to validate the normalization/scoring path without inflating an
-accuracy claim from self-matches.
+No OCR and no LLM are used.
 """
 
 from __future__ import annotations
@@ -20,7 +24,6 @@ import sys
 from pathlib import Path
 
 import cv2
-import fitz
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 
@@ -28,18 +31,17 @@ PROJECT_ROOT = Path(__file__).resolve().parents[3]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from src.gdt.cell_visual_content import analyze_components, binarize_cell
-from src.gdt.datum_glyph import DatumGlyphTemplateClassifier, normalized_component_from_cell
-from src.gdt.detector import GdtFrameDetector
+from src.gdt.datum_glyph import DatumGlyphTemplateClassifier, normalize_glyph_mask
 
 CASE_ID = "case_41_rev8"
-CASE_PATH = PROJECT_ROOT / "validation" / "gdt" / "cases" / f"{CASE_ID}.json"
 CONFIG_PATH = PROJECT_ROOT / "validation" / "gdt" / "configs" / "case_41_datum_bootstrap.json"
+FILTER_DIR = PROJECT_ROOT / "validation" / "gdt" / "outputs" / "phase5" / CASE_ID / "cell_content_filter"
+FILTER_OUTPUT_PATH = FILTER_DIR / "cell_content_filter.json"
 OUTPUT_DIR = PROJECT_ROOT / "validation" / "gdt" / "outputs" / "phase5" / CASE_ID / "datum_glyph"
 OUTPUT_PATH = OUTPUT_DIR / "datum_glyph_diagnostic.json"
 CONTACT_SHEET_PATH = OUTPUT_DIR / "datum_glyph_contact_sheet.png"
 
-RENDER_DPI = 1200
+EXPECTED_RENDER_DPI = 1200
 CANVAS_SIZE = 96
 PADDING = 10
 
@@ -48,54 +50,100 @@ def _load(path: Path) -> dict:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-def _render_gray(page: fitz.Page, rect: fitz.Rect) -> np.ndarray:
-    scale = RENDER_DPI / 72.0
-    pix = page.get_pixmap(
-        matrix=fitz.Matrix(scale, scale),
-        clip=rect,
-        colorspace=fitz.csGRAY,
-        alpha=False,
-    )
-    return np.frombuffer(pix.samples, dtype=np.uint8).reshape(pix.height, pix.width).copy()
-
-
 def _cell_key(candidate_id: str, cell_index: int) -> str:
     return f"{candidate_id}:cell[{cell_index}]"
 
 
-def _extract_cell_sample(page: fitz.Page, candidate, cell_index: int) -> dict:
-    if cell_index < 0 or cell_index >= len(candidate.cells):
-        return {
-            "status": "invalid_cell_index",
-            "text_candidate_count": 0,
-        }
+def _load_filter_payload() -> dict:
+    if not FILTER_OUTPUT_PATH.exists():
+        raise FileNotFoundError(
+            "Phase 5 cell-content filter output not found. Run first: "
+            "python validation/gdt/scripts/run_phase5_cell_content_filter_diagnostic.py"
+        )
 
-    cell = candidate.cells[cell_index]
-    gray = _render_gray(page, cell.bbox)
-    binary = binarize_cell(gray)
-    components = analyze_components(binary)
-    text_candidates = [row for row in components if row.component_class == "text_candidate"]
+    payload = _load(FILTER_OUTPUT_PATH)
+    if payload.get("case_id") != CASE_ID:
+        raise ValueError(
+            f"cell-content filter case mismatch: expected {CASE_ID!r}, "
+            f"got {payload.get('case_id')!r}"
+        )
+    if int(payload.get("render_dpi", -1)) != EXPECTED_RENDER_DPI:
+        raise ValueError(
+            "cell-content filter render DPI mismatch: "
+            f"expected {EXPECTED_RENDER_DPI}, got {payload.get('render_dpi')!r}"
+        )
+    return payload
 
-    result = {
-        "status": "ok" if len(text_candidates) == 1 else "ambiguous_component_count",
-        "cell_bbox": [round(v, 4) for v in cell.bbox.to_list()],
-        "image_size_px": [int(binary.shape[1]), int(binary.shape[0])],
-        "component_count": len(components),
-        "text_candidate_count": len(text_candidates),
-        "components": [row.to_dict() for row in components],
-        "binary": binary,
-        "normalized": None,
-    }
 
-    if len(text_candidates) == 1:
-        normalized = normalized_component_from_cell(
-            binary,
-            text_candidates[0],
+def _load_text_candidate_mask(row: dict) -> np.ndarray:
+    """Load the exact candidate-only mask produced by the previous diagnostic.
+
+    ``run_phase5_cell_content_filter_diagnostic.py`` stores it for human viewing
+    as black ink on white background. Convert it back to binary ink=255 here.
+    """
+
+    name = row.get("text_candidate_crop")
+    if not name:
+        raise ValueError("filter row has no text_candidate_crop")
+    path = FILTER_DIR / str(name)
+    image = cv2.imread(str(path), cv2.IMREAD_GRAYSCALE)
+    if image is None:
+        raise FileNotFoundError(f"filtered text-candidate crop not found: {path}")
+    _threshold, mask = cv2.threshold(
+        image,
+        0,
+        255,
+        cv2.THRESH_BINARY_INV | cv2.THRESH_OTSU,
+    )
+    return mask
+
+
+def _component_count(mask: np.ndarray) -> int:
+    count, _labels, stats, _centroids = cv2.connectedComponentsWithStats(mask, connectivity=8)
+    valid = 0
+    for label in range(1, count):
+        area = int(stats[label, cv2.CC_STAT_AREA])
+        if area >= 8:
+            valid += 1
+    return valid
+
+
+def _sample_from_filter(row: dict) -> dict:
+    filter_candidate_count = int(row.get("text_candidate_count", 0))
+    mask = _load_text_candidate_mask(row)
+    mask_component_count = _component_count(mask)
+    ink_pixels = int(np.count_nonzero(mask))
+
+    status = "ok"
+    if filter_candidate_count != 1:
+        status = "ambiguous_filter_candidate_count"
+    elif ink_pixels == 0:
+        status = "empty_filtered_mask"
+
+    normalized = None
+    if status == "ok":
+        # Normalize the complete candidate-only mask. Do not re-run the visual
+        # component classifier here: the previous stage already made that
+        # decision and saved the exact resulting mask.
+        normalized = normalize_glyph_mask(
+            mask,
             canvas_size=CANVAS_SIZE,
             padding=PADDING,
         )
-        result["normalized"] = normalized
-    return result
+
+    return {
+        "status": status,
+        "cell_bbox": row.get("cell_bbox"),
+        "image_size_px": row.get("image_size_px"),
+        "filter_component_count": int(row.get("component_count", 0)),
+        "text_candidate_count": filter_candidate_count,
+        "filtered_mask_component_count": mask_component_count,
+        "filtered_mask_ink_pixels": ink_pixels,
+        "filter_components": row.get("components", []),
+        "filter_text_candidate_crop": row.get("text_candidate_crop"),
+        "filtered_mask": mask,
+        "normalized": normalized,
+    }
 
 
 def _save_mask(mask: np.ndarray, path: Path) -> None:
@@ -106,8 +154,8 @@ def _build_contact_sheet(rows: list[dict]) -> None:
     if not rows:
         return
 
-    tile_width = 760
-    tile_height = 180
+    tile_width = 820
+    tile_height = 190
     sheet = Image.new("RGB", (tile_width, tile_height * len(rows)), "white")
     draw = ImageDraw.Draw(sheet)
     font = ImageFont.load_default()
@@ -126,11 +174,19 @@ def _build_contact_sheet(rows: list[dict]) -> None:
         )
         draw.text((10, top + 8), title, fill="black", font=font)
 
+        filtered_path = row.get("filter_text_candidate_crop")
+        if filtered_path:
+            image = Image.open(FILTER_DIR / filtered_path).convert("RGB")
+            image.thumbnail((145, 135), Image.Resampling.NEAREST)
+            sheet.paste(image, (15, top + 38))
+            draw.text((15, top + 170), "filtered mask", fill="black", font=font)
+
         norm_path = row.get("normalized_crop")
         if norm_path:
             image = Image.open(OUTPUT_DIR / norm_path).convert("RGB")
             image = image.resize((128, 128), Image.Resampling.NEAREST)
-            sheet.paste(image, (20, top + 38))
+            sheet.paste(image, (175, top + 38))
+            draw.text((175, top + 170), "normalized", fill="black", font=font)
 
         y = top + 42
         for rank, match in enumerate(row.get("ranking", [])[:3], start=1):
@@ -139,7 +195,7 @@ def _build_contact_sheet(rows: list[dict]) -> None:
                 f"dice={match['dice']:.3f} chamfer={match['chamfer']:.3f} "
                 f"contour={match['contour']:.3f} holes={match['hole_agreement']:.0f}"
             )
-            draw.text((180, y), text, fill="black", font=font)
+            draw.text((330, y), text, fill="black", font=font)
             y += 27
 
         if index < len(rows) - 1:
@@ -149,15 +205,12 @@ def _build_contact_sheet(rows: list[dict]) -> None:
 
 
 def main() -> None:
-    case = _load(CASE_PATH)
     config = _load(CONFIG_PATH)
-    pdf_path = PROJECT_ROOT / case["pdf"]
-    page_index = int(case.get("page_index", 0))
-    pdf_bytes = pdf_path.read_bytes()
-
-    detector = GdtFrameDetector()
-    candidates = detector.detect_frames(pdf_bytes, page_index=page_index)
-    candidate_by_id = {candidate.candidate_id: candidate for candidate in candidates}
+    filter_payload = _load_filter_payload()
+    filter_rows = {
+        _cell_key(row["candidate_id"], int(row["cell_index"])): row
+        for row in filter_payload.get("rows", [])
+    }
 
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -176,23 +229,27 @@ def main() -> None:
         )
 
     samples: dict[str, dict] = {}
-    doc = fitz.open(stream=pdf_bytes, filetype="pdf")
-    try:
-        page = doc[page_index]
-        for key, row in requested_cells.items():
-            candidate = candidate_by_id.get(row["candidate_id"])
-            if candidate is None:
-                sample = {"status": "candidate_not_found", "text_candidate_count": 0}
-            else:
-                sample = _extract_cell_sample(page, candidate, int(row["cell_index"]))
-            sample["candidate_id"] = row["candidate_id"]
-            sample["cell_index"] = int(row["cell_index"])
-            sample["cell_key"] = key
-            sample["expected_label"] = str(row["label"]).upper()
-            sample["evaluation_role"] = row.get("evaluation_role", "diagnostic")
-            samples[key] = sample
-    finally:
-        doc.close()
+    for key, requested in requested_cells.items():
+        filter_row = filter_rows.get(key)
+        if filter_row is None:
+            sample = {
+                "status": "filter_row_not_found",
+                "text_candidate_count": 0,
+                "filtered_mask_component_count": 0,
+                "filtered_mask_ink_pixels": 0,
+                "filter_components": [],
+                "filtered_mask": None,
+                "normalized": None,
+            }
+        else:
+            sample = _sample_from_filter(filter_row)
+
+        sample["candidate_id"] = requested["candidate_id"]
+        sample["cell_index"] = int(requested["cell_index"])
+        sample["cell_key"] = key
+        sample["expected_label"] = str(requested["label"]).upper()
+        sample["evaluation_role"] = requested.get("evaluation_role", "diagnostic")
+        samples[key] = sample
 
     classifier = DatumGlyphTemplateClassifier()
     template_rows = []
@@ -223,7 +280,7 @@ def main() -> None:
 
     for key, sample in samples.items():
         normalized = sample.pop("normalized", None)
-        binary = sample.pop("binary", None)
+        filtered_mask = sample.pop("filtered_mask", None)
 
         normalized_name = None
         if normalized is not None:
@@ -256,16 +313,18 @@ def main() -> None:
                     holdout_ranking_correct += 1
 
     payload = {
-        "schema_version": 1,
+        "schema_version": 2,
         "phase": "phase5_datum_glyph_diagnostic",
         "case_id": CASE_ID,
         "validation_status": "DIAGNOSTIC_ONLY",
         "ocr_used": False,
         "llm_used": False,
+        "input_stage": "phase5_cell_content_filter_diagnostic",
+        "resegmentation_performed": False,
         "template_methodology": config.get("methodology"),
         "template_sources_are_validation": False,
         "acceptance_threshold_calibrated": False,
-        "render_dpi": RENDER_DPI,
+        "render_dpi": EXPECTED_RENDER_DPI,
         "canvas_size": CANVAS_SIZE,
         "padding": PADDING,
         "registered_template_count": classifier.template_count,
@@ -286,6 +345,8 @@ def main() -> None:
     print("validation_status=DIAGNOSTIC_ONLY")
     print("ocr_used=False")
     print("llm_used=False")
+    print("input_stage=phase5_cell_content_filter_diagnostic")
+    print("resegmentation_performed=False")
     print("template_sources_are_validation=False")
     print("acceptance_threshold_calibrated=False")
     print(f"registered_templates={classifier.template_count} labels={list(classifier.labels)}")
@@ -303,9 +364,17 @@ def main() -> None:
         margin_text = "-" if margin is None else f"{margin:.3f}"
         print(
             f"  {row['cell_key']} expected={row['expected_label']} "
-            f"role={row['evaluation_role']} candidates={row['text_candidate_count']} "
-            f"predicted={row['predicted_label'] or '-'} margin={margin_text} ranking=[{ranking_text}]"
+            f"role={row['evaluation_role']} filter_candidates={row['text_candidate_count']} "
+            f"mask_components={row['filtered_mask_component_count']} "
+            f"predicted={row['predicted_label'] or '-'} margin={margin_text} "
+            f"status={row['status']} ranking=[{ranking_text}]"
         )
+        if row["status"] != "ok":
+            rejected = [
+                f"{component.get('component_class')}:{component.get('bbox_px')}"
+                for component in row.get("filter_components", [])
+            ]
+            print("    filter_components=" + ", ".join(rejected))
 
     print(f"\noutput={OUTPUT_PATH}")
     print(f"contact_sheet={CONTACT_SHEET_PATH}")
