@@ -1,7 +1,7 @@
 import cv2
 import numpy as np
 
-from src.gdt.cell_visual_content import analyze_components
+from src.gdt.cell_visual_content import analyze_components, select_text_candidates_for_core
 
 
 def _blank(width=220, height=140):
@@ -52,3 +52,16 @@ def test_vertical_border_and_letter_are_separated():
     classes = [row.component_class for row in rows]
     assert "structural_line" in classes
     assert "text_candidate" in classes
+
+
+def test_core_selection_keeps_cell_glyph_and_rejects_neighbor_glyph():
+    image = _blank(width=360, height=180)
+    cv2.putText(image, "A", (65, 145), cv2.FONT_HERSHEY_SIMPLEX, 3.6, 255, 9, cv2.LINE_8)
+    cv2.putText(image, "B", (255, 145), cv2.FONT_HERSHEY_SIMPLEX, 3.6, 255, 9, cv2.LINE_8)
+    rows = analyze_components(image)
+    text_rows = [row for row in rows if row.component_class == "text_candidate"]
+    assert len(text_rows) == 2
+
+    selected = select_text_candidates_for_core(rows, (40, 0, 190, 180))
+    assert len(selected) == 1
+    assert selected[0].centroid_px[0] < 190
