@@ -3,7 +3,7 @@
 Consumes the structured Phase 5 output and compares referenced datum letters
 against deterministic Datum Feature Indicator detections on the original PDF.
 
-No OCR and no LLM are used.  The ISO 5459 reference is currently a reference
+No OCR and no LLM are used. The ISO 5459 reference is currently a reference
 baseline only; this script does not claim that a specific ISO 5459 edition is
 contractually applicable to the drawing.
 """
@@ -28,6 +28,7 @@ from src.gdt.datum_feature import detect_datum_feature_indicators
 
 CASE_ID = "case_41_rev8"
 CASE_PATH = PROJECT_ROOT / "validation" / "gdt" / "cases" / f"{CASE_ID}.json"
+ISO5459_RULES_PATH = PROJECT_ROOT / "validation" / "gdt" / "configs" / "iso5459_reference_rules.json"
 DEFAULT_PHASE5_PATH = (
     PROJECT_ROOT
     / "validation"
@@ -41,7 +42,6 @@ DEFAULT_PHASE5_PATH = (
 OUTPUT_DIR = PROJECT_ROOT / "validation" / "gdt" / "outputs" / "phase7" / CASE_ID
 OUTPUT_PATH = OUTPUT_DIR / "datum_definition_diagnostic.json"
 OVERLAY_PATH = OUTPUT_DIR / "datum_feature_indicators.png"
-SOURCE_REF = "Datum related symbols table: Datum Feature Indicator -> ISO 5459"
 
 
 def _load(path: Path) -> dict:
@@ -100,8 +100,15 @@ def main() -> None:
 
     case = _load(CASE_PATH)
     phase5 = _load(args.phase5_json)
+    iso_config = _load(ISO5459_RULES_PATH)
     if phase5.get("phase") != "phase5_frame_integration":
         raise ValueError("Phase 7 requires phase5_frame_integration structured output")
+
+    rules = iso_config.get("rules") or []
+    if len(rules) != 1 or rules[0].get("code") != "ISO5459_REFERENCED_DATUM_NOT_DEFINED":
+        raise ValueError("ISO 5459 reference config must contain exactly one datum-definition rule")
+    standard = str(iso_config.get("standard", "ISO 5459"))
+    source_ref = str(rules[0].get("source_ref", "unspecified"))
 
     pdf_path = PROJECT_ROOT / case["pdf"]
     pdf_bytes = pdf_path.read_bytes()
@@ -120,8 +127,8 @@ def main() -> None:
             referenced_datums=refs,
             defined_indicators=indicators,
             mode="reference",
-            standard="ISO 5459",
-            source_ref=SOURCE_REF,
+            standard=standard,
+            source_ref=source_ref,
         )
         frame_rows.append(
             {
@@ -135,8 +142,8 @@ def main() -> None:
         referenced_datums=referenced_all,
         defined_indicators=indicators,
         mode="reference",
-        standard="ISO 5459",
-        source_ref=SOURCE_REF,
+        standard=standard,
+        source_ref=source_ref,
     )
     referenced_labels = [row.datum for row in aggregate]
     missing_labels = [row.datum for row in aggregate if row.status == "WARNING"]
@@ -157,11 +164,13 @@ def main() -> None:
         "validation_status": "CASE41_DIAGNOSTIC_ONLY",
         "ocr_used": False,
         "llm_used": False,
-        "standard": "ISO 5459",
-        "iso5459_edition_resolved": False,
+        "standard": standard,
+        "iso5459_edition_resolved": iso_config.get("edition") is not None,
         "mode": "reference",
         "normative_applicability_established": False,
-        "source_ref": SOURCE_REF,
+        "source_ref": source_ref,
+        "rules_source": str(ISO5459_RULES_PATH.relative_to(PROJECT_ROOT)),
+        "rules_scope_note": iso_config.get("scope_note"),
         "phase5_input": str(args.phase5_json),
         "detector_method": "single uppercase PDF token + enclosing small box + filled triangular marker + connected stem",
         "referenced_labels": referenced_labels,
@@ -189,7 +198,7 @@ def main() -> None:
     print("validation_status=CASE41_DIAGNOSTIC_ONLY")
     print("ocr_used=False")
     print("llm_used=False")
-    print("standard=ISO 5459")
+    print(f"standard={standard}")
     print("mode=reference")
     print(f"referenced_labels={referenced_labels}")
     print(f"defined_labels={defined_labels}")
