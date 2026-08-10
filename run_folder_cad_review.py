@@ -28,6 +28,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import subprocess
 import sys
 import traceback
 from pathlib import Path
@@ -65,6 +66,24 @@ def _visual_paths(result: dict, dirname: str) -> list[str]:
             if value:
                 paths.append(str(Path(dirname) / str(value)))
     return paths
+
+
+def _sync_phase4_templates() -> None:
+    script = PROJECT_ROOT / "validation" / "gdt" / "scripts" / "sync_phase4_templates.py"
+    if not script.exists():
+        raise FileNotFoundError(f"template sync script not found: {script}")
+    completed = subprocess.run(
+        [sys.executable, str(script)],
+        cwd=PROJECT_ROOT,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    if completed.stdout.strip():
+        print(completed.stdout.strip())
+    if completed.returncode != 0:
+        detail = completed.stderr.strip() or completed.stdout.strip()
+        raise RuntimeError(f"Phase 4 template sync failed (code={completed.returncode}): {detail}")
 
 
 def _error_result(pdf: Path, error: Exception) -> dict:
@@ -110,6 +129,11 @@ def main() -> None:
     parser.add_argument("--symbol-dpi", type=int, default=300)
     parser.add_argument("--recursive", action="store_true")
     parser.add_argument(
+        "--skip-template-sync",
+        action="store_true",
+        help="Do not synchronize versioned Phase 4 templates from cotas/ before the batch.",
+    )
+    parser.add_argument(
         "--allow-incomplete-symbol-catalog",
         action="store_true",
         help="Allow ranking against an incomplete symbol catalog. Diagnostic only; default is fail-closed.",
@@ -126,6 +150,11 @@ def main() -> None:
             "Pass --normas-xlsx with the customer applicability workbook."
         )
     output_dir.mkdir(parents=True, exist_ok=True)
+
+    if not args.skip_template_sync:
+        print("template_sync=START")
+        _sync_phase4_templates()
+        print("template_sync=PASS")
 
     pdfs = _pdfs(input_dir, args.recursive)
     print("phase=folder_cad_review_batch")
