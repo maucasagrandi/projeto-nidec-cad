@@ -1,0 +1,88 @@
+{
+  "schema_version": 1,
+  "standard": "ISO 1101",
+  "edition": 2017,
+  "mode": "reference_baseline",
+  "source": "User-provided ISO 1101:2017 Table 1 excerpt",
+  "scope_note": "Reference baseline for CAD Review GD&T consistency checks. This configuration does not by itself prove that ISO 1101:2017 is contractually/normatively applicable to a drawing.",
+  "rules": [
+    {
+      "characteristic": "straightness",
+      "datum_requirement": "none",
+      "source_ref": "ISO 1101:2017 Table 1, subclause 18.1",
+      "notes": "Table 1 lists datum needed = no."
+    },
+    {
+      "characteristic": "flatness",
+      "datum_requirement": "none",
+      "source_ref": "ISO 1101:2017 Table 1, subclause 18.2",
+      "notes": "Table 1 lists datum needed = no."
+    },
+    {
+      "characteristic": "circularity",
+      "datum_requirement": "none",
+      "source_ref": "ISO 1101:2017 Table 1, subclause 18.3",
+      "notes": "ISO table label is Roundness; pipeline canonical class is circularity. Datum needed = no."
+    },
+    {
+      "characteristic": "cylindricity",
+      "datum_requirement": "none",
+      "source_ref": "ISO 1101:2017 Table 1, subclause 18.4",
+      "notes": "Table 1 lists datum needed = no."
+    },
+    {
+      "characteristic": "parallelism",
+      "datum_requirement": "required",
+      "source_ref": "ISO 1101:2017 Table 1, subclause 18.9",
+      "notes": "Table 1 lists datum needed = yes."
+    },
+    {
+      "characteristic": "perpendicularity",
+      "datum_requirement": "required",
+      "source_ref": "ISO 1101:2017 Table 1, subclause 18.10",
+      "notes": "Table 1 lists datum needed = yes."
+    },
+    {
+      "characteristic": "angularity",
+      "datum_requirement": "required",
+      "source_ref": "ISO 1101:2017 Table 1, subclause 18.11",
+      "notes": "Table 1 lists datum needed = yes."
+    },
+    {
+      "characteristic": "position",
+      "datum_requirement": "conditional",
+      "source_ref": "ISO 1101:2017 Table 1, subclause 18.12",
+      "notes": "Table 1 lists datum needed = yes or no; absence/presence of a datum cannot alone establish a violation."
+    },
+    {
+      "characteristic": "concentricity_coaxiality",
+      "datum_requirement": "required",
+      "source_ref": "ISO 1101:2017 Table 1, subclause 18.13",
+      "notes": "Pipeline groups Concentricity and Coaxiality; Table 1 lists datum needed = yes for both."
+    },
+    {
+      "characteristic": "symmetry",
+      "datum_requirement": "required",
+      "source_ref": "ISO 1101:2017 Table 1, subclause 18.14",
+      "notes": "Table 1 lists datum needed = yes."
+    },
+    {
+      "characteristic": "circular_runout",
+      "datum_requirement": "required",
+      "source_ref": "ISO 1101:2017 Table 1, subclause 18.15",
+      "notes": "Table 1 lists datum needed = yes."
+    },
+    {
+      "characteristic": "total_runout",
+      "datum_requirement": "required",
+      "source_ref": "ISO 1101:2017 Table 1, subclause 18.16",
+      "notes": "Table 1 lists datum needed = yes."
+    },
+    {
+      "characteristic": "profile",
+      "datum_requirement": "conditional",
+      "source_ref": "ISO 1101:2017 Table 1, profile entries (Form / Orientation / Location)",
+      "notes": "Profile of a line/surface appears with datum needed = no for form and yes for orientation/location. Characteristic alone is insufficient to decide."
+    }
+  ]
+}
