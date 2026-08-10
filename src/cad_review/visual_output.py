@@ -9,8 +9,8 @@ Each page produces three views:
 - gdt: GD&T candidates only;
 - datums: datum definitions only.
 
-The split views keep dense drawings readable even when labels would overlap in
-the combined evidence image.
+Labels are placed in free lanes around their source geometry when possible and
+connected back to the frame/indicator, reducing overlap in dense drawings.
 """
 
 from __future__ import annotations
@@ -83,25 +83,89 @@ def _status_maps(findings: Iterable[Mapping[str, Any]]) -> tuple[dict[str, str],
     return by_candidate, by_datum
 
 
-def _draw_label(
+def _intersects(a: tuple[int, int, int, int], b: tuple[int, int, int, int], margin: int = 4) -> bool:
+    return not (
+        a[2] + margin < b[0]
+        or b[2] + margin < a[0]
+        or a[3] + margin < b[1]
+        or b[3] + margin < a[1]
+    )
+
+
+def _label_box(
     draw: ImageDraw.ImageDraw,
+    text: str,
+    font: ImageFont.ImageFont,
     xy: tuple[int, int],
+    *,
+    pad: int = 3,
+) -> tuple[int, int, int, int]:
+    x, y = xy
+    raw = draw.textbbox((x, y), text, font=font)
+    return raw[0] - pad, raw[1] - pad, raw[2] + pad, raw[3] + pad
+
+
+def _find_free_label_position(
+    draw: ImageDraw.ImageDraw,
+    image: Image.Image,
+    text: str,
+    font: ImageFont.ImageFont,
+    source_rect: tuple[int, int, int, int],
+    occupied: list[tuple[int, int, int, int]],
+) -> tuple[tuple[int, int], tuple[int, int, int, int]]:
+    probe = draw.textbbox((0, 0), text, font=font)
+    width = probe[2] - probe[0] + 8
+    height = probe[3] - probe[1] + 8
+    x0, y0, x1, y1 = source_rect
+
+    candidate_positions: list[tuple[int, int]] = []
+    for lane in range(7):
+        offset = lane * (height + 4)
+        candidate_positions.extend(
+            [
+                (x0, y0 - height - 4 - offset),
+                (x0, y1 + 4 + offset),
+                (x1 + 6, y0 - offset),
+                (x0 - width - 6, y0 - offset),
+            ]
+        )
+
+    # Last-resort deterministic lane near the source; clipping keeps it on page.
+    candidate_positions.append((x0, y0 - height - 4))
+
+    for raw_x, raw_y in candidate_positions:
+        x = max(2, min(int(raw_x), max(2, image.width - width - 2)))
+        y = max(2, min(int(raw_y), max(2, image.height - height - 2)))
+        box = _label_box(draw, text, font, (x, y))
+        if not any(_intersects(box, other) for other in occupied):
+            return (x, y), box
+
+    x = max(2, min(x0, max(2, image.width - width - 2)))
+    y = max(2, min(y0 - height - 4, max(2, image.height - height - 2)))
+    return (x, y), _label_box(draw, text, font, (x, y))
+
+
+def _draw_placed_label(
+    draw: ImageDraw.ImageDraw,
+    image: Image.Image,
+    source_rect: tuple[int, int, int, int],
     text: str,
     color: tuple[int, int, int],
+    occupied: list[tuple[int, int, int, int]],
     *,
-    size: int = 18,
+    size: int,
 ) -> None:
     font = _font(size, bold=True)
-    x, y = xy
-    box = draw.textbbox((x, y), text, font=font)
-    pad = 3
-    draw.rectangle(
-        (box[0] - pad, box[1] - pad, box[2] + pad, box[3] + pad),
-        fill=(255, 255, 255),
-        outline=color,
-        width=2,
-    )
-    draw.text((x, y), text, fill=color, font=font)
+    xy, box = _find_free_label_position(draw, image, text, font, source_rect, occupied)
+    occupied.append(box)
+    draw.rectangle(box, fill=(255, 255, 255), outline=color, width=2)
+    draw.text(xy, text, fill=color, font=font)
+
+    source_x = (source_rect[0] + source_rect[2]) // 2
+    source_y = (source_rect[1] + source_rect[3]) // 2
+    label_x = min(max(source_x, box[0]), box[2])
+    label_y = min(max(source_y, box[1]), box[3])
+    draw.line((source_x, source_y, label_x, label_y), fill=color, width=1)
 
 
 def _draw_header(
@@ -137,10 +201,14 @@ def _draw_gdt_layer(
     scale: float,
 ) -> None:
     draw = ImageDraw.Draw(image)
+    occupied: list[tuple[int, int, int, int]] = []
+    sortable: list[tuple[tuple[float, float, float, float], Mapping[str, Any]]] = []
     for row in rows:
         bbox = _bbox(row, "frame_bbox", "bbox")
-        if bbox is None:
-            continue
+        if bbox is not None:
+            sortable.append((bbox, row))
+
+    for bbox, row in sorted(sortable, key=lambda item: (item[0][1], item[0][0])):
         candidate_id = str(row.get("candidate_id") or row.get("gdt_id") or "GDT-CAND")
         status = candidate_status.get(candidate_id, str(row.get("status") or "NOT_EVALUATED"))
         color = _STATUS_COLORS.get(status, _STATUS_COLORS["NOT_EVALUATED"])
@@ -150,12 +218,14 @@ def _draw_gdt_layer(
         refs = row.get("referenced_datums") or []
         refs_text = ",".join(str(v) for v in refs) if refs else "-"
         short_id = candidate_id.replace("GDT-CAND-P", "P")
-        label = f"GDT-CAND {short_id} | {characteristic} | refs:{refs_text} | {status}"
-        _draw_label(
+        label = f"CAND {short_id} | {characteristic} | refs:{refs_text} | {status}"
+        _draw_placed_label(
             draw,
-            (rect[0], max(0, rect[1] - 27)),
+            image,
+            rect,
             label,
             color,
+            occupied,
             size=max(12, int(round(7.5 * scale))),
         )
 
@@ -168,6 +238,7 @@ def _draw_datum_layer(
     scale: float,
 ) -> None:
     draw = ImageDraw.Draw(image)
+    occupied: list[tuple[int, int, int, int]] = []
     for row in rows:
         box_bbox = _bbox(row, "box_bbox", "bbox")
         marker_bbox = _bbox(row, "marker_bbox")
@@ -181,11 +252,13 @@ def _draw_datum_layer(
         if marker_bbox is not None:
             marker_rect = tuple(int(round(v * scale)) for v in marker_bbox)
             draw.rectangle(marker_rect, outline=color, width=2)
-        _draw_label(
+        _draw_placed_label(
             draw,
-            (rect[0], max(0, rect[1] - 27)),
+            image,
+            rect,
             f"DATUM-{label}",
             color,
+            occupied,
             size=max(12, int(round(7.5 * scale))),
         )
 
@@ -346,6 +419,7 @@ def render_visual_evidence(
         "crops": crop_paths,
         "label_policy": "GDT-CAND until independently validated",
         "layers": ["combined", "gdt", "datums"],
+        "label_placement": "non_overlapping_lanes_with_connectors",
     }
 
 
