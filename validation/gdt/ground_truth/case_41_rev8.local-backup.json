@@ -1,0 +1,96 @@
+{
+  "schema_version": 2,
+  "case_id": "case_41_rev8",
+  "pdf": "C:\\Users\\madeinweb\\Documents\\GitHub\\poc-genai-ls-engenharia\\projeto-nidec-cad\\CAD_Review_Test_Battery_V1\\2. Comparison Analysis\\41\\13358002_REV_8_draw_2.pdf",
+  "page": 1,
+  "expected_frame_count": 6,
+  "independent_annotation": true,
+  "benchmark_grade": true,
+  "annotation": {
+    "method": "manual_full_frame_roi_on_original_pdf",
+    "scope": "full_gdt_frame",
+    "detector_overlay_visible": false,
+    "dpi": 180,
+    "zoom": 2.5
+  },
+  "frames": [
+    {
+      "id": "GT-001",
+      "page": 1,
+      "characteristic": "position",
+      "bbox": [
+        154.0,
+        290.4,
+        203.2,
+        307.2
+      ],
+      "source": "manual_annotation",
+      "notes": "Full GD&T frame annotated on original PDF page without detector overlay."
+    },
+    {
+      "id": "GT-002",
+      "page": 1,
+      "characteristic": "position",
+      "bbox": [
+        581.6,
+        684.8,
+        642.0,
+        697.6
+      ],
+      "source": "manual_annotation",
+      "notes": "Full GD&T frame annotated on original PDF page without detector overlay."
+    },
+    {
+      "id": "GT-003",
+      "page": 1,
+      "characteristic": "profile",
+      "bbox": [
+        570.8,
+        718.8,
+        633.2,
+        728.4
+      ],
+      "source": "manual_annotation",
+      "notes": "Full GD&T frame annotated on original PDF page without detector overlay."
+    },
+    {
+      "id": "GT-004",
+      "page": 1,
+      "characteristic": "profile",
+      "bbox": [
+        171.6,
+        737.2,
+        229.6,
+        752.4
+      ],
+      "source": "manual_annotation",
+      "notes": "Full GD&T frame annotated on original PDF page without detector overlay."
+    },
+    {
+      "id": "GT-005",
+      "page": 1,
+      "characteristic": "position",
+      "bbox": [
+        574.0,
+        738.4,
+        636.4,
+        749.6
+      ],
+      "source": "manual_annotation",
+      "notes": "Full GD&T frame annotated on original PDF page without detector overlay."
+    },
+    {
+      "id": "GT-006",
+      "page": 1,
+      "characteristic": "profile",
+      "bbox": [
+        570.8,
+        764.0,
+        632.0,
+        783.6
+      ],
+      "source": "manual_annotation",
+      "notes": "Full GD&T frame annotated on original PDF page without detector overlay."
+    }
+  ]
+}

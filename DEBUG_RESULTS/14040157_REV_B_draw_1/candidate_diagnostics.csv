@@ -1,0 +1,8 @@
+﻿candidate_id,page,frame_bbox,symbol_bbox,num_cells,top1_class,top1_score,top2_class,top2_score,margin,decision_policy,catalog_complete,referenced_datums,unresolved_fields,human_is_real_gdt,human_true_characteristic,human_notes
+GDT-CAND-P01-001,1,"[260.098, 260.86, 334.67, 283.186]","[260.098, 260.86, 286.85, 283.186]",3,straightness,0.654738,symmetry,0.542928,0.11181,ranking_only_no_global_threshold,,,,,,
+GDT-CAND-P01-002,1,"[70.866, 656.504, 118.621, 666.89]","[70.866, 656.504, 85.039, 666.89]",3,total_runout,0.290162,flatness,0.288032,0.00213,ranking_only_no_global_threshold,,,,,,
+GDT-CAND-P01-003,1,"[70.866, 666.89, 118.621, 692.947]","[70.866, 666.89, 85.039, 692.947]",3,symmetry,0.357142,perpendicularity,0.324709,0.032433,ranking_only_no_global_threshold,,,,,,
+GDT-CAND-P01-004,1,"[85.039, 771.443, 118.621, 787.745]","[85.039, 771.443, 94.229, 787.745]",2,perpendicularity,0.311257,angularity,0.301736,0.009521,ranking_only_no_global_threshold,,,,,,
+GDT-CAND-P01-005,1,"[886.35, 796.673, 910.338, 805.774]","[886.35, 796.673, 900.996, 805.774]",2,profile,0.327425,position,0.291006,0.036419,ranking_only_no_global_threshold,,,,,,
+GDT-CAND-P01-006,1,"[913.535, 796.673, 945.896, 805.774]","[913.535, 796.673, 918.094, 805.774]",6,circular_runout,0.389605,perpendicularity,0.354097,0.035507,ranking_only_no_global_threshold,,,,,,
+GDT-CAND-P01-007,1,"[970.163, 796.673, 995.277, 805.774]","[970.163, 796.673, 975.473, 805.774]",4,perpendicularity,0.425229,cylindricity,0.357597,0.067632,ranking_only_no_global_threshold,,,,,,

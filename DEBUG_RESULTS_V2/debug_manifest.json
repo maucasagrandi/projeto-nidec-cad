@@ -1,0 +1,47 @@
+[
+  {
+    "cad": "113340048_REV5_draw_1.pdf",
+    "status": "OK",
+    "error": null
+  },
+  {
+    "cad": "113390048_Rev7_draw_1.pdf",
+    "status": "OK",
+    "error": null
+  },
+  {
+    "cad": "113891052_Rev1_draw_2.pdf",
+    "status": "ERROR",
+    "error": "Traceback (most recent call last):\n  File \"C:\\Users\\madeinweb\\Documents\\GitHub\\poc-genai-ls-engenharia\\projeto-nidec-cad\\run_gdt_detection_debug.py\", line 317, in <module>\n    main()\n  File \"C:\\Users\\madeinweb\\Documents\\GitHub\\poc-genai-ls-engenharia\\projeto-nidec-cad\\run_gdt_detection_debug.py\", line 238, in main\n    rows, raw_rows, page_results = _run_v2(\n                                   ^^^^^^^^\n  File \"C:\\Users\\madeinweb\\Documents\\GitHub\\poc-genai-ls-engenharia\\projeto-nidec-cad\\run_gdt_detection_debug.py\", line 132, in _run_v2\n    materialized = detector.materialize(pdf_bytes, proposals, page_index=page_index, dpi=symbol_dpi)\n                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"C:\\Users\\madeinweb\\Documents\\GitHub\\poc-genai-ls-engenharia\\projeto-nidec-cad\\src\\gdt\\candidate_detector_v2.py\", line 624, in materialize\n    return [_candidate_from_raw(p, page, image, scale) for p in proposals]\n            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"C:\\Users\\madeinweb\\Documents\\GitHub\\poc-genai-ls-engenharia\\projeto-nidec-cad\\src\\gdt\\candidate_detector_v2.py\", line 437, in _candidate_from_raw\n    frame_crop=crop(proposal.frame_bbox),\n               ^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"C:\\Users\\madeinweb\\Documents\\GitHub\\poc-genai-ls-engenharia\\projeto-nidec-cad\\src\\gdt\\candidate_detector_v2.py\", line 429, in crop\n    return page_image.crop(px)\n           ^^^^^^^^^^^^^^^^^^^\n  File \"C:\\Users\\madeinweb\\AppData\\Local\\Programs\\Python\\Python312\\Lib\\site-packages\\PIL\\Image.py\", line 1296, in crop\n    raise ValueError(msg)\nValueError: Coordinate 'right' is less than 'left'"
+  },
+  {
+    "cad": "13358002_REV_7_draw_1.pdf",
+    "status": "OK",
+    "error": null
+  },
+  {
+    "cad": "13751188_REV_0_draw_1.pdf",
+    "status": "ERROR",
+    "error": "Traceback (most recent call last):\n  File \"C:\\Users\\madeinweb\\Documents\\GitHub\\poc-genai-ls-engenharia\\projeto-nidec-cad\\run_gdt_detection_debug.py\", line 317, in <module>\n    main()\n  File \"C:\\Users\\madeinweb\\Documents\\GitHub\\poc-genai-ls-engenharia\\projeto-nidec-cad\\run_gdt_detection_debug.py\", line 238, in main\n    rows, raw_rows, page_results = _run_v2(\n                                   ^^^^^^^^\n  File \"C:\\Users\\madeinweb\\Documents\\GitHub\\poc-genai-ls-engenharia\\projeto-nidec-cad\\run_gdt_detection_debug.py\", line 132, in _run_v2\n    materialized = detector.materialize(pdf_bytes, proposals, page_index=page_index, dpi=symbol_dpi)\n                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"C:\\Users\\madeinweb\\Documents\\GitHub\\poc-genai-ls-engenharia\\projeto-nidec-cad\\src\\gdt\\candidate_detector_v2.py\", line 624, in materialize\n    return [_candidate_from_raw(p, page, image, scale) for p in proposals]\n            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"C:\\Users\\madeinweb\\Documents\\GitHub\\poc-genai-ls-engenharia\\projeto-nidec-cad\\src\\gdt\\candidate_detector_v2.py\", line 437, in _candidate_from_raw\n    frame_crop=crop(proposal.frame_bbox),\n               ^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"C:\\Users\\madeinweb\\Documents\\GitHub\\poc-genai-ls-engenharia\\projeto-nidec-cad\\src\\gdt\\candidate_detector_v2.py\", line 429, in crop\n    return page_image.crop(px)\n           ^^^^^^^^^^^^^^^^^^^\n  File \"C:\\Users\\madeinweb\\AppData\\Local\\Programs\\Python\\Python312\\Lib\\site-packages\\PIL\\Image.py\", line 1296, in crop\n    raise ValueError(msg)\nValueError: Coordinate 'right' is less than 'left'"
+  },
+  {
+    "cad": "13851052_rev_1_draw_1.pdf",
+    "status": "OK",
+    "error": null
+  },
+  {
+    "cad": "13958000_REV_2_draw_1.pdf",
+    "status": "ERROR",
+    "error": "Traceback (most recent call last):\n  File \"C:\\Users\\madeinweb\\Documents\\GitHub\\poc-genai-ls-engenharia\\projeto-nidec-cad\\run_gdt_detection_debug.py\", line 317, in <module>\n    main()\n  File \"C:\\Users\\madeinweb\\Documents\\GitHub\\poc-genai-ls-engenharia\\projeto-nidec-cad\\run_gdt_detection_debug.py\", line 238, in main\n    rows, raw_rows, page_results = _run_v2(\n                                   ^^^^^^^^\n  File \"C:\\Users\\madeinweb\\Documents\\GitHub\\poc-genai-ls-engenharia\\projeto-nidec-cad\\run_gdt_detection_debug.py\", line 132, in _run_v2\n    materialized = detector.materialize(pdf_bytes, proposals, page_index=page_index, dpi=symbol_dpi)\n                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"C:\\Users\\madeinweb\\Documents\\GitHub\\poc-genai-ls-engenharia\\projeto-nidec-cad\\src\\gdt\\candidate_detector_v2.py\", line 624, in materialize\n    return [_candidate_from_raw(p, page, image, scale) for p in proposals]\n            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"C:\\Users\\madeinweb\\Documents\\GitHub\\poc-genai-ls-engenharia\\projeto-nidec-cad\\src\\gdt\\candidate_detector_v2.py\", line 437, in _candidate_from_raw\n    frame_crop=crop(proposal.frame_bbox),\n               ^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"C:\\Users\\madeinweb\\Documents\\GitHub\\poc-genai-ls-engenharia\\projeto-nidec-cad\\src\\gdt\\candidate_detector_v2.py\", line 429, in crop\n    return page_image.crop(px)\n           ^^^^^^^^^^^^^^^^^^^\n  File \"C:\\Users\\madeinweb\\AppData\\Local\\Programs\\Python\\Python312\\Lib\\site-packages\\PIL\\Image.py\", line 1299, in crop\n    raise ValueError(msg)\nValueError: Coordinate 'lower' is less than 'upper'"
+  },
+  {
+    "cad": "14040156_REV_B_draw_1.pdf",
+    "status": "OK",
+    "error": null
+  },
+  {
+    "cad": "14040157_REV_B_draw_1.pdf",
+    "status": "OK",
+    "error": null
+  }
+]

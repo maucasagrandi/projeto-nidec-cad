@@ -1,0 +1,666 @@
+{
+  "phase": "gdt_detection_debug",
+  "validation_status": "DIAGNOSTIC_ONLY",
+  "production_claim": false,
+  "drawing": {
+    "name": "13751188_REV_0_draw_1.pdf",
+    "source_path": "C:\\Users\\madeinweb\\Documents\\GitHub\\poc-genai-ls-engenharia\\projeto-nidec-cad\\CADS\\13751188_REV_0_draw_1.pdf"
+  },
+  "page_count": 1,
+  "candidate_count": 2,
+  "ground_truth_used": false,
+  "candidate_semantics": "unvalidated detector proposals",
+  "template_classes": [
+    "angularity",
+    "circular_runout",
+    "circularity",
+    "concentricity_coaxiality",
+    "cylindricity",
+    "flatness",
+    "negative_controls",
+    "parallelism",
+    "perpendicularity",
+    "position",
+    "profile",
+    "straightness",
+    "symmetry",
+    "total_runout"
+  ],
+  "symbol_ranking_enabled": true,
+  "symbol_ranking_error": null,
+  "candidates": [
+    {
+      "candidate_id": "GDT-CAND-P01-001",
+      "page": 1,
+      "frame_bbox": [
+        213.487,
+        200.01,
+        286.353,
+        232.255
+      ],
+      "symbol_bbox": [
+        213.487,
+        200.01,
+        235.811,
+        232.255
+      ],
+      "cell_bboxes": [
+        [
+          213.487,
+          200.01,
+          235.811,
+          232.255
+        ],
+        [
+          235.811,
+          200.01,
+          286.353,
+          232.255
+        ]
+      ],
+      "cell_texts": [
+        [],
+        []
+      ],
+      "detection_status": "candidate_unvalidated",
+      "referenced_datums": [],
+      "unresolved_fields": [],
+      "symbol_scoring": {
+        "candidate_id": "GDT-CAND-P01-001",
+        "class_scores": {
+          "angularity": 0.381964,
+          "circular_runout": 0.060966,
+          "circularity": 0.120281,
+          "concentricity_coaxiality": 0.107316,
+          "cylindricity": 0.098805,
+          "flatness": 0.212299,
+          "negative_controls": 0.118564,
+          "parallelism": 0.025889,
+          "perpendicularity": 0.355838,
+          "position": 0.08157,
+          "profile": 0.038171,
+          "straightness": -0.02434,
+          "symmetry": 0.156398,
+          "total_runout": 0.169309
+        },
+        "best_class": "angularity",
+        "best_score": 0.381964,
+        "second_best_class": "perpendicularity",
+        "second_best_score": 0.355838,
+        "margin": 0.026126,
+        "templates": [
+          {
+            "class_name": "angularity",
+            "template_name": "angularity_01",
+            "scores": {
+              "gray": 0.526018,
+              "binary": 0.441586,
+              "edges": 0.416948,
+              "structure": -0.166327,
+              "hog": 0.824185
+            },
+            "family_scores": {
+              "local": 0.461517,
+              "global_shape": 0.328929
+            },
+            "mean_score": 0.381964
+          },
+          {
+            "class_name": "perpendicularity",
+            "template_name": "perpendicularity_01",
+            "scores": {
+              "gray": 0.559156,
+              "binary": 0.451648,
+              "edges": 0.305066,
+              "structure": 0.094001,
+              "hog": 0.507295
+            },
+            "family_scores": {
+              "local": 0.438623,
+              "global_shape": 0.300648
+            },
+            "mean_score": 0.355838
+          },
+          {
+            "class_name": "flatness",
+            "template_name": "flatness_01",
+            "scores": {
+              "gray": 0.394657,
+              "binary": 0.315714,
+              "edges": 0.150739,
+              "structure": -0.180171,
+              "hog": 0.505118
+            },
+            "family_scores": {
+              "local": 0.287037,
+              "global_shape": 0.162473
+            },
+            "mean_score": 0.212299
+          },
+          {
+            "class_name": "total_runout",
+            "template_name": "total_runout_01",
+            "scores": {
+              "gray": 0.237883,
+              "binary": 0.219498,
+              "edges": 0.135195,
+              "structure": -0.210827,
+              "hog": 0.511823
+            },
+            "family_scores": {
+              "local": 0.197525,
+              "global_shape": 0.150498
+            },
+            "mean_score": 0.169309
+          },
+          {
+            "class_name": "symmetry",
+            "template_name": "symmetry_01",
+            "scores": {
+              "gray": 0.273836,
+              "binary": 0.257176,
+              "edges": 0.177504,
+              "structure": -0.129695,
+              "hog": 0.336124
+            },
+            "family_scores": {
+              "local": 0.236172,
+              "global_shape": 0.103215
+            },
+            "mean_score": 0.156398
+          },
+          {
+            "class_name": "circularity",
+            "template_name": "circularity_01",
+            "scores": {
+              "gray": 0.185686,
+              "binary": 0.154654,
+              "edges": 0.14968,
+              "structure": -0.180458,
+              "hog": 0.363608
+            },
+            "family_scores": {
+              "local": 0.16334,
+              "global_shape": 0.091575
+            },
+            "mean_score": 0.120281
+          },
+          {
+            "class_name": "negative_controls",
+            "template_name": "negative_01",
+            "scores": {
+              "gray": 0.243805,
+              "binary": 0.198185,
+              "edges": 0.180861,
+              "structure": -0.195806,
+              "hog": 0.314195
+            },
+            "family_scores": {
+              "local": 0.207617,
+              "global_shape": 0.059195
+            },
+            "mean_score": 0.118564
+          },
+          {
+            "class_name": "concentricity_coaxiality",
+            "template_name": "concentricity_coaxiality_01",
+            "scores": {
+              "gray": 0.18513,
+              "binary": 0.156464,
+              "edges": 0.131259,
+              "structure": -0.208363,
+              "hog": 0.355925
+            },
+            "family_scores": {
+              "local": 0.157618,
+              "global_shape": 0.073781
+            },
+            "mean_score": 0.107316
+          },
+          {
+            "class_name": "concentricity_coaxiality",
+            "template_name": "concentricity_coaxiality_02",
+            "scores": {
+              "gray": 0.184508,
+              "binary": 0.173126,
+              "edges": 0.125226,
+              "structure": -0.219302,
+              "hog": 0.348177
+            },
+            "family_scores": {
+              "local": 0.160953,
+              "global_shape": 0.064438
+            },
+            "mean_score": 0.103044
+          },
+          {
+            "class_name": "cylindricity",
+            "template_name": "cylindricity_01",
+            "scores": {
+              "gray": 0.140725,
+              "binary": 0.130061,
+              "edges": 0.109673,
+              "structure": -0.18203,
+              "hog": 0.342286
+            },
+            "family_scores": {
+              "local": 0.126819,
+              "global_shape": 0.080128
+            },
+            "mean_score": 0.098805
+          },
+          {
+            "class_name": "position",
+            "template_name": "position_01",
+            "scores": {
+              "gray": 0.097126,
+              "binary": 0.084297,
+              "edges": 0.108063,
+              "structure": -0.138521,
+              "hog": 0.281759
+            },
+            "family_scores": {
+              "local": 0.096495,
+              "global_shape": 0.071619
+            },
+            "mean_score": 0.08157
+          },
+          {
+            "class_name": "circular_runout",
+            "template_name": "circular_runout_01",
+            "scores": {
+              "gray": 0.096003,
+              "binary": 0.08815,
+              "edges": 0.088479,
+              "structure": -0.063763,
+              "hog": 0.145813
+            },
+            "family_scores": {
+              "local": 0.090877,
+              "global_shape": 0.041025
+            },
+            "mean_score": 0.060966
+          },
+          {
+            "class_name": "profile",
+            "template_name": "profile_01",
+            "scores": {
+              "gray": 0.077295,
+              "binary": 0.058741,
+              "edges": 0.085077,
+              "structure": -0.096118,
+              "hog": 0.125083
+            },
+            "family_scores": {
+              "local": 0.073704,
+              "global_shape": 0.014483
+            },
+            "mean_score": 0.038171
+          },
+          {
+            "class_name": "parallelism",
+            "template_name": "parallelism_01",
+            "scores": {
+              "gray": 0.101176,
+              "binary": 0.098991,
+              "edges": 0.075994,
+              "structure": -0.127199,
+              "hog": 0.090756
+            },
+            "family_scores": {
+              "local": 0.092054,
+              "global_shape": -0.018221
+            },
+            "mean_score": 0.025889
+          },
+          {
+            "class_name": "straightness",
+            "template_name": "straightness_01",
+            "scores": {
+              "gray": -0.010705,
+              "binary": -0.014676,
+              "edges": 0.038012,
+              "structure": -0.09712,
+              "hog": 0.010372
+            },
+            "family_scores": {
+              "local": 0.004211,
+              "global_shape": -0.043374
+            },
+            "mean_score": -0.02434
+          }
+        ],
+        "decision_policy": "ranking_only_no_global_threshold",
+        "catalog_complete": null
+      }
+    },
+    {
+      "candidate_id": "GDT-CAND-P01-002",
+      "page": 1,
+      "frame_bbox": [
+        1464.665,
+        965.674,
+        1592.033,
+        996.258
+      ],
+      "symbol_bbox": [
+        1464.665,
+        965.674,
+        1530.194,
+        996.258
+      ],
+      "cell_bboxes": [
+        [
+          1464.665,
+          965.674,
+          1530.194,
+          996.258
+        ],
+        [
+          1530.194,
+          965.674,
+          1592.033,
+          996.258
+        ]
+      ],
+      "cell_texts": [
+        [
+          "1"
+        ],
+        [
+          "7,5+0,003",
+          "+0,007"
+        ]
+      ],
+      "detection_status": "candidate_unvalidated",
+      "referenced_datums": [],
+      "unresolved_fields": [],
+      "symbol_scoring": {
+        "candidate_id": "GDT-CAND-P01-002",
+        "class_scores": {
+          "angularity": 0.075653,
+          "circular_runout": 0.109236,
+          "circularity": 0.01837,
+          "concentricity_coaxiality": 0.09446,
+          "cylindricity": 0.105101,
+          "flatness": 0.085767,
+          "negative_controls": 0.039243,
+          "parallelism": 0.054563,
+          "perpendicularity": 0.035194,
+          "position": 0.283305,
+          "profile": 0.160193,
+          "straightness": 0.423889,
+          "symmetry": 0.356828,
+          "total_runout": 0.053725
+        },
+        "best_class": "straightness",
+        "best_score": 0.423889,
+        "second_best_class": "symmetry",
+        "second_best_score": 0.356828,
+        "margin": 0.067061,
+        "templates": [
+          {
+            "class_name": "straightness",
+            "template_name": "straightness_01",
+            "scores": {
+              "gray": 0.411025,
+              "binary": 0.32446,
+              "edges": 0.419805,
+              "structure": -0.049305,
+              "hog": 0.948807
+            },
+            "family_scores": {
+              "local": 0.385097,
+              "global_shape": 0.449751
+            },
+            "mean_score": 0.423889
+          },
+          {
+            "class_name": "symmetry",
+            "template_name": "symmetry_01",
+            "scores": {
+              "gray": 0.424399,
+              "binary": 0.321926,
+              "edges": 0.636787,
+              "structure": -0.139246,
+              "hog": 0.713956
+            },
+            "family_scores": {
+              "local": 0.461037,
+              "global_shape": 0.287355
+            },
+            "mean_score": 0.356828
+          },
+          {
+            "class_name": "position",
+            "template_name": "position_01",
+            "scores": {
+              "gray": 0.311914,
+              "binary": 0.256376,
+              "edges": 0.224757,
+              "structure": 0.093438,
+              "hog": 0.498447
+            },
+            "family_scores": {
+              "local": 0.264349,
+              "global_shape": 0.295942
+            },
+            "mean_score": 0.283305
+          },
+          {
+            "class_name": "profile",
+            "template_name": "profile_01",
+            "scores": {
+              "gray": 0.155042,
+              "binary": 0.152581,
+              "edges": 0.192868,
+              "structure": 0.095814,
+              "hog": 0.215722
+            },
+            "family_scores": {
+              "local": 0.16683,
+              "global_shape": 0.155768
+            },
+            "mean_score": 0.160193
+          },
+          {
+            "class_name": "circular_runout",
+            "template_name": "circular_runout_01",
+            "scores": {
+              "gray": 0.139395,
+              "binary": 0.109272,
+              "edges": 0.08359,
+              "structure": 0.075389,
+              "hog": 0.141062
+            },
+            "family_scores": {
+              "local": 0.110752,
+              "global_shape": 0.108226
+            },
+            "mean_score": 0.109236
+          },
+          {
+            "class_name": "cylindricity",
+            "template_name": "cylindricity_01",
+            "scores": {
+              "gray": 0.190868,
+              "binary": 0.168151,
+              "edges": 0.123203,
+              "structure": -0.009468,
+              "hog": 0.145484
+            },
+            "family_scores": {
+              "local": 0.160741,
+              "global_shape": 0.068008
+            },
+            "mean_score": 0.105101
+          },
+          {
+            "class_name": "concentricity_coaxiality",
+            "template_name": "concentricity_coaxiality_01",
+            "scores": {
+              "gray": 0.172192,
+              "binary": 0.165069,
+              "edges": 0.109048,
+              "structure": -0.019195,
+              "hog": 0.1357
+            },
+            "family_scores": {
+              "local": 0.14877,
+              "global_shape": 0.058253
+            },
+            "mean_score": 0.09446
+          },
+          {
+            "class_name": "concentricity_coaxiality",
+            "template_name": "concentricity_coaxiality_02",
+            "scores": {
+              "gray": 0.16438,
+              "binary": 0.172371,
+              "edges": 0.119886,
+              "structure": -0.012266,
+              "hog": 0.115087
+            },
+            "family_scores": {
+              "local": 0.152212,
+              "global_shape": 0.05141
+            },
+            "mean_score": 0.091731
+          },
+          {
+            "class_name": "flatness",
+            "template_name": "flatness_01",
+            "scores": {
+              "gray": 0.263783,
+              "binary": 0.218301,
+              "edges": 0.20284,
+              "structure": -0.095301,
+              "hog": 0.07678
+            },
+            "family_scores": {
+              "local": 0.228308,
+              "global_shape": -0.009261
+            },
+            "mean_score": 0.085767
+          },
+          {
+            "class_name": "angularity",
+            "template_name": "angularity_01",
+            "scores": {
+              "gray": 0.142557,
+              "binary": 0.071061,
+              "edges": 0.247274,
+              "structure": 0.002534,
+              "hog": 0.044803
+            },
+            "family_scores": {
+              "local": 0.153631,
+              "global_shape": 0.023668
+            },
+            "mean_score": 0.075653
+          },
+          {
+            "class_name": "parallelism",
+            "template_name": "parallelism_01",
+            "scores": {
+              "gray": 0.122613,
+              "binary": 0.107885,
+              "edges": 0.078386,
+              "structure": -0.066455,
+              "hog": 0.111051
+            },
+            "family_scores": {
+              "local": 0.102961,
+              "global_shape": 0.022298
+            },
+            "mean_score": 0.054563
+          },
+          {
+            "class_name": "total_runout",
+            "template_name": "total_runout_01",
+            "scores": {
+              "gray": 0.156351,
+              "binary": 0.143021,
+              "edges": 0.115141,
+              "structure": -0.143487,
+              "hog": 0.138341
+            },
+            "family_scores": {
+              "local": 0.138171,
+              "global_shape": -0.002573
+            },
+            "mean_score": 0.053725
+          },
+          {
+            "class_name": "negative_controls",
+            "template_name": "negative_01",
+            "scores": {
+              "gray": 0.133933,
+              "binary": 0.140635,
+              "edges": 0.123618,
+              "structure": -0.09192,
+              "hog": 0.045756
+            },
+            "family_scores": {
+              "local": 0.132729,
+              "global_shape": -0.023082
+            },
+            "mean_score": 0.039243
+          },
+          {
+            "class_name": "perpendicularity",
+            "template_name": "perpendicularity_01",
+            "scores": {
+              "gray": 0.071996,
+              "binary": 0.063514,
+              "edges": 0.042019,
+              "structure": -0.012421,
+              "hog": 0.050833
+            },
+            "family_scores": {
+              "local": 0.059177,
+              "global_shape": 0.019206
+            },
+            "mean_score": 0.035194
+          },
+          {
+            "class_name": "circularity",
+            "template_name": "circularity_01",
+            "scores": {
+              "gray": 0.071922,
+              "binary": 0.07685,
+              "edges": 0.12459,
+              "structure": -0.112199,
+              "hog": 0.051937
+            },
+            "family_scores": {
+              "local": 0.09112,
+              "global_shape": -0.030131
+            },
+            "mean_score": 0.01837
+          }
+        ],
+        "decision_policy": "ranking_only_no_global_threshold",
+        "catalog_complete": null
+      }
+    }
+  ],
+  "artifacts": {
+    "validation_scope": "phase1_geometry_candidates_plus_phase2_ranking",
+    "ground_truth_used": false,
+    "candidate_semantics": "unvalidated detector proposals",
+    "classification_semantics": "ranking only; not probability and no calibrated global acceptance threshold",
+    "dpi": 180,
+    "top_k": 3,
+    "candidate_csv": "candidate_diagnostics.csv",
+    "pages": [
+      {
+        "page": 1,
+        "candidate_count": 2,
+        "candidates_image": "page_001_candidates.png",
+        "symbol_contact_sheet": "page_001_symbol_contact_sheet.png"
+      }
+    ]
+  },
+  "next_validation_step": "Independently mark real FCFs in candidate_diagnostics.csv or a separate GT file, then compute detector recall/precision before evaluating symbol accuracy."
+}

@@ -1,0 +1,50 @@
+{
+  "phase": "gdt_detection_debug",
+  "validation_status": "DIAGNOSTIC_ONLY",
+  "production_claim": false,
+  "drawing": {
+    "name": "13851052_rev_1_draw_1.pdf",
+    "source_path": "C:\\Users\\madeinweb\\Documents\\GitHub\\poc-genai-ls-engenharia\\projeto-nidec-cad\\CADS\\13851052_rev_1_draw_1.pdf"
+  },
+  "page_count": 1,
+  "candidate_count": 0,
+  "ground_truth_used": false,
+  "candidate_semantics": "unvalidated detector proposals",
+  "template_classes": [
+    "angularity",
+    "circular_runout",
+    "circularity",
+    "concentricity_coaxiality",
+    "cylindricity",
+    "flatness",
+    "negative_controls",
+    "parallelism",
+    "perpendicularity",
+    "position",
+    "profile",
+    "straightness",
+    "symmetry",
+    "total_runout"
+  ],
+  "symbol_ranking_enabled": true,
+  "symbol_ranking_error": null,
+  "candidates": [],
+  "artifacts": {
+    "validation_scope": "phase1_geometry_candidates_plus_phase2_ranking",
+    "ground_truth_used": false,
+    "candidate_semantics": "unvalidated detector proposals",
+    "classification_semantics": "ranking only; not probability and no calibrated global acceptance threshold",
+    "dpi": 180,
+    "top_k": 3,
+    "candidate_csv": "candidate_diagnostics.csv",
+    "pages": [
+      {
+        "page": 1,
+        "candidate_count": 0,
+        "candidates_image": "page_001_candidates.png",
+        "symbol_contact_sheet": "page_001_symbol_contact_sheet.png"
+      }
+    ]
+  },
+  "next_validation_step": "Independently mark real FCFs in candidate_diagnostics.csv or a separate GT file, then compute detector recall/precision before evaluating symbol accuracy."
+}

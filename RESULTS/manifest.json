@@ -1,0 +1,109 @@
+{
+  "schema_version": 1,
+  "generated_at_utc": "2026-08-10T12:31:38.484558+00:00",
+  "workbooks": {
+    "engineering": "summary_engineering.xlsx",
+    "technical": "summary_technical.xlsx"
+  },
+  "entries": [
+    {
+      "cad": "113340048_REV5_draw_1.pdf",
+      "status": "OK",
+      "result_json": "113340048_REV5_draw_1\\result.json",
+      "annotated_images": [
+        "113340048_REV5_draw_1\\page_001_annotated.png",
+        "113340048_REV5_draw_1\\page_001_gdt.png",
+        "113340048_REV5_draw_1\\page_001_datums.png"
+      ],
+      "error": null
+    },
+    {
+      "cad": "113390048_Rev7_draw_1.pdf",
+      "status": "OK",
+      "result_json": "113390048_Rev7_draw_1\\result.json",
+      "annotated_images": [
+        "113390048_Rev7_draw_1\\page_001_annotated.png",
+        "113390048_Rev7_draw_1\\page_001_gdt.png",
+        "113390048_Rev7_draw_1\\page_001_datums.png"
+      ],
+      "error": null
+    },
+    {
+      "cad": "113891052_Rev1_draw_2.pdf",
+      "status": "OK",
+      "result_json": "113891052_Rev1_draw_2\\result.json",
+      "annotated_images": [
+        "113891052_Rev1_draw_2\\page_001_annotated.png",
+        "113891052_Rev1_draw_2\\page_001_gdt.png",
+        "113891052_Rev1_draw_2\\page_001_datums.png"
+      ],
+      "error": null
+    },
+    {
+      "cad": "13358002_REV_7_draw_1.pdf",
+      "status": "OK",
+      "result_json": "13358002_REV_7_draw_1\\result.json",
+      "annotated_images": [
+        "13358002_REV_7_draw_1\\page_001_annotated.png",
+        "13358002_REV_7_draw_1\\page_001_gdt.png",
+        "13358002_REV_7_draw_1\\page_001_datums.png"
+      ],
+      "error": null
+    },
+    {
+      "cad": "13751188_REV_0_draw_1.pdf",
+      "status": "OK",
+      "result_json": "13751188_REV_0_draw_1\\result.json",
+      "annotated_images": [
+        "13751188_REV_0_draw_1\\page_001_annotated.png",
+        "13751188_REV_0_draw_1\\page_001_gdt.png",
+        "13751188_REV_0_draw_1\\page_001_datums.png"
+      ],
+      "error": null
+    },
+    {
+      "cad": "13851052_rev_1_draw_1.pdf",
+      "status": "OK",
+      "result_json": "13851052_rev_1_draw_1\\result.json",
+      "annotated_images": [
+        "13851052_rev_1_draw_1\\page_001_annotated.png",
+        "13851052_rev_1_draw_1\\page_001_gdt.png",
+        "13851052_rev_1_draw_1\\page_001_datums.png"
+      ],
+      "error": null
+    },
+    {
+      "cad": "13958000_REV_2_draw_1.pdf",
+      "status": "OK",
+      "result_json": "13958000_REV_2_draw_1\\result.json",
+      "annotated_images": [
+        "13958000_REV_2_draw_1\\page_001_annotated.png",
+        "13958000_REV_2_draw_1\\page_001_gdt.png",
+        "13958000_REV_2_draw_1\\page_001_datums.png"
+      ],
+      "error": null
+    },
+    {
+      "cad": "14040156_REV_B_draw_1.pdf",
+      "status": "OK",
+      "result_json": "14040156_REV_B_draw_1\\result.json",
+      "annotated_images": [
+        "14040156_REV_B_draw_1\\page_001_annotated.png",
+        "14040156_REV_B_draw_1\\page_001_gdt.png",
+        "14040156_REV_B_draw_1\\page_001_datums.png"
+      ],
+      "error": null
+    },
+    {
+      "cad": "14040157_REV_B_draw_1.pdf",
+      "status": "OK",
+      "result_json": "14040157_REV_B_draw_1\\result.json",
+      "annotated_images": [
+        "14040157_REV_B_draw_1\\page_001_annotated.png",
+        "14040157_REV_B_draw_1\\page_001_gdt.png",
+        "14040157_REV_B_draw_1\\page_001_datums.png"
+      ],
+      "error": null
+    }
+  ]
+}
