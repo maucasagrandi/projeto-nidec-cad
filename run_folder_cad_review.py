@@ -11,6 +11,9 @@ Default layout:
       manifest.json
       <cad_stem>/
         result.json
+        candidate_diagnostics.csv
+        page_001_candidates.png
+        page_001_symbol_contact_sheet.png
         page_001_annotated.png
         page_001_gdt.png
         page_001_datums.png
@@ -59,13 +62,35 @@ def _pdfs(folder: Path, recursive: bool) -> list[Path]:
 
 def _visual_paths(result: dict, dirname: str) -> list[str]:
     paths: list[str] = []
-    pages = ((result.get("artifacts") or {}).get("visual_evidence") or {}).get("pages", [])
+    artifacts = result.get("artifacts") or {}
+    pages = (artifacts.get("visual_evidence") or {}).get("pages", [])
     for page in pages:
         for key in ("annotated_image", "gdt_image", "datums_image"):
             value = page.get(key)
             if value:
                 paths.append(str(Path(dirname) / str(value)))
+
+    diagnostic_pages = (artifacts.get("detection_diagnostics") or {}).get("pages", [])
+    for page in diagnostic_pages:
+        for key in ("candidates_image", "symbol_contact_sheet"):
+            value = page.get(key)
+            if value:
+                paths.append(str(Path(dirname) / str(value)))
     return paths
+
+
+def _diagnostic_paths(result: dict, dirname: str) -> dict:
+    diagnostics = ((result.get("artifacts") or {}).get("detection_diagnostics") or {})
+    candidate_csv = diagnostics.get("candidate_csv")
+    return {
+        "candidate_csv": str(Path(dirname) / str(candidate_csv)) if candidate_csv else None,
+        "candidate_images": [
+            str(Path(dirname) / str(page[key]))
+            for page in diagnostics.get("pages", [])
+            for key in ("candidates_image", "symbol_contact_sheet")
+            if page.get(key)
+        ],
+    }
 
 
 def _sync_phase4_templates() -> None:
@@ -205,6 +230,7 @@ def main() -> None:
             print(f"  ERROR {error_text}")
 
         visual_paths = _visual_paths(result, dirname)
+        diagnostics = _diagnostic_paths(result, dirname)
         engineering_rows.append(engineering_row(result))
         tech_row = technical_row(result, result_json_path=result_rel, error=error_text)
         tech_row["Annotated_Images"] = "; ".join(visual_paths)
@@ -215,6 +241,8 @@ def main() -> None:
                 "status": "ERROR" if error_text else "OK",
                 "result_json": result_rel,
                 "annotated_images": visual_paths,
+                "candidate_diagnostics_csv": diagnostics["candidate_csv"],
+                "candidate_diagnostic_images": diagnostics["candidate_images"],
                 "error": error_text,
             }
         )
