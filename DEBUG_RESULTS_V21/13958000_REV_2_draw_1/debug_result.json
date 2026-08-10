@@ -1,0 +1,3780 @@
+{
+  "phase": "gdt_detection_debug",
+  "detector_version": "v21",
+  "validation_status": "DIAGNOSTIC_ONLY",
+  "production_claim": false,
+  "drawing": {
+    "name": "13958000_REV_2_draw_1.pdf",
+    "source_path": "C:\\Users\\madeinweb\\Documents\\GitHub\\poc-genai-ls-engenharia\\projeto-nidec-cad\\CADS\\13958000_REV_2_draw_1.pdf"
+  },
+  "page_count": 1,
+  "raw_proposal_count": 7,
+  "accepted_candidate_count": 2,
+  "ground_truth_used": false,
+  "candidate_semantics": "unvalidated detector proposals",
+  "template_classes": [
+    "angularity",
+    "circular_runout",
+    "circularity",
+    "concentricity_coaxiality",
+    "cylindricity",
+    "flatness",
+    "parallelism",
+    "perpendicularity",
+    "position",
+    "profile",
+    "straightness",
+    "symmetry",
+    "total_runout"
+  ],
+  "symbol_ranking_enabled": true,
+  "symbol_ranking_error": null,
+  "accepted_candidates": [
+    {
+      "candidate_id": "GDT-V2-P01-003",
+      "page": 1,
+      "frame_bbox": [
+        241.668,
+        65.189,
+        284.632,
+        79.81
+      ],
+      "symbol_bbox": [
+        241.668,
+        65.189,
+        261.423,
+        79.81
+      ],
+      "cell_bboxes": [
+        [
+          241.668,
+          65.189,
+          261.423,
+          79.81
+        ],
+        [
+          261.423,
+          65.189,
+          284.632,
+          79.81
+        ]
+      ],
+      "cell_texts": [
+        [],
+        []
+      ],
+      "detection_status": "candidate_unvalidated",
+      "referenced_datums": [],
+      "unresolved_fields": [],
+      "sources": [
+        "raster_morphology_v2",
+        "v1_legacy",
+        "vector:l",
+        "vector_normalized_v2"
+      ],
+      "validator": {
+        "validation_status": "accepted_for_downstream",
+        "rejection_reasons": [],
+        "evidence": {
+          "best_class": "circularity",
+          "best_score": 0.74324,
+          "margin": 0.17920500000000006,
+          "num_cells": 2,
+          "first_cell_aspect": 1.3512032361824569,
+          "has_numeric_downstream": false,
+          "has_single_letter_downstream": false,
+          "thresholds_are_validation_heuristics_not_iso": true
+        },
+        "rectangle_geometry": {
+          "top_coverage": 0.984848,
+          "bottom_coverage": 0.992424,
+          "left_coverage": 0.977778,
+          "right_coverage": 0.977778,
+          "outer_mean": 0.983207,
+          "outer_min": 0.977778,
+          "divider_mean": 0.977778,
+          "row_aspect": 2.938613,
+          "row_aspect_score": 1.0,
+          "horizontal_extension_penalty": 0.0,
+          "vertical_continuation_fraction": 0.333333,
+          "nearby_parallel_rows": 1,
+          "grid_penalty": 0.3,
+          "geometry_score": 0.872843
+        }
+      },
+      "symbol_scoring": {
+        "candidate_id": "GDT-V2-P01-003",
+        "class_scores": {
+          "angularity": 0.133067,
+          "circular_runout": 0.048464,
+          "circularity": 0.74324,
+          "concentricity_coaxiality": 0.564035,
+          "cylindricity": 0.168112,
+          "flatness": 0.246653,
+          "parallelism": 0.117631,
+          "perpendicularity": 0.117151,
+          "position": 0.006323,
+          "profile": 0.13837,
+          "straightness": -0.012675,
+          "symmetry": 0.01985,
+          "total_runout": 0.155531
+        },
+        "best_class": "circularity",
+        "best_score": 0.74324,
+        "second_best_class": "concentricity_coaxiality",
+        "second_best_score": 0.564035,
+        "margin": 0.179205,
+        "templates": [
+          {
+            "class_name": "circularity",
+            "template_name": "circularity_01",
+            "scores": {
+              "gray": 0.731118,
+              "binary": 0.605546,
+              "edges": 0.337336,
+              "structure": 0.81626,
+              "hog": 0.917207
+            },
+            "family_scores": {
+              "local": 0.558,
+              "global_shape": 0.866734
+            },
+            "mean_score": 0.74324
+          },
+          {
+            "class_name": "concentricity_coaxiality",
+            "template_name": "concentricity_coaxiality_02",
+            "scores": {
+              "gray": 0.467791,
+              "binary": 0.389748,
+              "edges": 0.274313,
+              "structure": 0.51604,
+              "hog": 0.861032
+            },
+            "family_scores": {
+              "local": 0.377284,
+              "global_shape": 0.688536
+            },
+            "mean_score": 0.564035
+          },
+          {
+            "class_name": "concentricity_coaxiality",
+            "template_name": "concentricity_coaxiality_01",
+            "scores": {
+              "gray": 0.410169,
+              "binary": 0.329615,
+              "edges": 0.259158,
+              "structure": 0.499897,
+              "hog": 0.86747
+            },
+            "family_scores": {
+              "local": 0.33298,
+              "global_shape": 0.683684
+            },
+            "mean_score": 0.543402
+          },
+          {
+            "class_name": "flatness",
+            "template_name": "flatness_01",
+            "scores": {
+              "gray": 0.380951,
+              "binary": 0.344389,
+              "edges": 0.171783,
+              "structure": -0.010785,
+              "hog": 0.43424
+            },
+            "family_scores": {
+              "local": 0.299041,
+              "global_shape": 0.211728
+            },
+            "mean_score": 0.246653
+          },
+          {
+            "class_name": "cylindricity",
+            "template_name": "cylindricity_01",
+            "scores": {
+              "gray": 0.232889,
+              "binary": 0.213596,
+              "edges": 0.107073,
+              "structure": -0.216682,
+              "hog": 0.531031
+            },
+            "family_scores": {
+              "local": 0.184519,
+              "global_shape": 0.157174
+            },
+            "mean_score": 0.168112
+          },
+          {
+            "class_name": "total_runout",
+            "template_name": "total_runout_01",
+            "scores": {
+              "gray": 0.213996,
+              "binary": 0.227728,
+              "edges": 0.140722,
+              "structure": -0.046711,
+              "hog": 0.306283
+            },
+            "family_scores": {
+              "local": 0.194149,
+              "global_shape": 0.129786
+            },
+            "mean_score": 0.155531
+          },
+          {
+            "class_name": "profile",
+            "template_name": "profile_01",
+            "scores": {
+              "gray": 0.27185,
+              "binary": 0.260962,
+              "edges": 0.216261,
+              "structure": -0.126429,
+              "hog": 0.254741
+            },
+            "family_scores": {
+              "local": 0.249691,
+              "global_shape": 0.064156
+            },
+            "mean_score": 0.13837
+          },
+          {
+            "class_name": "angularity",
+            "template_name": "angularity_01",
+            "scores": {
+              "gray": 0.171444,
+              "binary": 0.144929,
+              "edges": 0.096492,
+              "structure": 0.142938,
+              "hog": 0.117122
+            },
+            "family_scores": {
+              "local": 0.137621,
+              "global_shape": 0.13003
+            },
+            "mean_score": 0.133067
+          },
+          {
+            "class_name": "parallelism",
+            "template_name": "parallelism_01",
+            "scores": {
+              "gray": 0.21719,
+              "binary": 0.194863,
+              "edges": 0.104713,
+              "structure": -0.071744,
+              "hog": 0.234174
+            },
+            "family_scores": {
+              "local": 0.172255,
+              "global_shape": 0.081215
+            },
+            "mean_score": 0.117631
+          },
+          {
+            "class_name": "perpendicularity",
+            "template_name": "perpendicularity_01",
+            "scores": {
+              "gray": 0.180084,
+              "binary": 0.180363,
+              "edges": 0.100824,
+              "structure": 0.083467,
+              "hog": 0.102027
+            },
+            "family_scores": {
+              "local": 0.153757,
+              "global_shape": 0.092747
+            },
+            "mean_score": 0.117151
+          },
+          {
+            "class_name": "circular_runout",
+            "template_name": "circular_runout_01",
+            "scores": {
+              "gray": 0.244607,
+              "binary": 0.202026,
+              "edges": 0.100843,
+              "structure": -0.127786,
+              "hog": 0.046011
+            },
+            "family_scores": {
+              "local": 0.182492,
+              "global_shape": -0.040888
+            },
+            "mean_score": 0.048464
+          },
+          {
+            "class_name": "symmetry",
+            "template_name": "symmetry_01",
+            "scores": {
+              "gray": 0.14009,
+              "binary": 0.130624,
+              "edges": 0.07583,
+              "structure": -0.29025,
+              "hog": 0.202399
+            },
+            "family_scores": {
+              "local": 0.115514,
+              "global_shape": -0.043926
+            },
+            "mean_score": 0.01985
+          },
+          {
+            "class_name": "position",
+            "template_name": "position_01",
+            "scores": {
+              "gray": 0.106084,
+              "binary": 0.086941,
+              "edges": 0.073666,
+              "structure": -0.299657,
+              "hog": 0.202205
+            },
+            "family_scores": {
+              "local": 0.088897,
+              "global_shape": -0.048726
+            },
+            "mean_score": 0.006323
+          },
+          {
+            "class_name": "straightness",
+            "template_name": "straightness_01",
+            "scores": {
+              "gray": 0.047422,
+              "binary": 0.048424,
+              "edges": 0.061743,
+              "structure": -0.140141,
+              "hog": 0.027852
+            },
+            "family_scores": {
+              "local": 0.05253,
+              "global_shape": -0.056145
+            },
+            "mean_score": -0.012675
+          }
+        ],
+        "decision_policy": "ranking_only_no_global_threshold",
+        "catalog_complete": null
+      }
+    },
+    {
+      "candidate_id": "GDT-V2-P01-228",
+      "page": 1,
+      "frame_bbox": [
+        1096.691,
+        771.382,
+        1112.073,
+        778.255
+      ],
+      "symbol_bbox": [
+        1096.691,
+        771.382,
+        1100.618,
+        778.255
+      ],
+      "cell_bboxes": [
+        [
+          1096.691,
+          771.382,
+          1100.618,
+          778.255
+        ],
+        [
+          1102.582,
+          771.709,
+          1107.164,
+          777.927
+        ],
+        [
+          1108.145,
+          771.709,
+          1112.073,
+          778.255
+        ]
+      ],
+      "cell_texts": [
+        [],
+        [
+          "13958000"
+        ],
+        []
+      ],
+      "detection_status": "candidate_unvalidated",
+      "referenced_datums": [],
+      "unresolved_fields": [],
+      "sources": [
+        "raster_morphology_v2"
+      ],
+      "validator": {
+        "validation_status": "accepted_for_downstream",
+        "rejection_reasons": [],
+        "evidence": {
+          "best_class": "circular_runout",
+          "best_score": 0.610093,
+          "margin": 0.24728299999999998,
+          "num_cells": 3,
+          "first_cell_aspect": 0.5714285714285808,
+          "has_numeric_downstream": true,
+          "has_single_letter_downstream": false,
+          "thresholds_are_validation_heuristics_not_iso": true
+        },
+        "rectangle_geometry": {
+          "top_coverage": 0.553191,
+          "bottom_coverage": 0.468085,
+          "left_coverage": 0.428571,
+          "right_coverage": 0.952381,
+          "outer_mean": 0.600557,
+          "outer_min": 0.428571,
+          "divider_mean": 0.571429,
+          "row_aspect": 2.238095,
+          "row_aspect_score": 1.0,
+          "horizontal_extension_penalty": 0.391053,
+          "vertical_continuation_fraction": 0.0,
+          "nearby_parallel_rows": 2,
+          "grid_penalty": 0.225772,
+          "geometry_score": 0.545732
+        }
+      },
+      "symbol_scoring": {
+        "candidate_id": "GDT-V2-P01-228",
+        "class_scores": {
+          "angularity": 0.222897,
+          "circular_runout": 0.610093,
+          "circularity": 0.121548,
+          "concentricity_coaxiality": 0.205315,
+          "cylindricity": 0.222065,
+          "flatness": 0.131206,
+          "parallelism": 0.198027,
+          "perpendicularity": 0.26809,
+          "position": 0.36281,
+          "profile": 0.152713,
+          "straightness": 0.093053,
+          "symmetry": 0.203683,
+          "total_runout": 0.260536
+        },
+        "best_class": "circular_runout",
+        "best_score": 0.610093,
+        "second_best_class": "position",
+        "second_best_score": 0.36281,
+        "margin": 0.247283,
+        "templates": [
+          {
+            "class_name": "circular_runout",
+            "template_name": "circular_runout_01",
+            "scores": {
+              "gray": 0.689333,
+              "binary": 0.603091,
+              "edges": 0.160336,
+              "structure": 0.661798,
+              "hog": 0.726174
+            },
+            "family_scores": {
+              "local": 0.484254,
+              "global_shape": 0.693986
+            },
+            "mean_score": 0.610093
+          },
+          {
+            "class_name": "position",
+            "template_name": "position_01",
+            "scores": {
+              "gray": 0.534703,
+              "binary": 0.457282,
+              "edges": 0.139217,
+              "structure": 0.304438,
+              "hog": 0.402172
+            },
+            "family_scores": {
+              "local": 0.377067,
+              "global_shape": 0.353305
+            },
+            "mean_score": 0.36281
+          },
+          {
+            "class_name": "perpendicularity",
+            "template_name": "perpendicularity_01",
+            "scores": {
+              "gray": 0.311311,
+              "binary": 0.285262,
+              "edges": 0.159354,
+              "structure": 0.37201,
+              "hog": 0.185655
+            },
+            "family_scores": {
+              "local": 0.251976,
+              "global_shape": 0.278833
+            },
+            "mean_score": 0.26809
+          },
+          {
+            "class_name": "total_runout",
+            "template_name": "total_runout_01",
+            "scores": {
+              "gray": 0.418182,
+              "binary": 0.362473,
+              "edges": 0.128889,
+              "structure": -0.068762,
+              "hog": 0.532973
+            },
+            "family_scores": {
+              "local": 0.303181,
+              "global_shape": 0.232106
+            },
+            "mean_score": 0.260536
+          },
+          {
+            "class_name": "angularity",
+            "template_name": "angularity_01",
+            "scores": {
+              "gray": 0.257913,
+              "binary": 0.231285,
+              "edges": 0.148892,
+              "structure": 0.235009,
+              "hog": 0.224385
+            },
+            "family_scores": {
+              "local": 0.212697,
+              "global_shape": 0.229697
+            },
+            "mean_score": 0.222897
+          },
+          {
+            "class_name": "cylindricity",
+            "template_name": "cylindricity_01",
+            "scores": {
+              "gray": 0.381561,
+              "binary": 0.326499,
+              "edges": 0.119829,
+              "structure": -0.137613,
+              "hog": 0.509879
+            },
+            "family_scores": {
+              "local": 0.275963,
+              "global_shape": 0.186133
+            },
+            "mean_score": 0.222065
+          },
+          {
+            "class_name": "concentricity_coaxiality",
+            "template_name": "concentricity_coaxiality_02",
+            "scores": {
+              "gray": 0.196387,
+              "binary": 0.167985,
+              "edges": 0.141448,
+              "structure": 0.130559,
+              "hog": 0.329014
+            },
+            "family_scores": {
+              "local": 0.168607,
+              "global_shape": 0.229787
+            },
+            "mean_score": 0.205315
+          },
+          {
+            "class_name": "symmetry",
+            "template_name": "symmetry_01",
+            "scores": {
+              "gray": 0.35577,
+              "binary": 0.287989,
+              "edges": 0.125265,
+              "structure": 0.237305,
+              "hog": 0.099849
+            },
+            "family_scores": {
+              "local": 0.256341,
+              "global_shape": 0.168577
+            },
+            "mean_score": 0.203683
+          },
+          {
+            "class_name": "concentricity_coaxiality",
+            "template_name": "concentricity_coaxiality_01",
+            "scores": {
+              "gray": 0.199281,
+              "binary": 0.17993,
+              "edges": 0.127506,
+              "structure": 0.123017,
+              "hog": 0.328288
+            },
+            "family_scores": {
+              "local": 0.168906,
+              "global_shape": 0.225652
+            },
+            "mean_score": 0.202954
+          },
+          {
+            "class_name": "parallelism",
+            "template_name": "parallelism_01",
+            "scores": {
+              "gray": 0.329901,
+              "binary": 0.291404,
+              "edges": 0.09363,
+              "structure": -0.201147,
+              "hog": 0.543488
+            },
+            "family_scores": {
+              "local": 0.238312,
+              "global_shape": 0.171171
+            },
+            "mean_score": 0.198027
+          },
+          {
+            "class_name": "profile",
+            "template_name": "profile_01",
+            "scores": {
+              "gray": 0.292816,
+              "binary": 0.275127,
+              "edges": 0.107671,
+              "structure": 0.074475,
+              "hog": 0.134295
+            },
+            "family_scores": {
+              "local": 0.225205,
+              "global_shape": 0.104385
+            },
+            "mean_score": 0.152713
+          },
+          {
+            "class_name": "flatness",
+            "template_name": "flatness_01",
+            "scores": {
+              "gray": 0.317187,
+              "binary": 0.277033,
+              "edges": 0.100033,
+              "structure": -0.117764,
+              "hog": 0.24656
+            },
+            "family_scores": {
+              "local": 0.231418,
+              "global_shape": 0.064398
+            },
+            "mean_score": 0.131206
+          },
+          {
+            "class_name": "circularity",
+            "template_name": "circularity_01",
+            "scores": {
+              "gray": 0.182184,
+              "binary": 0.148841,
+              "edges": 0.095621,
+              "structure": -0.035396,
+              "hog": 0.250935
+            },
+            "family_scores": {
+              "local": 0.142215,
+              "global_shape": 0.107769
+            },
+            "mean_score": 0.121548
+          },
+          {
+            "class_name": "straightness",
+            "template_name": "straightness_01",
+            "scores": {
+              "gray": 0.176871,
+              "binary": 0.163264,
+              "edges": 0.022463,
+              "structure": 0.122108,
+              "hog": 0.026913
+            },
+            "family_scores": {
+              "local": 0.120866,
+              "global_shape": 0.074511
+            },
+            "mean_score": 0.093053
+          }
+        ],
+        "decision_policy": "ranking_only_no_global_threshold",
+        "catalog_complete": null
+      }
+    }
+  ],
+  "raw_proposals_materialized": [
+    {
+      "candidate_id": "GDT-V2-P01-003",
+      "page": 1,
+      "frame_bbox": [
+        241.668,
+        65.189,
+        284.632,
+        79.81
+      ],
+      "symbol_bbox": [
+        241.668,
+        65.189,
+        261.423,
+        79.81
+      ],
+      "cell_bboxes": [
+        [
+          241.668,
+          65.189,
+          261.423,
+          79.81
+        ],
+        [
+          261.423,
+          65.189,
+          284.632,
+          79.81
+        ]
+      ],
+      "cell_texts": [
+        [],
+        []
+      ],
+      "detection_status": "candidate_unvalidated",
+      "referenced_datums": [],
+      "unresolved_fields": [],
+      "sources": [
+        "raster_morphology_v2",
+        "v1_legacy",
+        "vector:l",
+        "vector_normalized_v2"
+      ],
+      "validator": {
+        "validation_status": "accepted_for_downstream",
+        "rejection_reasons": [],
+        "evidence": {
+          "best_class": "circularity",
+          "best_score": 0.74324,
+          "margin": 0.17920500000000006,
+          "num_cells": 2,
+          "first_cell_aspect": 1.3512032361824569,
+          "has_numeric_downstream": false,
+          "has_single_letter_downstream": false,
+          "thresholds_are_validation_heuristics_not_iso": true
+        },
+        "rectangle_geometry": {
+          "top_coverage": 0.984848,
+          "bottom_coverage": 0.992424,
+          "left_coverage": 0.977778,
+          "right_coverage": 0.977778,
+          "outer_mean": 0.983207,
+          "outer_min": 0.977778,
+          "divider_mean": 0.977778,
+          "row_aspect": 2.938613,
+          "row_aspect_score": 1.0,
+          "horizontal_extension_penalty": 0.0,
+          "vertical_continuation_fraction": 0.333333,
+          "nearby_parallel_rows": 1,
+          "grid_penalty": 0.3,
+          "geometry_score": 0.872843
+        }
+      },
+      "symbol_scoring": {
+        "candidate_id": "GDT-V2-P01-003",
+        "class_scores": {
+          "angularity": 0.133067,
+          "circular_runout": 0.048464,
+          "circularity": 0.74324,
+          "concentricity_coaxiality": 0.564035,
+          "cylindricity": 0.168112,
+          "flatness": 0.246653,
+          "parallelism": 0.117631,
+          "perpendicularity": 0.117151,
+          "position": 0.006323,
+          "profile": 0.13837,
+          "straightness": -0.012675,
+          "symmetry": 0.01985,
+          "total_runout": 0.155531
+        },
+        "best_class": "circularity",
+        "best_score": 0.74324,
+        "second_best_class": "concentricity_coaxiality",
+        "second_best_score": 0.564035,
+        "margin": 0.179205,
+        "templates": [
+          {
+            "class_name": "circularity",
+            "template_name": "circularity_01",
+            "scores": {
+              "gray": 0.731118,
+              "binary": 0.605546,
+              "edges": 0.337336,
+              "structure": 0.81626,
+              "hog": 0.917207
+            },
+            "family_scores": {
+              "local": 0.558,
+              "global_shape": 0.866734
+            },
+            "mean_score": 0.74324
+          },
+          {
+            "class_name": "concentricity_coaxiality",
+            "template_name": "concentricity_coaxiality_02",
+            "scores": {
+              "gray": 0.467791,
+              "binary": 0.389748,
+              "edges": 0.274313,
+              "structure": 0.51604,
+              "hog": 0.861032
+            },
+            "family_scores": {
+              "local": 0.377284,
+              "global_shape": 0.688536
+            },
+            "mean_score": 0.564035
+          },
+          {
+            "class_name": "concentricity_coaxiality",
+            "template_name": "concentricity_coaxiality_01",
+            "scores": {
+              "gray": 0.410169,
+              "binary": 0.329615,
+              "edges": 0.259158,
+              "structure": 0.499897,
+              "hog": 0.86747
+            },
+            "family_scores": {
+              "local": 0.33298,
+              "global_shape": 0.683684
+            },
+            "mean_score": 0.543402
+          },
+          {
+            "class_name": "flatness",
+            "template_name": "flatness_01",
+            "scores": {
+              "gray": 0.380951,
+              "binary": 0.344389,
+              "edges": 0.171783,
+              "structure": -0.010785,
+              "hog": 0.43424
+            },
+            "family_scores": {
+              "local": 0.299041,
+              "global_shape": 0.211728
+            },
+            "mean_score": 0.246653
+          },
+          {
+            "class_name": "cylindricity",
+            "template_name": "cylindricity_01",
+            "scores": {
+              "gray": 0.232889,
+              "binary": 0.213596,
+              "edges": 0.107073,
+              "structure": -0.216682,
+              "hog": 0.531031
+            },
+            "family_scores": {
+              "local": 0.184519,
+              "global_shape": 0.157174
+            },
+            "mean_score": 0.168112
+          },
+          {
+            "class_name": "total_runout",
+            "template_name": "total_runout_01",
+            "scores": {
+              "gray": 0.213996,
+              "binary": 0.227728,
+              "edges": 0.140722,
+              "structure": -0.046711,
+              "hog": 0.306283
+            },
+            "family_scores": {
+              "local": 0.194149,
+              "global_shape": 0.129786
+            },
+            "mean_score": 0.155531
+          },
+          {
+            "class_name": "profile",
+            "template_name": "profile_01",
+            "scores": {
+              "gray": 0.27185,
+              "binary": 0.260962,
+              "edges": 0.216261,
+              "structure": -0.126429,
+              "hog": 0.254741
+            },
+            "family_scores": {
+              "local": 0.249691,
+              "global_shape": 0.064156
+            },
+            "mean_score": 0.13837
+          },
+          {
+            "class_name": "angularity",
+            "template_name": "angularity_01",
+            "scores": {
+              "gray": 0.171444,
+              "binary": 0.144929,
+              "edges": 0.096492,
+              "structure": 0.142938,
+              "hog": 0.117122
+            },
+            "family_scores": {
+              "local": 0.137621,
+              "global_shape": 0.13003
+            },
+            "mean_score": 0.133067
+          },
+          {
+            "class_name": "parallelism",
+            "template_name": "parallelism_01",
+            "scores": {
+              "gray": 0.21719,
+              "binary": 0.194863,
+              "edges": 0.104713,
+              "structure": -0.071744,
+              "hog": 0.234174
+            },
+            "family_scores": {
+              "local": 0.172255,
+              "global_shape": 0.081215
+            },
+            "mean_score": 0.117631
+          },
+          {
+            "class_name": "perpendicularity",
+            "template_name": "perpendicularity_01",
+            "scores": {
+              "gray": 0.180084,
+              "binary": 0.180363,
+              "edges": 0.100824,
+              "structure": 0.083467,
+              "hog": 0.102027
+            },
+            "family_scores": {
+              "local": 0.153757,
+              "global_shape": 0.092747
+            },
+            "mean_score": 0.117151
+          },
+          {
+            "class_name": "circular_runout",
+            "template_name": "circular_runout_01",
+            "scores": {
+              "gray": 0.244607,
+              "binary": 0.202026,
+              "edges": 0.100843,
+              "structure": -0.127786,
+              "hog": 0.046011
+            },
+            "family_scores": {
+              "local": 0.182492,
+              "global_shape": -0.040888
+            },
+            "mean_score": 0.048464
+          },
+          {
+            "class_name": "symmetry",
+            "template_name": "symmetry_01",
+            "scores": {
+              "gray": 0.14009,
+              "binary": 0.130624,
+              "edges": 0.07583,
+              "structure": -0.29025,
+              "hog": 0.202399
+            },
+            "family_scores": {
+              "local": 0.115514,
+              "global_shape": -0.043926
+            },
+            "mean_score": 0.01985
+          },
+          {
+            "class_name": "position",
+            "template_name": "position_01",
+            "scores": {
+              "gray": 0.106084,
+              "binary": 0.086941,
+              "edges": 0.073666,
+              "structure": -0.299657,
+              "hog": 0.202205
+            },
+            "family_scores": {
+              "local": 0.088897,
+              "global_shape": -0.048726
+            },
+            "mean_score": 0.006323
+          },
+          {
+            "class_name": "straightness",
+            "template_name": "straightness_01",
+            "scores": {
+              "gray": 0.047422,
+              "binary": 0.048424,
+              "edges": 0.061743,
+              "structure": -0.140141,
+              "hog": 0.027852
+            },
+            "family_scores": {
+              "local": 0.05253,
+              "global_shape": -0.056145
+            },
+            "mean_score": -0.012675
+          }
+        ],
+        "decision_policy": "ranking_only_no_global_threshold",
+        "catalog_complete": null
+      },
+      "proposal_id": "GDT-V2-P01-003"
+    },
+    {
+      "candidate_id": "GDT-V2-P01-006",
+      "page": 1,
+      "frame_bbox": [
+        512.207,
+        93.305,
+        586.38,
+        107.856
+      ],
+      "symbol_bbox": [
+        512.207,
+        93.305,
+        531.609,
+        107.856
+      ],
+      "cell_bboxes": [
+        [
+          512.207,
+          93.305,
+          531.609,
+          107.856
+        ],
+        [
+          531.609,
+          93.305,
+          563.307,
+          107.856
+        ],
+        [
+          563.307,
+          93.305,
+          574.51,
+          107.856
+        ],
+        [
+          574.51,
+          93.305,
+          586.38,
+          107.856
+        ]
+      ],
+      "cell_texts": [
+        [],
+        [],
+        [],
+        []
+      ],
+      "detection_status": "candidate_unvalidated",
+      "referenced_datums": [],
+      "unresolved_fields": [],
+      "sources": [
+        "raster_morphology_v2",
+        "v1_legacy",
+        "vector:l",
+        "vector_normalized_v2"
+      ],
+      "validator": {
+        "validation_status": "rejected_by_validator",
+        "rejection_reasons": [
+          "NO_TOLERANCE_OR_DATUM_LIKE_CONTENT"
+        ],
+        "evidence": {
+          "best_class": "circularity",
+          "best_score": 0.601546,
+          "margin": 0.10151700000000008,
+          "num_cells": 4,
+          "first_cell_aspect": 1.3333541318422726,
+          "has_numeric_downstream": false,
+          "has_single_letter_downstream": false,
+          "thresholds_are_validation_heuristics_not_iso": true
+        },
+        "rectangle_geometry": {
+          "top_coverage": 1.0,
+          "bottom_coverage": 0.995595,
+          "left_coverage": 0.977778,
+          "right_coverage": 0.977778,
+          "outer_mean": 0.987788,
+          "outer_min": 0.977778,
+          "divider_mean": 0.977778,
+          "row_aspect": 5.097531,
+          "row_aspect_score": 1.0,
+          "horizontal_extension_penalty": 0.0,
+          "vertical_continuation_fraction": 0.4,
+          "nearby_parallel_rows": 0,
+          "grid_penalty": 0.248,
+          "geometry_score": 0.894252
+        }
+      },
+      "symbol_scoring": {
+        "candidate_id": "GDT-V2-P01-006",
+        "class_scores": {
+          "angularity": 0.138981,
+          "circular_runout": 0.076371,
+          "circularity": 0.601546,
+          "concentricity_coaxiality": 0.500029,
+          "cylindricity": 0.353072,
+          "flatness": 0.399019,
+          "parallelism": 0.176901,
+          "perpendicularity": 0.113133,
+          "position": 0.173777,
+          "profile": 0.243997,
+          "straightness": 0.079066,
+          "symmetry": 0.157195,
+          "total_runout": 0.238613
+        },
+        "best_class": "circularity",
+        "best_score": 0.601546,
+        "second_best_class": "concentricity_coaxiality",
+        "second_best_score": 0.500029,
+        "margin": 0.101517,
+        "templates": [
+          {
+            "class_name": "circularity",
+            "template_name": "circularity_01",
+            "scores": {
+              "gray": 0.538169,
+              "binary": 0.467059,
+              "edges": 0.182596,
+              "structure": 0.574787,
+              "hog": 0.902445
+            },
+            "family_scores": {
+              "local": 0.395941,
+              "global_shape": 0.738616
+            },
+            "mean_score": 0.601546
+          },
+          {
+            "class_name": "concentricity_coaxiality",
+            "template_name": "concentricity_coaxiality_02",
+            "scores": {
+              "gray": 0.321393,
+              "binary": 0.239459,
+              "edges": 0.208165,
+              "structure": 0.431411,
+              "hog": 0.893568
+            },
+            "family_scores": {
+              "local": 0.256339,
+              "global_shape": 0.66249
+            },
+            "mean_score": 0.500029
+          },
+          {
+            "class_name": "concentricity_coaxiality",
+            "template_name": "concentricity_coaxiality_01",
+            "scores": {
+              "gray": 0.279067,
+              "binary": 0.207621,
+              "edges": 0.235716,
+              "structure": 0.406179,
+              "hog": 0.898323
+            },
+            "family_scores": {
+              "local": 0.240801,
+              "global_shape": 0.652251
+            },
+            "mean_score": 0.487671
+          },
+          {
+            "class_name": "flatness",
+            "template_name": "flatness_01",
+            "scores": {
+              "gray": 0.345701,
+              "binary": 0.292538,
+              "edges": 0.194055,
+              "structure": 0.477941,
+              "hog": 0.482214
+            },
+            "family_scores": {
+              "local": 0.277431,
+              "global_shape": 0.480077
+            },
+            "mean_score": 0.399019
+          },
+          {
+            "class_name": "cylindricity",
+            "template_name": "cylindricity_01",
+            "scores": {
+              "gray": 0.246489,
+              "binary": 0.215333,
+              "edges": 0.14589,
+              "structure": 0.312616,
+              "hog": 0.594196
+            },
+            "family_scores": {
+              "local": 0.202571,
+              "global_shape": 0.453406
+            },
+            "mean_score": 0.353072
+          },
+          {
+            "class_name": "profile",
+            "template_name": "profile_01",
+            "scores": {
+              "gray": 0.325606,
+              "binary": 0.285486,
+              "edges": 0.371067,
+              "structure": 0.071359,
+              "hog": 0.30545
+            },
+            "family_scores": {
+              "local": 0.327386,
+              "global_shape": 0.188404
+            },
+            "mean_score": 0.243997
+          },
+          {
+            "class_name": "total_runout",
+            "template_name": "total_runout_01",
+            "scores": {
+              "gray": 0.176684,
+              "binary": 0.161631,
+              "edges": 0.114882,
+              "structure": 0.232259,
+              "hog": 0.361698
+            },
+            "family_scores": {
+              "local": 0.151066,
+              "global_shape": 0.296978
+            },
+            "mean_score": 0.238613
+          },
+          {
+            "class_name": "parallelism",
+            "template_name": "parallelism_01",
+            "scores": {
+              "gray": 0.121224,
+              "binary": 0.117352,
+              "edges": 0.095924,
+              "structure": 0.168086,
+              "hog": 0.272919
+            },
+            "family_scores": {
+              "local": 0.1115,
+              "global_shape": 0.220502
+            },
+            "mean_score": 0.176901
+          },
+          {
+            "class_name": "position",
+            "template_name": "position_01",
+            "scores": {
+              "gray": 0.233792,
+              "binary": 0.227314,
+              "edges": 0.126086,
+              "structure": 0.021834,
+              "hog": 0.296449
+            },
+            "family_scores": {
+              "local": 0.195731,
+              "global_shape": 0.159141
+            },
+            "mean_score": 0.173777
+          },
+          {
+            "class_name": "symmetry",
+            "template_name": "symmetry_01",
+            "scores": {
+              "gray": 0.173732,
+              "binary": 0.154619,
+              "edges": 0.086255,
+              "structure": 0.110176,
+              "hog": 0.229539
+            },
+            "family_scores": {
+              "local": 0.138202,
+              "global_shape": 0.169857
+            },
+            "mean_score": 0.157195
+          },
+          {
+            "class_name": "angularity",
+            "template_name": "angularity_01",
+            "scores": {
+              "gray": 0.240794,
+              "binary": 0.210831,
+              "edges": 0.12881,
+              "structure": 0.065754,
+              "hog": 0.139546
+            },
+            "family_scores": {
+              "local": 0.193478,
+              "global_shape": 0.10265
+            },
+            "mean_score": 0.138981
+          },
+          {
+            "class_name": "perpendicularity",
+            "template_name": "perpendicularity_01",
+            "scores": {
+              "gray": 0.2365,
+              "binary": 0.216877,
+              "edges": 0.130189,
+              "structure": 0.004748,
+              "hog": 0.112998
+            },
+            "family_scores": {
+              "local": 0.194522,
+              "global_shape": 0.058873
+            },
+            "mean_score": 0.113133
+          },
+          {
+            "class_name": "straightness",
+            "template_name": "straightness_01",
+            "scores": {
+              "gray": 0.232868,
+              "binary": 0.225463,
+              "edges": 0.112038,
+              "structure": -0.020931,
+              "hog": 0.030986
+            },
+            "family_scores": {
+              "local": 0.190123,
+              "global_shape": 0.005027
+            },
+            "mean_score": 0.079066
+          },
+          {
+            "class_name": "circular_runout",
+            "template_name": "circular_runout_01",
+            "scores": {
+              "gray": 0.238113,
+              "binary": 0.21156,
+              "edges": 0.131376,
+              "structure": -0.067236,
+              "hog": 0.063562
+            },
+            "family_scores": {
+              "local": 0.193683,
+              "global_shape": -0.001837
+            },
+            "mean_score": 0.076371
+          }
+        ],
+        "decision_policy": "ranking_only_no_global_threshold",
+        "catalog_complete": null
+      },
+      "proposal_id": "GDT-V2-P01-006"
+    },
+    {
+      "candidate_id": "GDT-V2-P01-024",
+      "page": 1,
+      "frame_bbox": [
+        771.055,
+        329.564,
+        787.418,
+        337.745
+      ],
+      "symbol_bbox": [
+        771.055,
+        329.564,
+        775.636,
+        337.745
+      ],
+      "cell_bboxes": [
+        [
+          771.055,
+          329.564,
+          775.636,
+          337.745
+        ],
+        [
+          776.291,
+          329.564,
+          781.855,
+          337.745
+        ],
+        [
+          782.182,
+          329.891,
+          787.418,
+          337.745
+        ]
+      ],
+      "cell_texts": [
+        [],
+        [],
+        []
+      ],
+      "detection_status": "candidate_unvalidated",
+      "referenced_datums": [],
+      "unresolved_fields": [],
+      "sources": [
+        "raster_morphology_v2"
+      ],
+      "validator": {
+        "validation_status": "rejected_by_validator",
+        "rejection_reasons": [
+          "NO_TOLERANCE_OR_DATUM_LIKE_CONTENT"
+        ],
+        "evidence": {
+          "best_class": "parallelism",
+          "best_score": 0.397242,
+          "margin": 0.01815899999999998,
+          "num_cells": 3,
+          "first_cell_aspect": 0.5600000000000045,
+          "has_numeric_downstream": false,
+          "has_single_letter_downstream": false,
+          "thresholds_are_validation_heuristics_not_iso": true
+        },
+        "rectangle_geometry": {
+          "top_coverage": 0.6,
+          "bottom_coverage": 0.44,
+          "left_coverage": 0.88,
+          "right_coverage": 0.88,
+          "outer_mean": 0.7,
+          "outer_min": 0.44,
+          "divider_mean": 0.74,
+          "row_aspect": 2.0,
+          "row_aspect_score": 1.0,
+          "horizontal_extension_penalty": 0.0,
+          "vertical_continuation_fraction": 1.0,
+          "nearby_parallel_rows": 0,
+          "grid_penalty": 0.62,
+          "geometry_score": 0.5372
+        }
+      },
+      "symbol_scoring": {
+        "candidate_id": "GDT-V2-P01-024",
+        "class_scores": {
+          "angularity": 0.104729,
+          "circular_runout": 0.244385,
+          "circularity": 0.074986,
+          "concentricity_coaxiality": 0.195168,
+          "cylindricity": 0.315119,
+          "flatness": 0.156389,
+          "parallelism": 0.397242,
+          "perpendicularity": 0.220213,
+          "position": 0.379083,
+          "profile": 0.189882,
+          "straightness": 0.220714,
+          "symmetry": 0.254494,
+          "total_runout": 0.288256
+        },
+        "best_class": "parallelism",
+        "best_score": 0.397242,
+        "second_best_class": "position",
+        "second_best_score": 0.379083,
+        "margin": 0.018158,
+        "templates": [
+          {
+            "class_name": "parallelism",
+            "template_name": "parallelism_01",
+            "scores": {
+              "gray": 0.409385,
+              "binary": 0.357665,
+              "edges": 0.132788,
+              "structure": 0.39759,
+              "hog": 0.52662
+            },
+            "family_scores": {
+              "local": 0.299946,
+              "global_shape": 0.462105
+            },
+            "mean_score": 0.397242
+          },
+          {
+            "class_name": "position",
+            "template_name": "position_01",
+            "scores": {
+              "gray": 0.415911,
+              "binary": 0.365114,
+              "edges": 0.14479,
+              "structure": 0.439627,
+              "hog": 0.412511
+            },
+            "family_scores": {
+              "local": 0.308605,
+              "global_shape": 0.426069
+            },
+            "mean_score": 0.379083
+          },
+          {
+            "class_name": "cylindricity",
+            "template_name": "cylindricity_01",
+            "scores": {
+              "gray": 0.344149,
+              "binary": 0.316724,
+              "edges": 0.13268,
+              "structure": 0.219996,
+              "hog": 0.47771
+            },
+            "family_scores": {
+              "local": 0.264517,
+              "global_shape": 0.348853
+            },
+            "mean_score": 0.315119
+          },
+          {
+            "class_name": "total_runout",
+            "template_name": "total_runout_01",
+            "scores": {
+              "gray": 0.297137,
+              "binary": 0.248827,
+              "edges": 0.127969,
+              "structure": 0.271656,
+              "hog": 0.389671
+            },
+            "family_scores": {
+              "local": 0.224644,
+              "global_shape": 0.330664
+            },
+            "mean_score": 0.288256
+          },
+          {
+            "class_name": "symmetry",
+            "template_name": "symmetry_01",
+            "scores": {
+              "gray": 0.303918,
+              "binary": 0.259895,
+              "edges": 0.113335,
+              "structure": 0.358811,
+              "hog": 0.188548
+            },
+            "family_scores": {
+              "local": 0.225716,
+              "global_shape": 0.27368
+            },
+            "mean_score": 0.254494
+          },
+          {
+            "class_name": "circular_runout",
+            "template_name": "circular_runout_01",
+            "scores": {
+              "gray": 0.350458,
+              "binary": 0.307972,
+              "edges": 0.130618,
+              "structure": 0.139243,
+              "hog": 0.324685
+            },
+            "family_scores": {
+              "local": 0.263016,
+              "global_shape": 0.231964
+            },
+            "mean_score": 0.244385
+          },
+          {
+            "class_name": "straightness",
+            "template_name": "straightness_01",
+            "scores": {
+              "gray": 0.26944,
+              "binary": 0.258893,
+              "edges": 0.088832,
+              "structure": 0.295903,
+              "hog": 0.165515
+            },
+            "family_scores": {
+              "local": 0.205722,
+              "global_shape": 0.230709
+            },
+            "mean_score": 0.220714
+          },
+          {
+            "class_name": "perpendicularity",
+            "template_name": "perpendicularity_01",
+            "scores": {
+              "gray": 0.312775,
+              "binary": 0.276379,
+              "edges": 0.142291,
+              "structure": 0.123822,
+              "hog": 0.285134
+            },
+            "family_scores": {
+              "local": 0.243815,
+              "global_shape": 0.204478
+            },
+            "mean_score": 0.220213
+          },
+          {
+            "class_name": "concentricity_coaxiality",
+            "template_name": "concentricity_coaxiality_01",
+            "scores": {
+              "gray": 0.256408,
+              "binary": 0.222215,
+              "edges": 0.096098,
+              "structure": 0.103862,
+              "hog": 0.291265
+            },
+            "family_scores": {
+              "local": 0.191574,
+              "global_shape": 0.197564
+            },
+            "mean_score": 0.195168
+          },
+          {
+            "class_name": "concentricity_coaxiality",
+            "template_name": "concentricity_coaxiality_02",
+            "scores": {
+              "gray": 0.250033,
+              "binary": 0.204388,
+              "edges": 0.10323,
+              "structure": 0.101392,
+              "hog": 0.293578
+            },
+            "family_scores": {
+              "local": 0.185884,
+              "global_shape": 0.197485
+            },
+            "mean_score": 0.192844
+          },
+          {
+            "class_name": "profile",
+            "template_name": "profile_01",
+            "scores": {
+              "gray": 0.320286,
+              "binary": 0.292484,
+              "edges": 0.092906,
+              "structure": 0.089436,
+              "hog": 0.229872
+            },
+            "family_scores": {
+              "local": 0.235225,
+              "global_shape": 0.159654
+            },
+            "mean_score": 0.189882
+          },
+          {
+            "class_name": "flatness",
+            "template_name": "flatness_01",
+            "scores": {
+              "gray": 0.331897,
+              "binary": 0.292056,
+              "edges": 0.111162,
+              "structure": -0.082182,
+              "hog": 0.276759
+            },
+            "family_scores": {
+              "local": 0.245039,
+              "global_shape": 0.097289
+            },
+            "mean_score": 0.156389
+          },
+          {
+            "class_name": "angularity",
+            "template_name": "angularity_01",
+            "scores": {
+              "gray": 0.111066,
+              "binary": 0.104973,
+              "edges": 0.126245,
+              "structure": 0.086472,
+              "hog": 0.110498
+            },
+            "family_scores": {
+              "local": 0.114095,
+              "global_shape": 0.098485
+            },
+            "mean_score": 0.104729
+          },
+          {
+            "class_name": "circularity",
+            "template_name": "circularity_01",
+            "scores": {
+              "gray": 0.182471,
+              "binary": 0.153874,
+              "edges": 0.082744,
+              "structure": -0.150755,
+              "hog": 0.214446
+            },
+            "family_scores": {
+              "local": 0.139696,
+              "global_shape": 0.031846
+            },
+            "mean_score": 0.074986
+          }
+        ],
+        "decision_policy": "ranking_only_no_global_threshold",
+        "catalog_complete": null
+      },
+      "proposal_id": "GDT-V2-P01-024"
+    },
+    {
+      "candidate_id": "GDT-V2-P01-042",
+      "page": 1,
+      "frame_bbox": [
+        850.582,
+        342.327,
+        872.182,
+        350.509
+      ],
+      "symbol_bbox": [
+        850.582,
+        342.327,
+        855.164,
+        350.509
+      ],
+      "cell_bboxes": [
+        [
+          850.582,
+          342.327,
+          855.164,
+          350.509
+        ],
+        [
+          855.818,
+          342.327,
+          861.382,
+          350.509
+        ],
+        [
+          861.709,
+          342.655,
+          866.618,
+          350.509
+        ],
+        [
+          867.6,
+          342.327,
+          872.182,
+          350.182
+        ]
+      ],
+      "cell_texts": [
+        [],
+        [],
+        [],
+        []
+      ],
+      "detection_status": "candidate_unvalidated",
+      "referenced_datums": [],
+      "unresolved_fields": [],
+      "sources": [
+        "raster_morphology_v2"
+      ],
+      "validator": {
+        "validation_status": "rejected_by_validator",
+        "rejection_reasons": [
+          "NO_TOLERANCE_OR_DATUM_LIKE_CONTENT"
+        ],
+        "evidence": {
+          "best_class": "position",
+          "best_score": 0.372692,
+          "margin": 0.05301100000000003,
+          "num_cells": 4,
+          "first_cell_aspect": 0.5600000000000045,
+          "has_numeric_downstream": false,
+          "has_single_letter_downstream": false,
+          "thresholds_are_validation_heuristics_not_iso": true
+        },
+        "rectangle_geometry": {
+          "top_coverage": 0.439394,
+          "bottom_coverage": 0.469697,
+          "left_coverage": 0.92,
+          "right_coverage": 0.76,
+          "outer_mean": 0.647273,
+          "outer_min": 0.439394,
+          "divider_mean": 0.826667,
+          "row_aspect": 2.64,
+          "row_aspect_score": 1.0,
+          "horizontal_extension_penalty": 0.0,
+          "vertical_continuation_fraction": 0.8,
+          "nearby_parallel_rows": 0,
+          "grid_penalty": 0.496,
+          "geometry_score": 0.582599
+        }
+      },
+      "symbol_scoring": {
+        "candidate_id": "GDT-V2-P01-042",
+        "class_scores": {
+          "angularity": 0.108179,
+          "circular_runout": 0.269329,
+          "circularity": 0.093277,
+          "concentricity_coaxiality": 0.199116,
+          "cylindricity": 0.312894,
+          "flatness": 0.172163,
+          "parallelism": 0.319681,
+          "perpendicularity": 0.19149,
+          "position": 0.372692,
+          "profile": 0.161225,
+          "straightness": 0.196649,
+          "symmetry": 0.238952,
+          "total_runout": 0.259679
+        },
+        "best_class": "position",
+        "best_score": 0.372692,
+        "second_best_class": "parallelism",
+        "second_best_score": 0.319681,
+        "margin": 0.053011,
+        "templates": [
+          {
+            "class_name": "position",
+            "template_name": "position_01",
+            "scores": {
+              "gray": 0.460883,
+              "binary": 0.407549,
+              "edges": 0.162061,
+              "structure": 0.386882,
+              "hog": 0.397426
+            },
+            "family_scores": {
+              "local": 0.343498,
+              "global_shape": 0.392154
+            },
+            "mean_score": 0.372692
+          },
+          {
+            "class_name": "parallelism",
+            "template_name": "parallelism_01",
+            "scores": {
+              "gray": 0.422873,
+              "binary": 0.364619,
+              "edges": 0.143028,
+              "structure": 0.17656,
+              "hog": 0.475478
+            },
+            "family_scores": {
+              "local": 0.310173,
+              "global_shape": 0.326019
+            },
+            "mean_score": 0.319681
+          },
+          {
+            "class_name": "cylindricity",
+            "template_name": "cylindricity_01",
+            "scores": {
+              "gray": 0.36476,
+              "binary": 0.31738,
+              "edges": 0.158933,
+              "structure": 0.158829,
+              "hog": 0.510341
+            },
+            "family_scores": {
+              "local": 0.280358,
+              "global_shape": 0.334585
+            },
+            "mean_score": 0.312894
+          },
+          {
+            "class_name": "circular_runout",
+            "template_name": "circular_runout_01",
+            "scores": {
+              "gray": 0.428772,
+              "binary": 0.368435,
+              "edges": 0.172925,
+              "structure": 0.13863,
+              "hog": 0.327963
+            },
+            "family_scores": {
+              "local": 0.323377,
+              "global_shape": 0.233296
+            },
+            "mean_score": 0.269329
+          },
+          {
+            "class_name": "total_runout",
+            "template_name": "total_runout_01",
+            "scores": {
+              "gray": 0.325936,
+              "binary": 0.263431,
+              "edges": 0.121688,
+              "structure": 0.181113,
+              "hog": 0.368459
+            },
+            "family_scores": {
+              "local": 0.237018,
+              "global_shape": 0.274786
+            },
+            "mean_score": 0.259679
+          },
+          {
+            "class_name": "symmetry",
+            "template_name": "symmetry_01",
+            "scores": {
+              "gray": 0.314704,
+              "binary": 0.262487,
+              "edges": 0.129551,
+              "structure": 0.298096,
+              "hog": 0.184304
+            },
+            "family_scores": {
+              "local": 0.235581,
+              "global_shape": 0.2412
+            },
+            "mean_score": 0.238952
+          },
+          {
+            "class_name": "concentricity_coaxiality",
+            "template_name": "concentricity_coaxiality_02",
+            "scores": {
+              "gray": 0.259251,
+              "binary": 0.227508,
+              "edges": 0.124686,
+              "structure": 0.087383,
+              "hog": 0.304582
+            },
+            "family_scores": {
+              "local": 0.203815,
+              "global_shape": 0.195983
+            },
+            "mean_score": 0.199116
+          },
+          {
+            "class_name": "straightness",
+            "template_name": "straightness_01",
+            "scores": {
+              "gray": 0.232641,
+              "binary": 0.210992,
+              "edges": 0.119517,
+              "structure": 0.250588,
+              "hog": 0.154618
+            },
+            "family_scores": {
+              "local": 0.187717,
+              "global_shape": 0.202603
+            },
+            "mean_score": 0.196649
+          },
+          {
+            "class_name": "concentricity_coaxiality",
+            "template_name": "concentricity_coaxiality_01",
+            "scores": {
+              "gray": 0.277686,
+              "binary": 0.246938,
+              "edges": 0.132098,
+              "structure": 0.06521,
+              "hog": 0.296182
+            },
+            "family_scores": {
+              "local": 0.218907,
+              "global_shape": 0.180696
+            },
+            "mean_score": 0.19598
+          },
+          {
+            "class_name": "perpendicularity",
+            "template_name": "perpendicularity_01",
+            "scores": {
+              "gray": 0.274789,
+              "binary": 0.248367,
+              "edges": 0.140577,
+              "structure": 0.148284,
+              "hog": 0.195022
+            },
+            "family_scores": {
+              "local": 0.221244,
+              "global_shape": 0.171653
+            },
+            "mean_score": 0.19149
+          },
+          {
+            "class_name": "flatness",
+            "template_name": "flatness_01",
+            "scores": {
+              "gray": 0.318379,
+              "binary": 0.276499,
+              "edges": 0.16178,
+              "structure": -0.067376,
+              "hog": 0.304959
+            },
+            "family_scores": {
+              "local": 0.25222,
+              "global_shape": 0.118792
+            },
+            "mean_score": 0.172163
+          },
+          {
+            "class_name": "profile",
+            "template_name": "profile_01",
+            "scores": {
+              "gray": 0.240083,
+              "binary": 0.219303,
+              "edges": 0.109725,
+              "structure": 0.062611,
+              "hog": 0.221867
+            },
+            "family_scores": {
+              "local": 0.189704,
+              "global_shape": 0.142239
+            },
+            "mean_score": 0.161225
+          },
+          {
+            "class_name": "angularity",
+            "template_name": "angularity_01",
+            "scores": {
+              "gray": 0.114466,
+              "binary": 0.113908,
+              "edges": 0.109278,
+              "structure": 0.076731,
+              "hog": 0.133799
+            },
+            "family_scores": {
+              "local": 0.11255,
+              "global_shape": 0.105265
+            },
+            "mean_score": 0.108179
+          },
+          {
+            "class_name": "circularity",
+            "template_name": "circularity_01",
+            "scores": {
+              "gray": 0.209698,
+              "binary": 0.184437,
+              "edges": 0.113338,
+              "structure": -0.137043,
+              "hog": 0.222423
+            },
+            "family_scores": {
+              "local": 0.169158,
+              "global_shape": 0.04269
+            },
+            "mean_score": 0.093277
+          }
+        ],
+        "decision_policy": "ranking_only_no_global_threshold",
+        "catalog_complete": null
+      },
+      "proposal_id": "GDT-V2-P01-042"
+    },
+    {
+      "candidate_id": "GDT-V2-P01-095",
+      "page": 1,
+      "frame_bbox": [
+        827.673,
+        417.273,
+        849.6,
+        425.455
+      ],
+      "symbol_bbox": [
+        827.673,
+        417.273,
+        832.582,
+        425.455
+      ],
+      "cell_bboxes": [
+        [
+          827.673,
+          417.273,
+          832.582,
+          425.455
+        ],
+        [
+          832.909,
+          417.273,
+          838.8,
+          425.455
+        ],
+        [
+          838.8,
+          419.564,
+          843.055,
+          425.127
+        ],
+        [
+          840.764,
+          417.273,
+          844.036,
+          423.491
+        ],
+        [
+          844.691,
+          417.273,
+          849.6,
+          425.127
+        ]
+      ],
+      "cell_texts": [
+        [],
+        [],
+        [],
+        [],
+        []
+      ],
+      "detection_status": "candidate_unvalidated",
+      "referenced_datums": [],
+      "unresolved_fields": [],
+      "sources": [
+        "raster_morphology_v2"
+      ],
+      "validator": {
+        "validation_status": "rejected_by_validator",
+        "rejection_reasons": [
+          "NO_TOLERANCE_OR_DATUM_LIKE_CONTENT"
+        ],
+        "evidence": {
+          "best_class": "parallelism",
+          "best_score": 0.428919,
+          "margin": 0.07484299999999999,
+          "num_cells": 5,
+          "first_cell_aspect": 0.5999999999999959,
+          "has_numeric_downstream": false,
+          "has_single_letter_downstream": false,
+          "thresholds_are_validation_heuristics_not_iso": true
+        },
+        "rectangle_geometry": {
+          "top_coverage": 0.432836,
+          "bottom_coverage": 0.432836,
+          "left_coverage": 0.84,
+          "right_coverage": 0.76,
+          "outer_mean": 0.616418,
+          "outer_min": 0.432836,
+          "divider_mean": 0.83,
+          "row_aspect": 2.68,
+          "row_aspect_score": 1.0,
+          "horizontal_extension_penalty": 0.172043,
+          "vertical_continuation_fraction": 0.833333,
+          "nearby_parallel_rows": 0,
+          "grid_penalty": 0.533871,
+          "geometry_score": 0.526012
+        }
+      },
+      "symbol_scoring": {
+        "candidate_id": "GDT-V2-P01-095",
+        "class_scores": {
+          "angularity": 0.121793,
+          "circular_runout": 0.260045,
+          "circularity": 0.069295,
+          "concentricity_coaxiality": 0.184098,
+          "cylindricity": 0.345222,
+          "flatness": 0.178468,
+          "parallelism": 0.428919,
+          "perpendicularity": 0.178826,
+          "position": 0.354076,
+          "profile": 0.180331,
+          "straightness": 0.197458,
+          "symmetry": 0.230447,
+          "total_runout": 0.316403
+        },
+        "best_class": "parallelism",
+        "best_score": 0.428919,
+        "second_best_class": "position",
+        "second_best_score": 0.354076,
+        "margin": 0.074843,
+        "templates": [
+          {
+            "class_name": "parallelism",
+            "template_name": "parallelism_01",
+            "scores": {
+              "gray": 0.465154,
+              "binary": 0.421216,
+              "edges": 0.135754,
+              "structure": 0.409012,
+              "hog": 0.56644
+            },
+            "family_scores": {
+              "local": 0.340708,
+              "global_shape": 0.487726
+            },
+            "mean_score": 0.428919
+          },
+          {
+            "class_name": "position",
+            "template_name": "position_01",
+            "scores": {
+              "gray": 0.426698,
+              "binary": 0.361684,
+              "edges": 0.165264,
+              "structure": 0.39286,
+              "hog": 0.363549
+            },
+            "family_scores": {
+              "local": 0.317882,
+              "global_shape": 0.378205
+            },
+            "mean_score": 0.354076
+          },
+          {
+            "class_name": "cylindricity",
+            "template_name": "cylindricity_01",
+            "scores": {
+              "gray": 0.364946,
+              "binary": 0.321132,
+              "edges": 0.163689,
+              "structure": 0.23121,
+              "hog": 0.541856
+            },
+            "family_scores": {
+              "local": 0.283256,
+              "global_shape": 0.386533
+            },
+            "mean_score": 0.345222
+          },
+          {
+            "class_name": "total_runout",
+            "template_name": "total_runout_01",
+            "scores": {
+              "gray": 0.334459,
+              "binary": 0.290119,
+              "edges": 0.13028,
+              "structure": 0.313091,
+              "hog": 0.406094
+            },
+            "family_scores": {
+              "local": 0.251619,
+              "global_shape": 0.359593
+            },
+            "mean_score": 0.316403
+          },
+          {
+            "class_name": "circular_runout",
+            "template_name": "circular_runout_01",
+            "scores": {
+              "gray": 0.380874,
+              "binary": 0.331702,
+              "edges": 0.186781,
+              "structure": 0.106401,
+              "hog": 0.360701
+            },
+            "family_scores": {
+              "local": 0.299786,
+              "global_shape": 0.233551
+            },
+            "mean_score": 0.260045
+          },
+          {
+            "class_name": "symmetry",
+            "template_name": "symmetry_01",
+            "scores": {
+              "gray": 0.279552,
+              "binary": 0.222064,
+              "edges": 0.127326,
+              "structure": 0.322031,
+              "hog": 0.166595
+            },
+            "family_scores": {
+              "local": 0.209647,
+              "global_shape": 0.244313
+            },
+            "mean_score": 0.230447
+          },
+          {
+            "class_name": "straightness",
+            "template_name": "straightness_01",
+            "scores": {
+              "gray": 0.234535,
+              "binary": 0.224693,
+              "edges": 0.076084,
+              "structure": 0.278666,
+              "hog": 0.141611
+            },
+            "family_scores": {
+              "local": 0.178437,
+              "global_shape": 0.210138
+            },
+            "mean_score": 0.197458
+          },
+          {
+            "class_name": "concentricity_coaxiality",
+            "template_name": "concentricity_coaxiality_01",
+            "scores": {
+              "gray": 0.249982,
+              "binary": 0.217408,
+              "edges": 0.115569,
+              "structure": 0.099014,
+              "hog": 0.255553
+            },
+            "family_scores": {
+              "local": 0.19432,
+              "global_shape": 0.177283
+            },
+            "mean_score": 0.184098
+          },
+          {
+            "class_name": "concentricity_coaxiality",
+            "template_name": "concentricity_coaxiality_02",
+            "scores": {
+              "gray": 0.238125,
+              "binary": 0.199375,
+              "edges": 0.114309,
+              "structure": 0.098953,
+              "hog": 0.261596
+            },
+            "family_scores": {
+              "local": 0.183936,
+              "global_shape": 0.180274
+            },
+            "mean_score": 0.181739
+          },
+          {
+            "class_name": "profile",
+            "template_name": "profile_01",
+            "scores": {
+              "gray": 0.300944,
+              "binary": 0.26981,
+              "edges": 0.092756,
+              "structure": 0.097344,
+              "hog": 0.208866
+            },
+            "family_scores": {
+              "local": 0.22117,
+              "global_shape": 0.153105
+            },
+            "mean_score": 0.180331
+          },
+          {
+            "class_name": "perpendicularity",
+            "template_name": "perpendicularity_01",
+            "scores": {
+              "gray": 0.274904,
+              "binary": 0.252699,
+              "edges": 0.097319,
+              "structure": 0.101834,
+              "hog": 0.216509
+            },
+            "family_scores": {
+              "local": 0.208307,
+              "global_shape": 0.159171
+            },
+            "mean_score": 0.178826
+          },
+          {
+            "class_name": "flatness",
+            "template_name": "flatness_01",
+            "scores": {
+              "gray": 0.304822,
+              "binary": 0.271713,
+              "edges": 0.182914,
+              "structure": -0.027803,
+              "hog": 0.285162
+            },
+            "family_scores": {
+              "local": 0.25315,
+              "global_shape": 0.128679
+            },
+            "mean_score": 0.178468
+          },
+          {
+            "class_name": "angularity",
+            "template_name": "angularity_01",
+            "scores": {
+              "gray": 0.14436,
+              "binary": 0.133338,
+              "edges": 0.121879,
+              "structure": 0.117732,
+              "hog": 0.110655
+            },
+            "family_scores": {
+              "local": 0.133192,
+              "global_shape": 0.114193
+            },
+            "mean_score": 0.121793
+          },
+          {
+            "class_name": "circularity",
+            "template_name": "circularity_01",
+            "scores": {
+              "gray": 0.1598,
+              "binary": 0.124143,
+              "edges": 0.099887,
+              "structure": -0.131127,
+              "hog": 0.191519
+            },
+            "family_scores": {
+              "local": 0.127944,
+              "global_shape": 0.030196
+            },
+            "mean_score": 0.069295
+          }
+        ],
+        "decision_policy": "ranking_only_no_global_threshold",
+        "catalog_complete": null
+      },
+      "proposal_id": "GDT-V2-P01-095"
+    },
+    {
+      "candidate_id": "GDT-V2-P01-202",
+      "page": 1,
+      "frame_bbox": [
+        769.418,
+        737.018,
+        777.927,
+        743.236
+      ],
+      "symbol_bbox": [
+        769.418,
+        737.018,
+        774.327,
+        742.909
+      ],
+      "cell_bboxes": [
+        [
+          769.418,
+          737.018,
+          774.327,
+          742.909
+        ],
+        [
+          774.982,
+          737.018,
+          777.927,
+          743.236
+        ]
+      ],
+      "cell_texts": [
+        [],
+        []
+      ],
+      "detection_status": "candidate_unvalidated",
+      "referenced_datums": [],
+      "unresolved_fields": [],
+      "sources": [
+        "raster_morphology_v2"
+      ],
+      "validator": {
+        "validation_status": "rejected_by_validator",
+        "rejection_reasons": [
+          "SYMBOL_AMBIGUOUS_WITHOUT_DOWNSTREAM_SUPPORT"
+        ],
+        "evidence": {
+          "best_class": "circular_runout",
+          "best_score": 0.386827,
+          "margin": 0.0035199999999999676,
+          "num_cells": 2,
+          "first_cell_aspect": 0.8333333333333302,
+          "has_numeric_downstream": false,
+          "has_single_letter_downstream": false,
+          "thresholds_are_validation_heuristics_not_iso": true
+        },
+        "rectangle_geometry": {
+          "top_coverage": 0.538462,
+          "bottom_coverage": 0.538462,
+          "left_coverage": 0.526316,
+          "right_coverage": 0.842105,
+          "outer_mean": 0.611336,
+          "outer_min": 0.526316,
+          "divider_mean": 0.473684,
+          "row_aspect": 1.368421,
+          "row_aspect_score": 0.397129,
+          "horizontal_extension_penalty": 0.181818,
+          "vertical_continuation_fraction": 0.0,
+          "nearby_parallel_rows": 0,
+          "grid_penalty": 0.018182,
+          "geometry_score": 0.573937
+        }
+      },
+      "symbol_scoring": {
+        "candidate_id": "GDT-V2-P01-202",
+        "class_scores": {
+          "angularity": 0.105328,
+          "circular_runout": 0.386827,
+          "circularity": 0.132334,
+          "concentricity_coaxiality": 0.225493,
+          "cylindricity": 0.308119,
+          "flatness": 0.184736,
+          "parallelism": 0.358537,
+          "perpendicularity": 0.205241,
+          "position": 0.383307,
+          "profile": 0.292672,
+          "straightness": 0.177095,
+          "symmetry": 0.190287,
+          "total_runout": 0.268557
+        },
+        "best_class": "circular_runout",
+        "best_score": 0.386827,
+        "second_best_class": "position",
+        "second_best_score": 0.383307,
+        "margin": 0.003521,
+        "templates": [
+          {
+            "class_name": "circular_runout",
+            "template_name": "circular_runout_01",
+            "scores": {
+              "gray": 0.472881,
+              "binary": 0.405325,
+              "edges": 0.129099,
+              "structure": 0.336379,
+              "hog": 0.505354
+            },
+            "family_scores": {
+              "local": 0.335768,
+              "global_shape": 0.420867
+            },
+            "mean_score": 0.386827
+          },
+          {
+            "class_name": "position",
+            "template_name": "position_01",
+            "scores": {
+              "gray": 0.41683,
+              "binary": 0.366494,
+              "edges": 0.119751,
+              "structure": 0.412187,
+              "hog": 0.464135
+            },
+            "family_scores": {
+              "local": 0.301025,
+              "global_shape": 0.438161
+            },
+            "mean_score": 0.383307
+          },
+          {
+            "class_name": "parallelism",
+            "template_name": "parallelism_01",
+            "scores": {
+              "gray": 0.399576,
+              "binary": 0.347565,
+              "edges": 0.13456,
+              "structure": 0.235801,
+              "hog": 0.567455
+            },
+            "family_scores": {
+              "local": 0.2939,
+              "global_shape": 0.401628
+            },
+            "mean_score": 0.358537
+          },
+          {
+            "class_name": "cylindricity",
+            "template_name": "cylindricity_01",
+            "scores": {
+              "gray": 0.504112,
+              "binary": 0.440111,
+              "edges": 0.137733,
+              "structure": 0.120628,
+              "hog": 0.425565
+            },
+            "family_scores": {
+              "local": 0.360652,
+              "global_shape": 0.273097
+            },
+            "mean_score": 0.308119
+          },
+          {
+            "class_name": "profile",
+            "template_name": "profile_01",
+            "scores": {
+              "gray": 0.338339,
+              "binary": 0.281026,
+              "edges": 0.123309,
+              "structure": 0.247542,
+              "hog": 0.397952
+            },
+            "family_scores": {
+              "local": 0.247558,
+              "global_shape": 0.322747
+            },
+            "mean_score": 0.292672
+          },
+          {
+            "class_name": "total_runout",
+            "template_name": "total_runout_01",
+            "scores": {
+              "gray": 0.406042,
+              "binary": 0.344912,
+              "edges": 0.125806,
+              "structure": 0.022401,
+              "hog": 0.483119
+            },
+            "family_scores": {
+              "local": 0.292253,
+              "global_shape": 0.25276
+            },
+            "mean_score": 0.268557
+          },
+          {
+            "class_name": "concentricity_coaxiality",
+            "template_name": "concentricity_coaxiality_01",
+            "scores": {
+              "gray": 0.259231,
+              "binary": 0.224088,
+              "edges": 0.15293,
+              "structure": 0.140039,
+              "hog": 0.328828
+            },
+            "family_scores": {
+              "local": 0.212083,
+              "global_shape": 0.234433
+            },
+            "mean_score": 0.225493
+          },
+          {
+            "class_name": "concentricity_coaxiality",
+            "template_name": "concentricity_coaxiality_02",
+            "scores": {
+              "gray": 0.263045,
+              "binary": 0.223516,
+              "edges": 0.139798,
+              "structure": 0.108708,
+              "hog": 0.307041
+            },
+            "family_scores": {
+              "local": 0.208786,
+              "global_shape": 0.207874
+            },
+            "mean_score": 0.208239
+          },
+          {
+            "class_name": "perpendicularity",
+            "template_name": "perpendicularity_01",
+            "scores": {
+              "gray": 0.25211,
+              "binary": 0.226841,
+              "edges": 0.127508,
+              "structure": 0.172882,
+              "hog": 0.241716
+            },
+            "family_scores": {
+              "local": 0.202153,
+              "global_shape": 0.207299
+            },
+            "mean_score": 0.205241
+          },
+          {
+            "class_name": "symmetry",
+            "template_name": "symmetry_01",
+            "scores": {
+              "gray": 0.294131,
+              "binary": 0.226199,
+              "edges": 0.098179,
+              "structure": 0.262738,
+              "hog": 0.09666
+            },
+            "family_scores": {
+              "local": 0.20617,
+              "global_shape": 0.179699
+            },
+            "mean_score": 0.190287
+          },
+          {
+            "class_name": "flatness",
+            "template_name": "flatness_01",
+            "scores": {
+              "gray": 0.397555,
+              "binary": 0.362539,
+              "edges": 0.189224,
+              "structure": -0.058554,
+              "hog": 0.252422
+            },
+            "family_scores": {
+              "local": 0.31644,
+              "global_shape": 0.096934
+            },
+            "mean_score": 0.184736
+          },
+          {
+            "class_name": "straightness",
+            "template_name": "straightness_01",
+            "scores": {
+              "gray": 0.247469,
+              "binary": 0.233398,
+              "edges": 0.078602,
+              "structure": 0.240057,
+              "hog": 0.101608
+            },
+            "family_scores": {
+              "local": 0.18649,
+              "global_shape": 0.170833
+            },
+            "mean_score": 0.177095
+          },
+          {
+            "class_name": "circularity",
+            "template_name": "circularity_01",
+            "scores": {
+              "gray": 0.290193,
+              "binary": 0.268088,
+              "edges": 0.139596,
+              "structure": -0.123117,
+              "hog": 0.254061
+            },
+            "family_scores": {
+              "local": 0.232626,
+              "global_shape": 0.065472
+            },
+            "mean_score": 0.132334
+          },
+          {
+            "class_name": "angularity",
+            "template_name": "angularity_01",
+            "scores": {
+              "gray": 0.206569,
+              "binary": 0.187701,
+              "edges": 0.080562,
+              "structure": 0.022686,
+              "hog": 0.11737
+            },
+            "family_scores": {
+              "local": 0.158277,
+              "global_shape": 0.070028
+            },
+            "mean_score": 0.105328
+          }
+        ],
+        "decision_policy": "ranking_only_no_global_threshold",
+        "catalog_complete": null
+      },
+      "proposal_id": "GDT-V2-P01-202"
+    },
+    {
+      "candidate_id": "GDT-V2-P01-228",
+      "page": 1,
+      "frame_bbox": [
+        1096.691,
+        771.382,
+        1112.073,
+        778.255
+      ],
+      "symbol_bbox": [
+        1096.691,
+        771.382,
+        1100.618,
+        778.255
+      ],
+      "cell_bboxes": [
+        [
+          1096.691,
+          771.382,
+          1100.618,
+          778.255
+        ],
+        [
+          1102.582,
+          771.709,
+          1107.164,
+          777.927
+        ],
+        [
+          1108.145,
+          771.709,
+          1112.073,
+          778.255
+        ]
+      ],
+      "cell_texts": [
+        [],
+        [
+          "13958000"
+        ],
+        []
+      ],
+      "detection_status": "candidate_unvalidated",
+      "referenced_datums": [],
+      "unresolved_fields": [],
+      "sources": [
+        "raster_morphology_v2"
+      ],
+      "validator": {
+        "validation_status": "accepted_for_downstream",
+        "rejection_reasons": [],
+        "evidence": {
+          "best_class": "circular_runout",
+          "best_score": 0.610093,
+          "margin": 0.24728299999999998,
+          "num_cells": 3,
+          "first_cell_aspect": 0.5714285714285808,
+          "has_numeric_downstream": true,
+          "has_single_letter_downstream": false,
+          "thresholds_are_validation_heuristics_not_iso": true
+        },
+        "rectangle_geometry": {
+          "top_coverage": 0.553191,
+          "bottom_coverage": 0.468085,
+          "left_coverage": 0.428571,
+          "right_coverage": 0.952381,
+          "outer_mean": 0.600557,
+          "outer_min": 0.428571,
+          "divider_mean": 0.571429,
+          "row_aspect": 2.238095,
+          "row_aspect_score": 1.0,
+          "horizontal_extension_penalty": 0.391053,
+          "vertical_continuation_fraction": 0.0,
+          "nearby_parallel_rows": 2,
+          "grid_penalty": 0.225772,
+          "geometry_score": 0.545732
+        }
+      },
+      "symbol_scoring": {
+        "candidate_id": "GDT-V2-P01-228",
+        "class_scores": {
+          "angularity": 0.222897,
+          "circular_runout": 0.610093,
+          "circularity": 0.121548,
+          "concentricity_coaxiality": 0.205315,
+          "cylindricity": 0.222065,
+          "flatness": 0.131206,
+          "parallelism": 0.198027,
+          "perpendicularity": 0.26809,
+          "position": 0.36281,
+          "profile": 0.152713,
+          "straightness": 0.093053,
+          "symmetry": 0.203683,
+          "total_runout": 0.260536
+        },
+        "best_class": "circular_runout",
+        "best_score": 0.610093,
+        "second_best_class": "position",
+        "second_best_score": 0.36281,
+        "margin": 0.247283,
+        "templates": [
+          {
+            "class_name": "circular_runout",
+            "template_name": "circular_runout_01",
+            "scores": {
+              "gray": 0.689333,
+              "binary": 0.603091,
+              "edges": 0.160336,
+              "structure": 0.661798,
+              "hog": 0.726174
+            },
+            "family_scores": {
+              "local": 0.484254,
+              "global_shape": 0.693986
+            },
+            "mean_score": 0.610093
+          },
+          {
+            "class_name": "position",
+            "template_name": "position_01",
+            "scores": {
+              "gray": 0.534703,
+              "binary": 0.457282,
+              "edges": 0.139217,
+              "structure": 0.304438,
+              "hog": 0.402172
+            },
+            "family_scores": {
+              "local": 0.377067,
+              "global_shape": 0.353305
+            },
+            "mean_score": 0.36281
+          },
+          {
+            "class_name": "perpendicularity",
+            "template_name": "perpendicularity_01",
+            "scores": {
+              "gray": 0.311311,
+              "binary": 0.285262,
+              "edges": 0.159354,
+              "structure": 0.37201,
+              "hog": 0.185655
+            },
+            "family_scores": {
+              "local": 0.251976,
+              "global_shape": 0.278833
+            },
+            "mean_score": 0.26809
+          },
+          {
+            "class_name": "total_runout",
+            "template_name": "total_runout_01",
+            "scores": {
+              "gray": 0.418182,
+              "binary": 0.362473,
+              "edges": 0.128889,
+              "structure": -0.068762,
+              "hog": 0.532973
+            },
+            "family_scores": {
+              "local": 0.303181,
+              "global_shape": 0.232106
+            },
+            "mean_score": 0.260536
+          },
+          {
+            "class_name": "angularity",
+            "template_name": "angularity_01",
+            "scores": {
+              "gray": 0.257913,
+              "binary": 0.231285,
+              "edges": 0.148892,
+              "structure": 0.235009,
+              "hog": 0.224385
+            },
+            "family_scores": {
+              "local": 0.212697,
+              "global_shape": 0.229697
+            },
+            "mean_score": 0.222897
+          },
+          {
+            "class_name": "cylindricity",
+            "template_name": "cylindricity_01",
+            "scores": {
+              "gray": 0.381561,
+              "binary": 0.326499,
+              "edges": 0.119829,
+              "structure": -0.137613,
+              "hog": 0.509879
+            },
+            "family_scores": {
+              "local": 0.275963,
+              "global_shape": 0.186133
+            },
+            "mean_score": 0.222065
+          },
+          {
+            "class_name": "concentricity_coaxiality",
+            "template_name": "concentricity_coaxiality_02",
+            "scores": {
+              "gray": 0.196387,
+              "binary": 0.167985,
+              "edges": 0.141448,
+              "structure": 0.130559,
+              "hog": 0.329014
+            },
+            "family_scores": {
+              "local": 0.168607,
+              "global_shape": 0.229787
+            },
+            "mean_score": 0.205315
+          },
+          {
+            "class_name": "symmetry",
+            "template_name": "symmetry_01",
+            "scores": {
+              "gray": 0.35577,
+              "binary": 0.287989,
+              "edges": 0.125265,
+              "structure": 0.237305,
+              "hog": 0.099849
+            },
+            "family_scores": {
+              "local": 0.256341,
+              "global_shape": 0.168577
+            },
+            "mean_score": 0.203683
+          },
+          {
+            "class_name": "concentricity_coaxiality",
+            "template_name": "concentricity_coaxiality_01",
+            "scores": {
+              "gray": 0.199281,
+              "binary": 0.17993,
+              "edges": 0.127506,
+              "structure": 0.123017,
+              "hog": 0.328288
+            },
+            "family_scores": {
+              "local": 0.168906,
+              "global_shape": 0.225652
+            },
+            "mean_score": 0.202954
+          },
+          {
+            "class_name": "parallelism",
+            "template_name": "parallelism_01",
+            "scores": {
+              "gray": 0.329901,
+              "binary": 0.291404,
+              "edges": 0.09363,
+              "structure": -0.201147,
+              "hog": 0.543488
+            },
+            "family_scores": {
+              "local": 0.238312,
+              "global_shape": 0.171171
+            },
+            "mean_score": 0.198027
+          },
+          {
+            "class_name": "profile",
+            "template_name": "profile_01",
+            "scores": {
+              "gray": 0.292816,
+              "binary": 0.275127,
+              "edges": 0.107671,
+              "structure": 0.074475,
+              "hog": 0.134295
+            },
+            "family_scores": {
+              "local": 0.225205,
+              "global_shape": 0.104385
+            },
+            "mean_score": 0.152713
+          },
+          {
+            "class_name": "flatness",
+            "template_name": "flatness_01",
+            "scores": {
+              "gray": 0.317187,
+              "binary": 0.277033,
+              "edges": 0.100033,
+              "structure": -0.117764,
+              "hog": 0.24656
+            },
+            "family_scores": {
+              "local": 0.231418,
+              "global_shape": 0.064398
+            },
+            "mean_score": 0.131206
+          },
+          {
+            "class_name": "circularity",
+            "template_name": "circularity_01",
+            "scores": {
+              "gray": 0.182184,
+              "binary": 0.148841,
+              "edges": 0.095621,
+              "structure": -0.035396,
+              "hog": 0.250935
+            },
+            "family_scores": {
+              "local": 0.142215,
+              "global_shape": 0.107769
+            },
+            "mean_score": 0.121548
+          },
+          {
+            "class_name": "straightness",
+            "template_name": "straightness_01",
+            "scores": {
+              "gray": 0.176871,
+              "binary": 0.163264,
+              "edges": 0.022463,
+              "structure": 0.122108,
+              "hog": 0.026913
+            },
+            "family_scores": {
+              "local": 0.120866,
+              "global_shape": 0.074511
+            },
+            "mean_score": 0.093053
+          }
+        ],
+        "decision_policy": "ranking_only_no_global_threshold",
+        "catalog_complete": null
+      },
+      "proposal_id": "GDT-V2-P01-228"
+    }
+  ],
+  "v2_pages": [
+    {
+      "page": 1,
+      "primitive_audit": {
+        "primitive_counts": {
+          "l": 91556,
+          "c": 44,
+          "qu": 1
+        },
+        "normalized_horizontal_edges": 82880,
+        "normalized_vertical_edges": 4910,
+        "supported_primitives": [
+          "l",
+          "re",
+          "qu"
+        ],
+        "unsupported_primitives_observed": [
+          "c"
+        ],
+        "merged_horizontal_edges": 676,
+        "merged_vertical_edges": 1523,
+        "vector_raw_proposals_before_dedup": 231,
+        "v1_proposals": 7,
+        "normalized_vector_proposals": 231,
+        "raster_proposals": 970,
+        "combined_after_dedup": 236,
+        "v21_pre_rectangle_refinement": 236,
+        "v21_geometry_rejected": 229,
+        "v21_post_rectangle_refinement": 7,
+        "rectangle_refinement_input": 236,
+        "rectangle_refinement_kept_before_competing_window_suppression": 7,
+        "rectangle_refinement_kept": 7,
+        "rectangle_refinement_rejected": 229,
+        "rectangle_refinement_dpi": 220,
+        "rectangle_geometry_min_score": 0.52,
+        "rectangle_geometry_thresholds_are_validation_heuristics_not_iso": true
+      },
+      "raw_proposals": [
+        {
+          "proposal_id": "GDT-V2-P01-003",
+          "page": 1,
+          "frame_bbox": [
+            241.66786193847656,
+            65.18936157226562,
+            284.6317138671875,
+            79.809814453125
+          ],
+          "cell_bboxes": [
+            [
+              241.66786193847656,
+              65.18936157226562,
+              261.4230651855469,
+              79.809814453125
+            ],
+            [
+              261.4230651855469,
+              65.18936157226562,
+              284.6317138671875,
+              79.809814453125
+            ]
+          ],
+          "symbol_bbox": [
+            241.66786193847656,
+            65.18936157226562,
+            261.4230651855469,
+            79.809814453125
+          ],
+          "sources": [
+            "raster_morphology_v2",
+            "v1_legacy",
+            "vector:l",
+            "vector_normalized_v2"
+          ],
+          "primitive_evidence": {
+            "v1_confidence": 0.5,
+            "merged_sources": [
+              "vector_normalized_v2",
+              "vector:l",
+              "raster_morphology_v2",
+              "raster_morphology_v2",
+              "vector_normalized_v2",
+              "vector:l"
+            ],
+            "rectangle_geometry": {
+              "top_coverage": 0.984848,
+              "bottom_coverage": 0.992424,
+              "left_coverage": 0.977778,
+              "right_coverage": 0.977778,
+              "outer_mean": 0.983207,
+              "outer_min": 0.977778,
+              "divider_mean": 0.977778,
+              "row_aspect": 2.938613,
+              "row_aspect_score": 1.0,
+              "horizontal_extension_penalty": 0.0,
+              "vertical_continuation_fraction": 0.333333,
+              "nearby_parallel_rows": 1,
+              "grid_penalty": 0.3,
+              "geometry_score": 0.872843
+            },
+            "rectangle_geometry_thresholds": {
+              "min_geometry_score": 0.52,
+              "thresholds_are_validation_heuristics_not_iso": true
+            }
+          },
+          "validation_status": "accepted_for_downstream",
+          "rejection_reasons": [],
+          "validator_evidence": {
+            "best_class": "circularity",
+            "best_score": 0.74324,
+            "margin": 0.17920500000000006,
+            "num_cells": 2,
+            "first_cell_aspect": 1.3512032361824569,
+            "has_numeric_downstream": false,
+            "has_single_letter_downstream": false,
+            "thresholds_are_validation_heuristics_not_iso": true
+          }
+        },
+        {
+          "proposal_id": "GDT-V2-P01-006",
+          "page": 1,
+          "frame_bbox": [
+            512.2074813842773,
+            93.30548095703125,
+            586.3800659179688,
+            107.85617065429688
+          ],
+          "cell_bboxes": [
+            [
+              512.2074813842773,
+              93.30548095703125,
+              531.6087036132812,
+              107.85617065429688
+            ],
+            [
+              531.6087036132812,
+              93.30548095703125,
+              563.3067626953125,
+              107.85617065429688
+            ],
+            [
+              563.3067626953125,
+              93.30548095703125,
+              574.5099487304688,
+              107.85617065429688
+            ],
+            [
+              574.5099487304688,
+              93.30548095703125,
+              586.3800659179688,
+              107.85617065429688
+            ]
+          ],
+          "symbol_bbox": [
+            512.2074813842773,
+            93.30548095703125,
+            531.6087036132812,
+            107.85617065429688
+          ],
+          "sources": [
+            "raster_morphology_v2",
+            "v1_legacy",
+            "vector:l",
+            "vector_normalized_v2"
+          ],
+          "primitive_evidence": {
+            "v1_confidence": 0.65,
+            "merged_sources": [
+              "vector_normalized_v2",
+              "vector:l",
+              "vector_normalized_v2",
+              "vector:l",
+              "raster_morphology_v2",
+              "vector_normalized_v2",
+              "vector:l",
+              "vector_normalized_v2",
+              "vector:l",
+              "vector_normalized_v2",
+              "vector:l",
+              "raster_morphology_v2",
+              "raster_morphology_v2",
+              "vector_normalized_v2",
+              "vector:l",
+              "vector_normalized_v2",
+              "vector:l",
+              "vector_normalized_v2",
+              "vector:l",
+              "vector_normalized_v2",
+              "vector:l",
+              "raster_morphology_v2",
+              "raster_morphology_v2",
+              "raster_morphology_v2",
+              "vector_normalized_v2",
+              "vector:l",
+              "vector_normalized_v2",
+              "vector:l",
+              "vector_normalized_v2",
+              "vector:l",
+              "vector_normalized_v2",
+              "vector:l",
+              "vector_normalized_v2",
+              "vector:l",
+              "raster_morphology_v2",
+              "raster_morphology_v2",
+              "vector_normalized_v2",
+              "vector:l",
+              "vector_normalized_v2",
+              "vector:l",
+              "vector_normalized_v2",
+              "vector:l",
+              "raster_morphology_v2",
+              "vector_normalized_v2",
+              "vector:l",
+              "vector_normalized_v2",
+              "vector:l",
+              "vector_normalized_v2",
+              "vector:l"
+            ],
+            "rectangle_geometry": {
+              "top_coverage": 1.0,
+              "bottom_coverage": 0.995595,
+              "left_coverage": 0.977778,
+              "right_coverage": 0.977778,
+              "outer_mean": 0.987788,
+              "outer_min": 0.977778,
+              "divider_mean": 0.977778,
+              "row_aspect": 5.097531,
+              "row_aspect_score": 1.0,
+              "horizontal_extension_penalty": 0.0,
+              "vertical_continuation_fraction": 0.4,
+              "nearby_parallel_rows": 0,
+              "grid_penalty": 0.248,
+              "geometry_score": 0.894252
+            },
+            "rectangle_geometry_thresholds": {
+              "min_geometry_score": 0.52,
+              "thresholds_are_validation_heuristics_not_iso": true
+            }
+          },
+          "validation_status": "rejected_by_validator",
+          "rejection_reasons": [
+            "NO_TOLERANCE_OR_DATUM_LIKE_CONTENT"
+          ],
+          "validator_evidence": {
+            "best_class": "circularity",
+            "best_score": 0.601546,
+            "margin": 0.10151700000000008,
+            "num_cells": 4,
+            "first_cell_aspect": 1.3333541318422726,
+            "has_numeric_downstream": false,
+            "has_single_letter_downstream": false,
+            "thresholds_are_validation_heuristics_not_iso": true
+          }
+        },
+        {
+          "proposal_id": "GDT-V2-P01-024",
+          "page": 1,
+          "frame_bbox": [
+            771.0545454545455,
+            329.56363636363636,
+            787.4181818181819,
+            337.74545454545455
+          ],
+          "cell_bboxes": [
+            [
+              771.0545454545455,
+              329.56363636363636,
+              775.6363636363637,
+              337.74545454545455
+            ],
+            [
+              776.2909090909092,
+              329.56363636363636,
+              781.8545454545455,
+              337.74545454545455
+            ],
+            [
+              782.1818181818182,
+              329.89090909090913,
+              787.4181818181819,
+              337.74545454545455
+            ]
+          ],
+          "symbol_bbox": [
+            771.0545454545455,
+            329.56363636363636,
+            775.6363636363637,
+            337.74545454545455
+          ],
+          "sources": [
+            "raster_morphology_v2"
+          ],
+          "primitive_evidence": {
+            "dpi": 220,
+            "cell_count": 3,
+            "merged_sources": [
+              "raster_morphology_v2",
+              "raster_morphology_v2"
+            ],
+            "rectangle_geometry": {
+              "top_coverage": 0.6,
+              "bottom_coverage": 0.44,
+              "left_coverage": 0.88,
+              "right_coverage": 0.88,
+              "outer_mean": 0.7,
+              "outer_min": 0.44,
+              "divider_mean": 0.74,
+              "row_aspect": 2.0,
+              "row_aspect_score": 1.0,
+              "horizontal_extension_penalty": 0.0,
+              "vertical_continuation_fraction": 1.0,
+              "nearby_parallel_rows": 0,
+              "grid_penalty": 0.62,
+              "geometry_score": 0.5372
+            },
+            "rectangle_geometry_thresholds": {
+              "min_geometry_score": 0.52,
+              "thresholds_are_validation_heuristics_not_iso": true
+            }
+          },
+          "validation_status": "rejected_by_validator",
+          "rejection_reasons": [
+            "NO_TOLERANCE_OR_DATUM_LIKE_CONTENT"
+          ],
+          "validator_evidence": {
+            "best_class": "parallelism",
+            "best_score": 0.397242,
+            "margin": 0.01815899999999998,
+            "num_cells": 3,
+            "first_cell_aspect": 0.5600000000000045,
+            "has_numeric_downstream": false,
+            "has_single_letter_downstream": false,
+            "thresholds_are_validation_heuristics_not_iso": true
+          }
+        },
+        {
+          "proposal_id": "GDT-V2-P01-042",
+          "page": 1,
+          "frame_bbox": [
+            850.5818181818182,
+            342.32727272727277,
+            872.1818181818182,
+            350.50909090909096
+          ],
+          "cell_bboxes": [
+            [
+              850.5818181818182,
+              342.32727272727277,
+              855.1636363636364,
+              350.50909090909096
+            ],
+            [
+              855.8181818181819,
+              342.32727272727277,
+              861.3818181818183,
+              350.50909090909096
+            ],
+            [
+              861.709090909091,
+              342.6545454545455,
+              866.6181818181818,
+              350.50909090909096
+            ],
+            [
+              867.6,
+              342.32727272727277,
+              872.1818181818182,
+              350.1818181818182
+            ]
+          ],
+          "symbol_bbox": [
+            850.5818181818182,
+            342.32727272727277,
+            855.1636363636364,
+            350.50909090909096
+          ],
+          "sources": [
+            "raster_morphology_v2"
+          ],
+          "primitive_evidence": {
+            "dpi": 220,
+            "cell_count": 4,
+            "merged_sources": [
+              "raster_morphology_v2",
+              "raster_morphology_v2",
+              "raster_morphology_v2",
+              "raster_morphology_v2",
+              "raster_morphology_v2"
+            ],
+            "rectangle_geometry": {
+              "top_coverage": 0.439394,
+              "bottom_coverage": 0.469697,
+              "left_coverage": 0.92,
+              "right_coverage": 0.76,
+              "outer_mean": 0.647273,
+              "outer_min": 0.439394,
+              "divider_mean": 0.826667,
+              "row_aspect": 2.64,
+              "row_aspect_score": 1.0,
+              "horizontal_extension_penalty": 0.0,
+              "vertical_continuation_fraction": 0.8,
+              "nearby_parallel_rows": 0,
+              "grid_penalty": 0.496,
+              "geometry_score": 0.582599
+            },
+            "rectangle_geometry_thresholds": {
+              "min_geometry_score": 0.52,
+              "thresholds_are_validation_heuristics_not_iso": true
+            }
+          },
+          "validation_status": "rejected_by_validator",
+          "rejection_reasons": [
+            "NO_TOLERANCE_OR_DATUM_LIKE_CONTENT"
+          ],
+          "validator_evidence": {
+            "best_class": "position",
+            "best_score": 0.372692,
+            "margin": 0.05301100000000003,
+            "num_cells": 4,
+            "first_cell_aspect": 0.5600000000000045,
+            "has_numeric_downstream": false,
+            "has_single_letter_downstream": false,
+            "thresholds_are_validation_heuristics_not_iso": true
+          }
+        },
+        {
+          "proposal_id": "GDT-V2-P01-095",
+          "page": 1,
+          "frame_bbox": [
+            827.6727272727273,
+            417.2727272727273,
+            849.6,
+            425.4545454545455
+          ],
+          "cell_bboxes": [
+            [
+              827.6727272727273,
+              417.2727272727273,
+              832.5818181818182,
+              425.4545454545455
+            ],
+            [
+              832.909090909091,
+              417.2727272727273,
+              838.8000000000001,
+              425.4545454545455
+            ],
+            [
+              838.8000000000001,
+              419.56363636363636,
+              843.0545454545455,
+              425.1272727272728
+            ],
+            [
+              840.7636363636365,
+              417.2727272727273,
+              844.0363636363637,
+              423.4909090909091
+            ],
+            [
+              844.6909090909091,
+              417.2727272727273,
+              849.6,
+              425.1272727272728
+            ]
+          ],
+          "symbol_bbox": [
+            827.6727272727273,
+            417.2727272727273,
+            832.5818181818182,
+            425.4545454545455
+          ],
+          "sources": [
+            "raster_morphology_v2"
+          ],
+          "primitive_evidence": {
+            "dpi": 220,
+            "cell_count": 5,
+            "merged_sources": [
+              "raster_morphology_v2",
+              "raster_morphology_v2",
+              "raster_morphology_v2",
+              "raster_morphology_v2",
+              "raster_morphology_v2",
+              "raster_morphology_v2",
+              "raster_morphology_v2",
+              "raster_morphology_v2",
+              "raster_morphology_v2"
+            ],
+            "rectangle_geometry": {
+              "top_coverage": 0.432836,
+              "bottom_coverage": 0.432836,
+              "left_coverage": 0.84,
+              "right_coverage": 0.76,
+              "outer_mean": 0.616418,
+              "outer_min": 0.432836,
+              "divider_mean": 0.83,
+              "row_aspect": 2.68,
+              "row_aspect_score": 1.0,
+              "horizontal_extension_penalty": 0.172043,
+              "vertical_continuation_fraction": 0.833333,
+              "nearby_parallel_rows": 0,
+              "grid_penalty": 0.533871,
+              "geometry_score": 0.526012
+            },
+            "rectangle_geometry_thresholds": {
+              "min_geometry_score": 0.52,
+              "thresholds_are_validation_heuristics_not_iso": true
+            }
+          },
+          "validation_status": "rejected_by_validator",
+          "rejection_reasons": [
+            "NO_TOLERANCE_OR_DATUM_LIKE_CONTENT"
+          ],
+          "validator_evidence": {
+            "best_class": "parallelism",
+            "best_score": 0.428919,
+            "margin": 0.07484299999999999,
+            "num_cells": 5,
+            "first_cell_aspect": 0.5999999999999959,
+            "has_numeric_downstream": false,
+            "has_single_letter_downstream": false,
+            "thresholds_are_validation_heuristics_not_iso": true
+          }
+        },
+        {
+          "proposal_id": "GDT-V2-P01-202",
+          "page": 1,
+          "frame_bbox": [
+            769.4181818181819,
+            737.0181818181819,
+            777.9272727272728,
+            743.2363636363636
+          ],
+          "cell_bboxes": [
+            [
+              769.4181818181819,
+              737.0181818181819,
+              774.3272727272728,
+              742.909090909091
+            ],
+            [
+              774.9818181818182,
+              737.0181818181819,
+              777.9272727272728,
+              743.2363636363636
+            ]
+          ],
+          "symbol_bbox": [
+            769.4181818181819,
+            737.0181818181819,
+            774.3272727272728,
+            742.909090909091
+          ],
+          "sources": [
+            "raster_morphology_v2"
+          ],
+          "primitive_evidence": {
+            "dpi": 220,
+            "cell_count": 2,
+            "rectangle_geometry": {
+              "top_coverage": 0.538462,
+              "bottom_coverage": 0.538462,
+              "left_coverage": 0.526316,
+              "right_coverage": 0.842105,
+              "outer_mean": 0.611336,
+              "outer_min": 0.526316,
+              "divider_mean": 0.473684,
+              "row_aspect": 1.368421,
+              "row_aspect_score": 0.397129,
+              "horizontal_extension_penalty": 0.181818,
+              "vertical_continuation_fraction": 0.0,
+              "nearby_parallel_rows": 0,
+              "grid_penalty": 0.018182,
+              "geometry_score": 0.573937
+            },
+            "rectangle_geometry_thresholds": {
+              "min_geometry_score": 0.52,
+              "thresholds_are_validation_heuristics_not_iso": true
+            }
+          },
+          "validation_status": "rejected_by_validator",
+          "rejection_reasons": [
+            "SYMBOL_AMBIGUOUS_WITHOUT_DOWNSTREAM_SUPPORT"
+          ],
+          "validator_evidence": {
+            "best_class": "circular_runout",
+            "best_score": 0.386827,
+            "margin": 0.0035199999999999676,
+            "num_cells": 2,
+            "first_cell_aspect": 0.8333333333333302,
+            "has_numeric_downstream": false,
+            "has_single_letter_downstream": false,
+            "thresholds_are_validation_heuristics_not_iso": true
+          }
+        },
+        {
+          "proposal_id": "GDT-V2-P01-228",
+          "page": 1,
+          "frame_bbox": [
+            1096.6909090909091,
+            771.3818181818182,
+            1112.0727272727274,
+            778.2545454545455
+          ],
+          "cell_bboxes": [
+            [
+              1096.6909090909091,
+              771.3818181818182,
+              1100.618181818182,
+              778.2545454545455
+            ],
+            [
+              1102.5818181818183,
+              771.709090909091,
+              1107.1636363636364,
+              777.9272727272728
+            ],
+            [
+              1108.1454545454546,
+              771.709090909091,
+              1112.0727272727274,
+              778.2545454545455
+            ]
+          ],
+          "symbol_bbox": [
+            1096.6909090909091,
+            771.3818181818182,
+            1100.618181818182,
+            778.2545454545455
+          ],
+          "sources": [
+            "raster_morphology_v2"
+          ],
+          "primitive_evidence": {
+            "dpi": 220,
+            "cell_count": 3,
+            "merged_sources": [
+              "raster_morphology_v2",
+              "raster_morphology_v2"
+            ],
+            "rectangle_geometry": {
+              "top_coverage": 0.553191,
+              "bottom_coverage": 0.468085,
+              "left_coverage": 0.428571,
+              "right_coverage": 0.952381,
+              "outer_mean": 0.600557,
+              "outer_min": 0.428571,
+              "divider_mean": 0.571429,
+              "row_aspect": 2.238095,
+              "row_aspect_score": 1.0,
+              "horizontal_extension_penalty": 0.391053,
+              "vertical_continuation_fraction": 0.0,
+              "nearby_parallel_rows": 2,
+              "grid_penalty": 0.225772,
+              "geometry_score": 0.545732
+            },
+            "rectangle_geometry_thresholds": {
+              "min_geometry_score": 0.52,
+              "thresholds_are_validation_heuristics_not_iso": true
+            }
+          },
+          "validation_status": "accepted_for_downstream",
+          "rejection_reasons": [],
+          "validator_evidence": {
+            "best_class": "circular_runout",
+            "best_score": 0.610093,
+            "margin": 0.24728299999999998,
+            "num_cells": 3,
+            "first_cell_aspect": 0.5714285714285808,
+            "has_numeric_downstream": true,
+            "has_single_letter_downstream": false,
+            "thresholds_are_validation_heuristics_not_iso": true
+          }
+        }
+      ],
+      "accepted_candidate_ids": [
+        "GDT-V2-P01-003",
+        "GDT-V2-P01-228"
+      ],
+      "rejected_proposal_ids": [
+        "GDT-V2-P01-006",
+        "GDT-V2-P01-024",
+        "GDT-V2-P01-042",
+        "GDT-V2-P01-095",
+        "GDT-V2-P01-202"
+      ]
+    }
+  ],
+  "artifacts": {
+    "candidate_contact_diagnostics": {
+      "validation_scope": "phase1_geometry_candidates_plus_phase2_ranking",
+      "ground_truth_used": false,
+      "candidate_semantics": "unvalidated detector proposals",
+      "classification_semantics": "ranking only; not probability and no calibrated global acceptance threshold",
+      "dpi": 180,
+      "top_k": 3,
+      "candidate_csv": "candidate_diagnostics.csv",
+      "pages": [
+        {
+          "page": 1,
+          "candidate_count": 7,
+          "candidates_image": "page_001_candidates.png",
+          "symbol_contact_sheet": "page_001_symbol_contact_sheet.png"
+        }
+      ]
+    },
+    "v2_stage_diagnostics": {
+      "validation_scope": "candidate_detector_v2_no_ground_truth",
+      "ground_truth_used": false,
+      "dpi": 180,
+      "pages": [
+        {
+          "page": 1,
+          "raw_proposals_image": "page_001_v2_raw_proposals.png",
+          "accepted_image": "page_001_v2_accepted.png",
+          "rejected_image": "page_001_v2_rejected.png",
+          "primitive_audit": {
+            "primitive_counts": {
+              "l": 91556,
+              "c": 44,
+              "qu": 1
+            },
+            "normalized_horizontal_edges": 82880,
+            "normalized_vertical_edges": 4910,
+            "supported_primitives": [
+              "l",
+              "re",
+              "qu"
+            ],
+            "unsupported_primitives_observed": [
+              "c"
+            ],
+            "merged_horizontal_edges": 676,
+            "merged_vertical_edges": 1523,
+            "vector_raw_proposals_before_dedup": 231,
+            "v1_proposals": 7,
+            "normalized_vector_proposals": 231,
+            "raster_proposals": 970,
+            "combined_after_dedup": 236,
+            "v21_pre_rectangle_refinement": 236,
+            "v21_geometry_rejected": 229,
+            "v21_post_rectangle_refinement": 7,
+            "rectangle_refinement_input": 236,
+            "rectangle_refinement_kept_before_competing_window_suppression": 7,
+            "rectangle_refinement_kept": 7,
+            "rectangle_refinement_rejected": 229,
+            "rectangle_refinement_dpi": 220,
+            "rectangle_geometry_min_score": 0.52,
+            "rectangle_geometry_thresholds_are_validation_heuristics_not_iso": true
+          }
+        }
+      ]
+    }
+  },
+  "next_validation_step": "Annotate real FCF ground truth independently, then match GT against geometry-refined proposals and accepted candidates. Measure rectangle proposal recall first, validator precision/recall second, and symbol accuracy only on matched real FCFs."
+}

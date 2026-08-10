@@ -1,0 +1,12 @@
+﻿candidate_id,page,frame_bbox,symbol_bbox,num_cells,top1_class,top1_score,top2_class,top2_score,margin,decision_policy,catalog_complete,referenced_datums,unresolved_fields,human_is_real_gdt,human_true_characteristic,human_notes
+GDT-CAND-P01-001,1,"[155.203, 288.117, 202.242, 305.114]","[155.203, 288.117, 174.306, 305.114]",3,position,0.576776,symmetry,0.394120,0.182656,ranking_only_no_global_threshold,,,,,,
+GDT-CAND-P01-002,1,"[374.661, 378.573, 399.14, 390.151]","[374.661, 378.573, 387.554, 390.151]",2,position,0.268709,circular_runout,0.255971,0.012739,ranking_only_no_global_threshold,,,,,,
+GDT-CAND-P01-003,1,"[392.985, 626.913, 538.18, 650.488]","[392.985, 626.913, 442.511, 650.488]",2,flatness,0.340234,angularity,0.331879,0.008355,ranking_only_no_global_threshold,,,,,,
+GDT-CAND-P01-004,1,"[580.602, 690.851, 646.303, 699.352]","[580.602, 690.851, 600.061, 699.352]",4,position,0.411957,symmetry,0.400602,0.011355,ranking_only_no_global_threshold,,,,,,
+GDT-CAND-P01-005,1,"[1357.825, 697.235, 1543.341, 725.731]","[1357.825, 697.235, 1428.596, 725.731]",2,straightness,0.356283,profile,0.314914,0.041369,ranking_only_no_global_threshold,,,,,,
+GDT-CAND-P01-006,1,"[571.419, 711.034, 618.921, 725.731]","[571.419, 711.034, 595.003, 725.731]",2,profile,0.466560,symmetry,0.344077,0.122483,ranking_only_no_global_threshold,,,,,,
+GDT-CAND-P01-007,1,"[171.67, 736.826, 217.009, 751.638]","[171.67, 736.826, 194.862, 751.638]",2,profile,0.462616,concentricity_coaxiality,0.325711,0.136905,ranking_only_no_global_threshold,,,,,,
+GDT-CAND-P01-008,1,"[571.419, 736.826, 635.818, 751.638]","[571.419, 736.826, 589.881, 751.638]",4,position,0.614345,symmetry,0.566230,0.048114,ranking_only_no_global_threshold,,,,,,
+GDT-CAND-P01-009,1,"[1357.825, 753.427, 1543.341, 782.499]","[1357.825, 753.427, 1428.596, 782.499]",2,straightness,0.353913,profile,0.310042,0.043871,ranking_only_no_global_threshold,,,,,,
+GDT-CAND-P01-010,1,"[571.419, 758.638, 618.921, 773.651]","[571.419, 758.638, 595.003, 773.651]",2,profile,0.435701,circularity,0.313097,0.122604,ranking_only_no_global_threshold,,,,,,
+GDT-CAND-P01-011,1,"[1357.825, 810.619, 1543.341, 839.558]","[1357.825, 810.619, 1428.596, 839.558]",2,straightness,0.350437,profile,0.306474,0.043962,ranking_only_no_global_threshold,,,,,,
