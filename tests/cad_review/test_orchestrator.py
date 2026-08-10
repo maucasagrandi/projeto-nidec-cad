@@ -19,6 +19,11 @@ class FakeApplicabilityEngine:
             "material_family": material_family,
             "applicable_standards": [
                 {
+                    "standard": "TSS 001602",
+                    "reason": "Aggregated Parts row from an unknown specific series",
+                    "source": "customer_applicability_matrix",
+                },
+                {
                     "standard": "TSS 002513",
                     "reason": "General / All",
                     "source": "component_match",
@@ -42,9 +47,9 @@ def fake_classifier(_text, _prompt):
             "confidence": 0.99,
         },
         "material_family": {
-            "value": None,
-            "evidence": None,
-            "confidence": 0.0,
+            "value": "gasket_material",
+            "evidence": "NI-2085-G",
+            "confidence": 0.7,
         },
         "compressor_series": {
             "value": None,
@@ -78,9 +83,28 @@ def test_all_series_is_external_context_and_does_not_rewrite_llm_classification(
     assert result["review_context"] == {
         "compressor_series": "ALL",
         "compressor_series_source": "temporary_default_until_windchill",
+        "temporary_all_policy": True,
     }
     assert engine.calls[0]["compressor_series"] == "ALL"
     assert engine.calls[0]["component"] == "GASKET - VALVE PLATE"
+    # Material expansion in the old engine is not series-filtered, so the
+    # temporary ALL policy intentionally omits it until Windchill supplies series.
+    assert engine.calls[0]["material_family"] is None
+
+
+def test_temporary_all_excludes_aggregated_parts_rows_from_unknown_series():
+    engine = FakeApplicabilityEngine()
+    result = run_part_classification_branch(
+        b"unused",
+        classification_prompt="unused",
+        extracted_text="vector text",
+        classifier_fn=fake_classifier,
+        applicability_engine=engine,
+    )
+
+    applicable = [row["standard"] for row in result["applicable_standards"]]
+    assert applicable == ["TSS 002513", "TSS 002420"]
+    assert "TSS 001602" not in applicable
 
 
 def test_cited_norms_are_normalized_before_deterministic_comparison():
