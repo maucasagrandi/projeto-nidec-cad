@@ -47,6 +47,7 @@ def test_visual_evidence_renders_split_pages_and_crops(tmp_path):
 
     assert result["label_policy"] == "GDT-CAND until independently validated"
     assert result["layers"] == ["combined", "gdt", "datums"]
+    assert result["label_placement"] == "non_overlapping_lanes_with_connectors"
     page = result["pages"][0]
     assert page["gdt_candidate_count"] == 1
     assert page["datum_definition_count"] == 1
