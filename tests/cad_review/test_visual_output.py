@@ -15,7 +15,7 @@ def _synthetic_pdf() -> bytes:
     return data
 
 
-def test_visual_evidence_renders_page_and_crops(tmp_path):
+def test_visual_evidence_renders_split_pages_and_crops(tmp_path):
     result = render_visual_evidence(
         _synthetic_pdf(),
         output_dir=tmp_path,
@@ -46,13 +46,18 @@ def test_visual_evidence_renders_page_and_crops(tmp_path):
     )
 
     assert result["label_policy"] == "GDT-CAND until independently validated"
-    assert result["pages"][0]["gdt_candidate_count"] == 1
-    assert result["pages"][0]["datum_definition_count"] == 1
-    page_path = tmp_path / result["pages"][0]["annotated_image"]
-    assert page_path.exists()
-    with Image.open(page_path) as image:
-        assert image.width == 600
-        assert image.height == 400
+    assert result["layers"] == ["combined", "gdt", "datums"]
+    page = result["pages"][0]
+    assert page["gdt_candidate_count"] == 1
+    assert page["datum_definition_count"] == 1
+
+    for key in ("annotated_image", "gdt_image", "datums_image"):
+        page_path = tmp_path / page[key]
+        assert page_path.exists()
+        with Image.open(page_path) as image:
+            assert image.width == 600
+            assert image.height == 400
+
     assert any(path.endswith("_frame.png") for path in result["crops"])
     assert any("DATUM-A" in path for path in result["crops"])
     assert all((tmp_path / path).exists() for path in result["crops"])
