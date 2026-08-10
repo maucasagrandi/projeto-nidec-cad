@@ -20,7 +20,7 @@ import math
 import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Iterable, Mapping, Sequence
+from typing import Any, Mapping, Sequence
 from xml.sax.saxutils import escape
 
 ENGINEERING_HEADERS = [
@@ -133,7 +133,13 @@ def _sheet_xml(headers: Sequence[str], rows: Sequence[Mapping[str, Any]], widths
     )
 
 
-def write_xlsx(path: str | Path, *, headers: Sequence[str], rows: Sequence[Mapping[str, Any]], widths: Sequence[float] | None = None) -> Path:
+def write_xlsx(
+    path: str | Path,
+    *,
+    headers: Sequence[str],
+    rows: Sequence[Mapping[str, Any]],
+    widths: Sequence[float] | None = None,
+) -> Path:
     """Write one-sheet XLSX with header style, filters, freeze row and wrapping."""
     target = Path(path)
     target.parent.mkdir(parents=True, exist_ok=True)
@@ -204,10 +210,12 @@ def engineering_row(result: Mapping[str, Any]) -> dict:
     summary = result.get("summary") or {}
     gdt = result.get("gdt_frames") or result.get("gdt_candidates") or []
     datum_defs = result.get("datum_definitions") or []
+    missing_text = "; ".join(str(v) for v in missing) if missing else "none"
     notes = (
         f"GDT candidates={len(gdt)}; datum definitions={len(datum_defs)}; "
-        f"warnings={summary.get('WARNING', 0)}; needs_context={summary.get('NEEDS_CONTEXT', 0)}. "
-        "Normas_Sugeridas_LLM is populated from deterministic applicability missing standards, not free-form LLM recommendations."
+        f"warnings={summary.get('WARNING', 0)}; needs_context={summary.get('NEEDS_CONTEXT', 0)}; "
+        f"deterministic applicable standards missing={missing_text}. "
+        "Legacy free-form LLM standard-suggestion columns are intentionally left blank."
     )
     return {
         "CAD": (result.get("drawing") or {}).get("name"),
@@ -217,8 +225,8 @@ def engineering_row(result: Mapping[str, Any]) -> dict:
         "Match_Classif": "",
         "Normas_LLM": "; ".join(str(row.get("standard")) for row in cited if row.get("standard")),
         "Match_Normas": "",
-        "Normas_Sugeridas_LLM": "; ".join(str(v) for v in missing),
-        "Reasoning_Sugeridas": "Deterministic customer applicability check using the temporary ALL-series policy.",
+        "Normas_Sugeridas_LLM": "",
+        "Reasoning_Sugeridas": "",
         "Precisamos do feedback time NIDEC sobre Match reasoning (Plausível ou não)": "",
         "Input_Tokens": metadata.get("prompt_tokens"),
         "Output_Tokens": metadata.get("completion_tokens"),
@@ -281,7 +289,12 @@ def technical_row(result: Mapping[str, Any], *, result_json_path: str, error: st
     }
 
 
-def write_batch_workbooks(output_dir: str | Path, *, engineering_rows: Sequence[Mapping[str, Any]], technical_rows: Sequence[Mapping[str, Any]]) -> dict:
+def write_batch_workbooks(
+    output_dir: str | Path,
+    *,
+    engineering_rows: Sequence[Mapping[str, Any]],
+    technical_rows: Sequence[Mapping[str, Any]],
+) -> dict:
     output = Path(output_dir)
     eng_path = output / "summary_engineering.xlsx"
     tech_path = output / "summary_technical.xlsx"
@@ -292,7 +305,12 @@ def write_batch_workbooks(output_dir: str | Path, *, engineering_rows: Sequence[
     return {"engineering": eng_path.name, "technical": tech_path.name}
 
 
-def write_manifest(output_dir: str | Path, entries: Sequence[Mapping[str, Any]], *, workbook_paths: Mapping[str, str]) -> Path:
+def write_manifest(
+    output_dir: str | Path,
+    entries: Sequence[Mapping[str, Any]],
+    *,
+    workbook_paths: Mapping[str, str],
+) -> Path:
     output = Path(output_dir)
     payload = {
         "schema_version": 1,
