@@ -1,12 +1,15 @@
-"""Sincroniza referências versionadas de ``cotas/`` para o catálogo visual.
+"""Sincroniza templates com borda de ``cotas/`` para o catálogo de detecção.
 
 O mapeamento é data-driven e fica em:
     validation/gdt/reference_catalog.json
 
-Além de preparar os templates, o script verifica cobertura: toda imagem de
-referência em ``cotas/`` deve estar explicitamente registrada no manifesto.
-Isso evita adicionar uma cota ao repositório e ela ficar silenciosamente fora
-do classificador.
+Nesta versão (schema v3), os templates incluem a borda do feature control frame
+e são copiados diretamente, sem preprocessing de crop/normalização. Eles serão
+usados pelo detector via template matching na página renderizada.
+
+O script verifica cobertura: toda imagem de referência em ``cotas/`` deve estar
+registrada no manifesto. Isso evita adicionar uma cota e ela ficar fora do
+detector silenciosamente.
 
 Uso:
     python validation/gdt/scripts/sync_phase4_templates.py
@@ -15,6 +18,7 @@ Uso:
 from __future__ import annotations
 
 import json
+import shutil
 import sys
 from pathlib import Path
 
@@ -24,14 +28,12 @@ PROJECT_ROOT = Path(__file__).resolve().parents[3]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from src.gdt.symbol_classifier import crop_foreground, normalize_gray
-
 DEFAULT_MANIFEST = PROJECT_ROOT / "validation" / "gdt" / "reference_catalog.json"
 ALLOWED_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp"}
 
 
 def _normalize_filename(name: str) -> str:
-    # Tolera diferenças de caixa e espaços antes da extensão.
+    """Tolera diferenças de caixa e espaços antes da extensão."""
     return name.strip().casefold().replace(" .", ".")
 
 
@@ -45,6 +47,7 @@ def _load_manifest(path: Path) -> dict:
 
 
 def _source_index(source_root: Path) -> dict[str, Path]:
+    """Index all image files in source_root by normalized filename."""
     if not source_root.exists():
         raise FileNotFoundError(f"Pasta de referências não encontrada: {source_root}")
 
@@ -98,20 +101,19 @@ def main() -> None:
         if not class_name:
             raise ValueError(f"class_name vazio para source={source_name!r}")
 
-        # Primeiro tenta o caminho exato; depois tolera caixa/espaço de filename.
+        # Try exact path first; then tolerate case/space normalization.
         exact_source = source_root / source_name
         source = exact_source if exact_source.exists() else index.get(_normalize_filename(source_name))
         if source is None:
             missing.append(source_name)
             continue
 
+        # Verify image is readable
         gray = cv2.imread(str(source), cv2.IMREAD_GRAYSCALE)
         if gray is None:
             raise ValueError(f"Não foi possível ler a imagem: {source}")
 
-        # Somente normalização de contraste + remoção de whitespace externo.
-        # A geometria interna do símbolo não é redesenhada nem sintetizada.
-        prepared = crop_foreground(normalize_gray(gray), padding=3)
+        # Copy directly — bordered templates are used as-is for detection
         destination_dir = template_root / class_name
         destination_dir.mkdir(parents=True, exist_ok=True)
         destination = destination_dir / target_name
@@ -120,8 +122,7 @@ def main() -> None:
             raise ValueError(f"target_name duplicado no manifesto: {destination}")
         target_paths.add(destination)
 
-        if not cv2.imwrite(str(destination), prepared):
-            raise OSError(f"Falha ao gravar template: {destination}")
+        shutil.copy2(str(source), str(destination))
 
         active_classes.add(class_name)
         written.append((source, destination, class_name))

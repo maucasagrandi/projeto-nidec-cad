@@ -1,14 +1,14 @@
 {
-  "schema_version": 2,
+  "schema_version": 3,
   "source_root": "cotas",
   "template_root": "assets/gdt/templates",
   "notes": [
-    "As imagens em cotas/ sao referencias humanas/versionadas.",
-    "O sync prepara copias semanticas para o classificador.",
+    "As imagens em cotas/ sao templates com borda (simbolo + frame do FCF).",
+    "O sync copia diretamente para assets/gdt/templates/<classe>/.",
+    "Os templates sao usados para deteccao por template matching na pagina.",
     "Roundness e normalizado para a classe canonica circularity.",
-    "Concentricity e Coaxiality compartilham uma classe visual canonica; a distincao semantica/por edicao fica para a camada deterministica.",
-    "Reconhecer uma classe visual nao implica que ela seja aplicavel a toda edicao da ISO 1101.",
-    "negative_controls nao deve conter um circulo quando circularity estiver ativa."
+    "Concentricity e Coaxiality compartilham uma classe visual canonica.",
+    "O detector varre a pagina em multiplas escalas e rotacoes (0, 90, -90, 45, -45)."
   ],
   "entries": [
     {
@@ -43,7 +43,7 @@
       "status": "active"
     },
     {
-      "source": "Perpendicularity .png",
+      "source": "Perpendicularity.png",
       "class_name": "perpendicularity",
       "target_name": "perpendicularity_01.png",
       "status": "active"
@@ -62,7 +62,7 @@
       "source_term": "Circular run-out"
     },
     {
-      "source": "Total run-out.png",
+      "source": "Total_runout.png",
       "class_name": "total_runout",
       "target_name": "total_runout_01.png",
       "status": "active",
@@ -86,8 +86,19 @@
       "source": "Symmetry.png",
       "class_name": "symmetry",
       "target_name": "symmetry_01.png",
-      "status": "active",
-      "edition_semantics": "resolve_later"
+      "status": "active"
+    },
+    {
+      "source": "Position.png",
+      "class_name": "position",
+      "target_name": "position_01.png",
+      "status": "active"
+    },
+    {
+      "source": "Profile.png",
+      "class_name": "profile",
+      "target_name": "profile_01.png",
+      "status": "active"
     }
   ]
 }
