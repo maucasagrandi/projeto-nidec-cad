@@ -23,7 +23,11 @@ import cv2
 import numpy as np
 
 from src.gdt.datum_extractor import FcfExtraction, extract_datum_cells
+from src.gdt.datum_consistency import assess_referenced_datum_definitions
+from src.gdt.datum_feature import detect_document_datum_feature_indicators
 from src.gdt.datum_finder import DatumDefinition, find_datum_definitions
+from src.gdt.datum_text import extract_datum_text_candidates
+from src.gdt.datum_visual_resolver import resolve_outlined_datum_references
 from src.gdt.fcf_expander import FcfFrame, expand_detections_to_fcf
 from src.gdt.template_detector import (
     Detection,
@@ -48,6 +52,9 @@ class GdtConstraint:
     cell_count: int = 0
     datum_count: int = 0
     datum_refs: List[dict] = field(default_factory=list)
+    referenced_datums: List[str] = field(default_factory=list)
+    unresolved_datum_ref_count: int = 0
+    datum_definition_findings: List[dict] = field(default_factory=list)
     scale: float = 0.0
     rotation: int = 0
 
@@ -60,6 +67,9 @@ class GdtConstraint:
             "cell_count": self.cell_count,
             "datum_count": self.datum_count,
             "datum_refs": self.datum_refs,
+            "referenced_datums": self.referenced_datums,
+            "unresolved_datum_ref_count": self.unresolved_datum_ref_count,
+            "datum_definition_findings": self.datum_definition_findings,
             "has_datums": self.datum_count > 0,
             "scale": round(self.scale, 3),
             "rotation": self.rotation,
@@ -74,6 +84,7 @@ class GdtPageReport:
     page_index: int
     constraints: List[GdtConstraint] = field(default_factory=list)
     datum_definitions: List[dict] = field(default_factory=list)
+    datum_box_candidates: List[dict] = field(default_factory=list)
     summary: dict = field(default_factory=dict)
 
     def to_dict(self) -> dict:
@@ -83,6 +94,7 @@ class GdtPageReport:
             "summary": self.summary,
             "constraints": [c.to_dict() for c in self.constraints],
             "datum_definitions": self.datum_definitions,
+            "datum_box_candidates": self.datum_box_candidates,
         }
 
 
@@ -131,12 +143,35 @@ def analyze_page(
     extraction_dpi = max(dpi, 300)
     page_gray, zoom = render_page_gray(pdf_bytes, page_index=page_index, dpi=extraction_dpi)
 
-    # Step 4: Extract datum cell content
-    extractions = extract_datum_cells(page_gray, zoom, frames)
+    # Step 4: Resolve vector/invisible datum letters inside FCF datum cells.
+    text_candidates = extract_datum_text_candidates(pdf_bytes, page_index=page_index)
+    extractions = extract_datum_cells(
+        page_gray,
+        zoom,
+        frames,
+        text_candidates=text_candidates,
+    )
 
     # Step 5: Find datum definitions (geometric box detection + ink check)
     datum_defs = find_datum_definitions(
         pdf_bytes, page_gray, zoom, frames, page_index=page_index
+    )
+
+    # Step 5b: Find high-confidence datum feature indicators across the entire
+    # PDF.  A reference on page 1 may be defined on a different drawing page.
+    verified_datum_defs = detect_document_datum_feature_indicators(
+        pdf_bytes,
+        raster_dpi=200,
+    )
+
+    # Step 5c: Some CAD generators convert the letters inside FCFs to vector
+    # outlines. Learn labelled glyph shapes from PDF text elsewhere in the
+    # drawing and resolve those cells before checking definition consistency.
+    visual_resolution = resolve_outlined_datum_references(
+        pdf_bytes,
+        extractions,
+        verified_datum_defs,
+        dpi=extraction_dpi,
     )
 
     # Step 6: Build constraints
@@ -144,6 +179,7 @@ def analyze_page(
     for det, frame, extraction in _align_results(detections, frames, extractions):
         datum_refs_dicts = []
         datum_count = 0
+        referenced_datums: List[str] = []
         frame_bbox = None
         cell_count = 0
 
@@ -153,9 +189,16 @@ def analyze_page(
 
         if extraction is not None:
             for dref in extraction.datum_refs:
-                if dref.ink_ratio > 0.05:
+                if dref.has_content:
                     datum_count += 1
                     datum_refs_dicts.append(dref.to_dict())
+                    if dref.text:
+                        referenced_datums.append(dref.text)
+
+        definition_findings = assess_referenced_datum_definitions(
+            referenced_datums=referenced_datums,
+            defined_indicators=verified_datum_defs,
+        )
 
         constraints.append(GdtConstraint(
             class_name=det.class_name,
@@ -165,6 +208,9 @@ def analyze_page(
             cell_count=cell_count,
             datum_count=datum_count,
             datum_refs=datum_refs_dicts,
+            referenced_datums=referenced_datums,
+            unresolved_datum_ref_count=max(0, datum_count - len(referenced_datums)),
+            datum_definition_findings=[row.to_dict() for row in definition_findings],
             scale=det.scale,
             rotation=det.rotation,
         ))
@@ -174,13 +220,28 @@ def analyze_page(
         pdf_name=pdf_name,
         page_index=page_index,
         constraints=constraints,
-        datum_definitions=[d.to_dict() for d in datum_defs],
+        datum_definitions=[d.to_dict() for d in verified_datum_defs],
+        datum_box_candidates=[d.to_dict() for d in datum_defs],
         summary={
             "total_detections": len(detections),
             "fcf_frames_expanded": len(frames),
             "constraints_with_datums": sum(1 for c in constraints if c.datum_count > 0),
             "total_datum_refs": sum(c.datum_count for c in constraints),
-            "datum_definitions_found": len(datum_defs),
+            "resolved_datum_refs": sum(len(c.referenced_datums) for c in constraints),
+            "unresolved_datum_refs": sum(c.unresolved_datum_ref_count for c in constraints),
+            "datum_definitions_found": len(verified_datum_defs),
+            "datum_box_candidates_found": len(datum_defs),
+            "undefined_referenced_datums": sum(
+                1
+                for constraint in constraints
+                for finding in constraint.datum_definition_findings
+                if finding["code"] == "ISO5459_REFERENCED_DATUM_NOT_DEFINED"
+            ),
+            "datum_visual_templates": visual_resolution.template_count,
+            "datum_visual_template_labels": list(visual_resolution.template_labels),
+            "datum_refs_resolved_by_visual_template": visual_resolution.resolved_count,
+            "datum_visual_matches_rejected": visual_resolution.rejected_count,
+            "datum_cells_reclassified_empty": visual_resolution.empty_cell_count,
             "constraint_types": _count_types(constraints),
         },
     )
@@ -254,6 +315,7 @@ def render_annotated_page(
     dpi: int = 150,
     page_gray: np.ndarray | None = None,
     zoom: float | None = None,
+    verified_datum_defs: Optional[List[dict]] = None,
 ) -> np.ndarray:
     """Render the page with GD&T annotations overlaid.
 
@@ -280,7 +342,7 @@ def render_annotated_page(
         if ext is None:
             continue
         for dref in ext.datum_refs:
-            if dref.ink_ratio <= 0.05:
+            if not dref.has_content:
                 continue  # empty cell — not a datum reference, skip
             cell = dref.cell
             cx0 = int(cell.x0 * zoom)
@@ -293,6 +355,17 @@ def render_annotated_page(
                 page_bgr[cy0:cy1, cx0:cx1] = cv2.addWeighted(
                     page_bgr[cy0:cy1, cx0:cx1], 0.7, overlay, 0.3, 0
                 )
+                if dref.text:
+                    cv2.putText(
+                        page_bgr,
+                        f"REF {dref.text}",
+                        (cx0, max(cy0 - 3, 10)),
+                        cv2.FONT_HERSHEY_SIMPLEX,
+                        0.35,
+                        (0, 120, 220),
+                        1,
+                        cv2.LINE_AA,
+                    )
 
     # Draw constraint type labels
     for det in detections:
@@ -306,7 +379,7 @@ def render_annotated_page(
             cv2.FONT_HERSHEY_SIMPLEX, 0.35, color, 1, cv2.LINE_AA,
         )
 
-    # Draw datum definitions (red circles marking standalone datum boxes)
+    # Draw geometry-only candidates retained for diagnostics.
     for datum_def in datum_defs:
         cx = int(datum_def.x * zoom)
         cy = int(datum_def.y * zoom)
@@ -314,9 +387,29 @@ def render_annotated_page(
         hh = int(datum_def.height * zoom / 2) + 3
         cv2.rectangle(page_bgr, (cx - hw, cy - hh), (cx + hw, cy + hh), DATUM_DEF_COLOR, 2)
         cv2.putText(
-            page_bgr, "DATUM",
+            page_bgr, "DATUM?",
             (cx + hw + 3, cy + 4),
             cv2.FONT_HERSHEY_SIMPLEX, 0.35, DATUM_DEF_COLOR, 1, cv2.LINE_AA,
+        )
+
+    # Draw verified datum-feature indicators (letter + box + stem + marker).
+    for datum_def in verified_datum_defs or []:
+        if int(datum_def.get("page", 0)) != page_index + 1:
+            continue
+        box = datum_def.get("box_bbox")
+        if not isinstance(box, list) or len(box) != 4:
+            continue
+        x0, y0, x1, y1 = (int(float(value) * zoom) for value in box)
+        cv2.rectangle(page_bgr, (x0, y0), (x1, y1), DATUM_DEF_COLOR, 2)
+        cv2.putText(
+            page_bgr,
+            f"DATUM {datum_def.get('label', '?')}",
+            (x1 + 3, y0 + max(10, (y1 - y0) // 2)),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.4,
+            DATUM_DEF_COLOR,
+            1,
+            cv2.LINE_AA,
         )
 
     return page_bgr

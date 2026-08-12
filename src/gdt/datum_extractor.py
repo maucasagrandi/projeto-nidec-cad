@@ -24,6 +24,7 @@ import cv2
 import numpy as np
 
 from src.gdt.fcf_expander import FcfCell, FcfFrame
+from src.gdt.datum_text import DatumTextCandidate, match_text_candidate_to_bbox
 
 
 # ---------------------------------------------------------------------------
@@ -41,6 +42,14 @@ class DatumRef:
     text: str = ""  # recognized character (empty if unknown)
     confidence: float = 0.0
     ink_ratio: float = 0.0  # fraction of dark pixels
+    text_source: str = ""
+    text_bbox: Optional[Tuple[float, float, float, float]] = None
+    visual_match_margin: Optional[float] = None
+    visual_template_source: str = ""
+
+    @property
+    def has_content(self) -> bool:
+        return bool(self.text) or self.ink_ratio > 0.05
 
     def to_dict(self) -> dict:
         return {
@@ -49,8 +58,18 @@ class DatumRef:
                         round(self.cell.x1, 1), round(self.cell.y1, 1)],
             "text": self.text,
             "confidence": round(self.confidence, 3),
+            "text_source": self.text_source or None,
+            "text_bbox_pt": (
+                [round(value, 4) for value in self.text_bbox]
+                if self.text_bbox is not None else None
+            ),
+            "visual_match_margin": (
+                round(self.visual_match_margin, 4)
+                if self.visual_match_margin is not None else None
+            ),
+            "visual_template_source": self.visual_template_source or None,
             "ink_ratio": round(self.ink_ratio, 3),
-            "has_content": self.ink_ratio > 0.05,
+            "has_content": self.has_content,
         }
 
 
@@ -64,11 +83,11 @@ class FcfExtraction:
 
     @property
     def has_datums(self) -> bool:
-        return any(d.ink_ratio > 0.05 for d in self.datum_refs)
+        return any(d.has_content for d in self.datum_refs)
 
     @property
     def datum_texts(self) -> List[str]:
-        return [d.text for d in self.datum_refs if d.text and d.ink_ratio > 0.05]
+        return [d.text for d in self.datum_refs if d.text and d.has_content]
 
     def to_dict(self) -> dict:
         return {
@@ -146,6 +165,7 @@ def extract_datum_cells(
     frames: List[FcfFrame],
     *,
     border_px: int = 3,
+    text_candidates: Optional[List[DatumTextCandidate]] = None,
 ) -> List[FcfExtraction]:
     """Extract datum cell content from rendered page.
 
@@ -159,6 +179,10 @@ def extract_datum_cells(
         Expanded FCF frames with cells.
     border_px : int
         Pixels to strip from cell borders.
+    text_candidates : list of DatumTextCandidate, optional
+        Vector/invisible single-letter PDF text in page coordinates.  When a
+        candidate belongs to a datum cell it provides the actual A/B/C label;
+        raster ink remains a fallback for presence-only detection.
 
     Returns
     -------
@@ -186,7 +210,20 @@ def extract_datum_cells(
 
             text = ""
             confidence = 0.0
-            if glyph is not None and ink_ratio > 0.05:
+            text_source = ""
+            text_bbox = None
+            if text_candidates:
+                matched = match_text_candidate_to_bbox(
+                    text_candidates,
+                    (cell.x0, cell.y0, cell.x1, cell.y1),
+                )
+                if matched is not None:
+                    text = matched.label
+                    confidence = matched.confidence
+                    text_source = matched.source
+                    text_bbox = matched.bbox
+
+            if not text and glyph is not None and ink_ratio > 0.05:
                 text, confidence = _identify_character(glyph)
 
             datum_ref = DatumRef(
@@ -196,6 +233,8 @@ def extract_datum_cells(
                 text=text,
                 confidence=confidence,
                 ink_ratio=ink_ratio,
+                text_source=text_source,
+                text_bbox=text_bbox,
             )
             extraction.datum_refs.append(datum_ref)
 

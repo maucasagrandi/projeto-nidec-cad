@@ -81,6 +81,7 @@ def main() -> None:
     vis = render_annotated_page(
         pdf_bytes, detections, frames, extractions, datum_defs,
         page_index=args.page, dpi=vis_dpi,
+        verified_datum_defs=report.datum_definitions,
     )
     t2 = time.time()
 
@@ -95,7 +96,10 @@ def main() -> None:
     print(f"fcf_frames:       {s['fcf_frames_expanded']}")
     print(f"with_datums:      {s['constraints_with_datums']}")
     print(f"datum_refs:       {s['total_datum_refs']}")
+    print(f"resolved_refs:    {s['resolved_datum_refs']}")
+    print(f"unresolved_refs:  {s['unresolved_datum_refs']}")
     print(f"datum_defs:       {s['datum_definitions_found']}")
+    print(f"undefined_refs:   {s['undefined_referenced_datums']}")
     print(f"types:            {s['constraint_types']}")
     print(f"time:             {t3-t0:.1f}s (analysis={t1-t0:.1f}s viz={t2-t1:.1f}s)")
     print(f"report:           {report_path}")

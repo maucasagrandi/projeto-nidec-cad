@@ -17,14 +17,13 @@ OpenCV raster check. It does not use OCR or an LLM.
 from __future__ import annotations
 
 from dataclasses import dataclass
-import re
 from typing import Iterable, Optional
 
 import cv2
 import fitz
 import numpy as np
 
-_SINGLE_DATUM_RE = re.compile(r"^[A-Z]$")
+from src.gdt.datum_text import extract_datum_text_candidates
 
 
 @dataclass(frozen=True)
@@ -317,16 +316,13 @@ def detect_datum_feature_indicators(
             max_fill_channel=0.25,
         )
 
-        words: list[tuple[str, tuple[float, float, float, float], float, float]] = []
-        for word in page.get_text("words"):
-            label = str(word[4]).strip().upper()
-            if not _SINGLE_DATUM_RE.fullmatch(label):
-                continue
-            bbox = (float(word[0]), float(word[1]), float(word[2]), float(word[3]))
-            words.append((label, bbox, 0.5 * (bbox[0] + bbox[2]), 0.5 * (bbox[1] + bbox[3])))
+        words = extract_datum_text_candidates(pdf_bytes, page_index=page_index)
 
         output: list[DatumFeatureIndicatorCandidate] = []
-        for label, text_bbox, text_cx, text_cy in words:
+        for text_candidate in words:
+            label = text_candidate.label
+            text_bbox = text_candidate.bbox
+            text_cx, text_cy = text_candidate.center
             containing_boxes = [
                 box
                 for box in boxes
@@ -359,6 +355,10 @@ def detect_datum_feature_indicators(
                         marker_side=side,
                         stem_coverage=coverage,
                         box_rectangularity=box.rectangularity,
+                        source=(
+                            f"{text_candidate.source}+raster_box+"
+                            "vector_filled_marker+stem"
+                        ),
                     )
                     key = (-coverage, gap)
                     if best is None or (best_key is not None and key < best_key):
@@ -376,4 +376,33 @@ def detect_datum_feature_indicators(
         doc.close()
 
 
-__all__ = ["DatumFeatureIndicatorCandidate", "detect_datum_feature_indicators"]
+def detect_document_datum_feature_indicators(
+    pdf_bytes: bytes,
+    *,
+    raster_dpi: int = 200,
+) -> list[DatumFeatureIndicatorCandidate]:
+    """Detect verified datum definitions on every page of one PDF drawing."""
+
+    doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+    try:
+        page_count = len(doc)
+    finally:
+        doc.close()
+
+    output: list[DatumFeatureIndicatorCandidate] = []
+    for page_index in range(page_count):
+        output.extend(
+            detect_datum_feature_indicators(
+                pdf_bytes,
+                page_index=page_index,
+                raster_dpi=raster_dpi,
+            )
+        )
+    return sorted(output, key=lambda row: (row.page, row.box_bbox[1], row.box_bbox[0], row.label))
+
+
+__all__ = [
+    "DatumFeatureIndicatorCandidate",
+    "detect_datum_feature_indicators",
+    "detect_document_datum_feature_indicators",
+]
