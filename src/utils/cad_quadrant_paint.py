@@ -160,7 +160,7 @@ def cell_rect_pt(grid: GridInfo, row: str, col: str):
 # ==============================================================================
 
 _TOKEN = r"(?:[A-Za-z]\d{1,2}|\d{1,2}[A-Za-z])"
-_RANGE_RE = re.compile(rf"\b({_TOKEN})\s*(?:-|a)\s*({_TOKEN})\b", re.IGNORECASE)
+_RANGE_RE = re.compile(rf"\b({_TOKEN})\s*(?:-|to|a)\s*({_TOKEN})\b", re.IGNORECASE)
 _TOKEN_RE = re.compile(rf"\b({_TOKEN})\b")
 
 
@@ -177,7 +177,7 @@ def parse_quadrant_text(texto: str) -> list[tuple[tuple[str, str], Optional[tupl
     """Extrai grupos de células do texto livre de localização.
 
     Cada grupo é (célula_inicial, célula_final_ou_None). célula_final presente
-    significa intervalo (conectado por '-' ou 'a'); None significa célula única.
+    significa intervalo (conectado por '-', 'to' ou 'a'); None significa célula única.
     Tokens separados por vírgula são grupos independentes de célula única.
 
     Retorna lista vazia quando nenhum token de quadrante é reconhecível no texto

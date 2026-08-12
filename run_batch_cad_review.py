@@ -126,7 +126,7 @@ def _build_pdf_report(
         rightMargin=1.5 * cm,
         topMargin=2 * cm,
         bottomMargin=2 * cm,
-        title=f"Relatório de Divergências - Página {page_num}",
+        title=f"Divergence Report - Page {page_num}",
         author="CAD Review Batch",
     )
 
@@ -137,7 +137,7 @@ def _build_pdf_report(
     hdr_style   = ParagraphStyle("H", parent=styles["Normal"], fontSize=8, leading=10, fontName="Helvetica-Bold")
 
     story = []
-    story.append(Paragraph(f"Relatório de Divergências — Página {page_num}", title_style))
+    story.append(Paragraph(f"Divergence Report — Page {page_num}", title_style))
     story.append(Spacer(1, 0.5 * cm))
 
     # ------------------------------------------------------------------
@@ -204,14 +204,14 @@ def _build_pdf_report(
                         safe_cell = "<br/>".join(f"• {p}" for p in partes)
                     if status_col_idx is not None and col_idx == status_col_idx:
                         val = cell.strip().lower()
-                        if "observa" in val:
-                            safe_cell = '<font color="#7D5A00"><b>⚠ Aprovado com Observação</b></font>'
+                        if "observa" in val or "observation" in val:
+                            safe_cell = '<font color="#7D5A00"><b>⚠ Approved with Observation</b></font>'
                             status_cell_styles.append((row_idx, col_idx, colors.HexColor("#FEF3CD")))
-                        elif "requer" in val or "correc" in val or "fixing" in val:
-                            safe_cell = '<font color="#922B21"><b>✗ Requer Correção</b></font>'
+                        elif "requer" in val or "correc" in val or "fixing" in val or "require" in val:
+                            safe_cell = '<font color="#922B21"><b>✗ Requires Correction</b></font>'
                             status_cell_styles.append((row_idx, col_idx, colors.HexColor("#FADBD8")))
-                        elif "aprovado" in val:
-                            safe_cell = '<font color="#1E8449"><b>✓ Aprovado</b></font>'
+                        elif "aprovado" in val or "approved" in val:
+                            safe_cell = '<font color="#1E8449"><b>✓ Approved</b></font>'
                             status_cell_styles.append((row_idx, col_idx, colors.HexColor("#D5F5E3")))
                     pdf_row.append(Paragraph(safe_cell, cell_style))
             while len(pdf_row) < n_cols:
@@ -268,7 +268,7 @@ def _build_pdf_report(
 
     if tem_por_id:
         from reportlab.lib.utils import ImageReader
-        from reportlab.platypus import HRFlowable
+        from reportlab.platypus import HRFlowable, KeepTogether
 
         from src.utils.cad_quadrant_paint import paint_single_item
 
@@ -290,7 +290,7 @@ def _build_pdf_report(
             (i for i, h in enumerate(cabecalho_row) if any(p in h.lower() for p in ("item", "id"))), 0
         )
         col_loc_idx = next(
-            (i for i, h in enumerate(cabecalho_row) if any(p in h.lower() for p in ("localiz", "quadrante"))), None
+            (i for i, h in enumerate(cabecalho_row) if any(p in h.lower() for p in ("location", "quadrant", "localiz", "quadrante"))), None
         )
         col_dif_idx = next(
             (i for i, h in enumerate(cabecalho_row) if any(p in h.lower() for p in ("diferen", "difference", "found"))), 1
@@ -306,7 +306,7 @@ def _build_pdf_report(
         story.append(Spacer(1, 0.8 * cm))
         story.append(HRFlowable(width="100%", thickness=1.5, color=colors.HexColor("#27AE60")))
         story.append(Spacer(1, 0.3 * cm))
-        story.append(Paragraph("Detalhamento por ID", title_style))
+        story.append(Paragraph("Details by ID", title_style))
 
         for data_row in parsed_rows[1:]:
             id_val     = data_row[col_item_idx]  if col_item_idx  < len(data_row) else "?"
@@ -314,8 +314,14 @@ def _build_pdf_report(
             loc_val    = data_row[col_loc_idx]   if col_loc_idx   is not None and col_loc_idx  < len(data_row) else ""
             status_val = data_row[col_status_idx] if col_status_idx is not None and col_status_idx < len(data_row) else ""
 
-            story.append(HRFlowable(width="100%", thickness=0.5, color=colors.HexColor("#BDC3C7")))
-            story.append(Spacer(1, 0.2 * cm))
+            # All flowables for this ID are collected here and wrapped in
+            # KeepTogether below, so ReportLab moves the whole block to the
+            # next page instead of splitting an ID's text/images across two
+            # pages.
+            id_block = []
+
+            id_block.append(HRFlowable(width="100%", thickness=0.5, color=colors.HexColor("#BDC3C7")))
+            id_block.append(Spacer(1, 0.2 * cm))
 
             def _safe(t: str) -> str:
                 return t.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("**", "")
@@ -325,13 +331,13 @@ def _build_pdf_report(
                 partes   = [p.strip() for p in safe_dif.split(";") if p.strip()]
                 safe_dif = "<br/>".join(f"• {p}" for p in partes)
 
-            story.append(Paragraph(f"<b>ID {_safe(id_val)}</b>", id_title_style))
-            story.append(Paragraph(safe_dif, id_desc_style))
+            id_block.append(Paragraph(f"<b>ID {_safe(id_val)}</b>", id_title_style))
+            id_block.append(Paragraph(safe_dif, id_desc_style))
             if loc_val:
-                story.append(Paragraph(
-                    f"<font color='#7F8C8D'>Localização: {_safe(loc_val)}</font>", id_desc_style
+                id_block.append(Paragraph(
+                    f"<font color='#7F8C8D'>Location: {_safe(loc_val)}</font>", id_desc_style
                 ))
-            story.append(Spacer(1, 0.25 * cm))
+            id_block.append(Spacer(1, 0.25 * cm))
 
             try:
                 img1_an = paint_single_item(p1_pil_150[page_idx], id_val, loc_val, item_grid, dpi=150, status=status_val)
@@ -355,7 +361,7 @@ def _build_pdf_report(
                     ("RIGHTPADDING", (0, 0), (-1, -1), 4),
                 ]))
                 cap_tbl = Table(
-                    [[Paragraph("Original", caption_style), Paragraph("Revisado", caption_style)]],
+                    [[Paragraph("Original", caption_style), Paragraph("Revised", caption_style)]],
                     colWidths=[img_w_rl + 0.3 * cm, img_w_rl + 0.3 * cm],
                 )
                 cap_tbl.setStyle(TableStyle([
@@ -363,12 +369,14 @@ def _build_pdf_report(
                     ("LEFTPADDING",  (0, 0), (-1, -1), 4),
                     ("RIGHTPADDING", (0, 0), (-1, -1), 4),
                 ]))
-                story.append(img_tbl)
-                story.append(cap_tbl)
+                id_block.append(img_tbl)
+                id_block.append(cap_tbl)
             except Exception as exc:
-                story.append(Paragraph(f"<i>Imagens não disponíveis: {exc}</i>", id_desc_style))
+                id_block.append(Paragraph(f"<i>Images not available: {exc}</i>", id_desc_style))
 
-            story.append(Spacer(1, 0.3 * cm))
+            id_block.append(Spacer(1, 0.3 * cm))
+
+            story.append(KeepTogether(id_block))
 
     doc.build(story)
     buf.seek(0)
@@ -476,7 +484,7 @@ def process_folder(folder: Path) -> None:
             if item_grid is not None:
                 registros  = parse_markdown_table(result)
                 col_item   = encontrar_coluna(registros[0], "item")   if registros else None
-                col_local  = encontrar_coluna(registros[0], "localiza", "quadrante") if registros else None
+                col_local  = encontrar_coluna(registros[0], "location", "quadrant", "localiza", "quadrante") if registros else None
                 col_status = encontrar_coluna(registros[0], "status") if registros else None
                 if col_item and col_local:
                     itens_loc   = [(r.get(col_item, ""), r.get(col_local, "")) for r in registros]

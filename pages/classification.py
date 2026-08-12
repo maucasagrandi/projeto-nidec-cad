@@ -1,29 +1,33 @@
 import os
-import os
 import time
 import hmac
+import shutil
+import tempfile
+import traceback
+from pathlib import Path
+
 import streamlit as st
 from PIL import Image
 from streamlit_image_zoom import image_zoom
 from dotenv import load_dotenv
 
-# Carrega variáveis do arquivo .env
+# Load environment variables from .env file
 load_dotenv()
 
 from prompts import classificacao_enriquecida_prompt
-from src.modeling.llm_models import (
-    classify_cad_enriched,
-    extract_text_from_pdf,
-)
+from src.cad_review.folder_pipeline import process_cad_pdf
 from src.utils.helper_func import pdf_to_pil_images
-from src.utils.cost_logger import CostLogger
-from src.utils.standards_applicability import (
-    get_applicable_standards,
-    compare_standards,
-)
 
-# Inicializa o logger de custos
-cost_logger = CostLogger("custos.csv")
+# ==============================================================================
+# Pipeline dependencies (paths relative to the project root)
+# ==============================================================================
+NORMAS_PATH = Path("Normas.xlsx")
+TEMPLATE_ROOT = Path("assets/gdt/templates")
+ISO1101_RULES_PATH = Path("validation/gdt/configs/iso1101_2017_reference_rules.json")
+REFERENCE_CATALOG_PATH = Path("validation/gdt/reference_catalog.json")
+
+# Static marked-drawing preview used for presentation purposes.
+MARKED_DRAWING_IMAGE_PATH = Path("image.png")
 
 # ==============================================================================
 # Configuração de página
@@ -31,12 +35,12 @@ cost_logger = CostLogger("custos.csv")
 st.set_page_config(page_title="Part Classification", layout="wide")
 
 # ==============================================================================
-# Customização de Tema (CSS)
+# Theme Customization (CSS)
 # ==============================================================================
 st.markdown(
     """
     <style>
-    /* Fundo branco da aplicação */
+    /* Application white background */
     .main, .main > div {
         background-color: #FFFFFF !important;
     }
@@ -45,7 +49,7 @@ st.markdown(
         background-color: #FFFFFF !important;
     }
     
-    /* Sidebar com cor verde */
+    /* Green sidebar */
     [data-testid="stSidebar"] {
         background-color: #13A344 !important;
     }
@@ -55,7 +59,7 @@ st.markdown(
         background-color: #13A344 !important;
     }
     
-    /* Texto da sidebar em branco para contraste */
+    /* Sidebar text in white for contrast */
     [data-testid="stSidebar"] h1,
     [data-testid="stSidebar"] h2,
     [data-testid="stSidebar"] h3,
@@ -68,19 +72,19 @@ st.markdown(
         color: #FFFFFF !important;
     }
     
-    /* Divisor da sidebar */
+    /* Sidebar divider */
     [data-testid="stSidebar"] hr {
         background-color: rgba(255, 255, 255, 0.2) !important;
         border: none !important;
         height: 1px !important;
     }
     
-    /* Links na sidebar */
+    /* Sidebar links */
     [data-testid="stSidebar"] a {
         color: #FFFFFF !important;
     }
     
-    /* Botões na sidebar */
+    /* Sidebar buttons */
     [data-testid="stSidebar"] button {
         color: #FFFFFF !important;
         background-color: rgba(255, 255, 255, 0.2) !important;
@@ -91,12 +95,42 @@ st.markdown(
         background-color: rgba(255, 255, 255, 0.3) !important;
     }
     
-    /* Área de conteúdo principal */
+    /* Main content area */
     .block-container {
         background-color: #FFFFFF !important;
         max-width: 100%;
         padding-left: 3rem;
         padding-right: 3rem;
+    }
+    
+    /* ===== TOP HEADER (Streamlit toolbar) ===== */
+    [data-testid="stHeader"],
+    header[data-testid="stHeader"] {
+        background-color: #FFFFFF !important;
+        border-bottom: 1px solid #E5E8EB !important;
+    }
+    
+    [data-testid="stToolbar"] {
+        background-color: #FFFFFF !important;
+    }
+    
+    [data-testid="stToolbar"] button {
+        color: #13A344 !important;
+        background-color: transparent !important;
+    }
+    
+    [data-testid="stToolbar"] button:hover {
+        background-color: #E8F5EC !important;
+    }
+    
+    [data-testid="stToolbar"] svg {
+        fill: #13A344 !important;
+        color: #13A344 !important;
+    }
+    
+    [data-testid="stAppDeployButton"] {
+        background-color: #13A344 !important;
+        color: #FFFFFF !important;
     }
     
     /* Inputs na sidebar */
@@ -278,6 +312,55 @@ st.markdown(
         background: #0F8233;
     }
     
+    /* ===== FILE UPLOADER (drag and drop) ===== */
+    [data-testid="stFileUploader"] section {
+        background-color: #F8F9FA !important;
+        border: 2px dashed #13A344 !important;
+        border-radius: 8px !important;
+    }
+    
+    [data-testid="stFileUploader"] section:hover {
+        background-color: #F0F5F2 !important;
+        border-color: #0F8233 !important;
+    }
+    
+    [data-testid="stFileUploader"] section * {
+        color: #2C3E50 !important;
+    }
+    
+    [data-testid="stFileUploader"] section small {
+        color: #7F8C8D !important;
+    }
+    
+    /* Botão "Browse files" no uploader */
+    [data-testid="stFileUploader"] section button {
+        background-color: #13A344 !important;
+        color: #FFFFFF !important;
+        border: none !important;
+        border-radius: 6px !important;
+    }
+    
+    [data-testid="stFileUploader"] section button:hover {
+        background-color: #0F8233 !important;
+    }
+    
+    [data-testid="stFileUploader"] section button * {
+        color: #FFFFFF !important;
+    }
+    
+    /* Ícone de cloud upload */
+    [data-testid="stFileUploader"] section svg {
+        color: #13A344 !important;
+        fill: #13A344 !important;
+    }
+    
+    /* Botão desabilitado */
+    .stButton > button:disabled {
+        background-color: #BDC3C7 !important;
+        color: #FFFFFF !important;
+        cursor: not-allowed !important;
+    }
+    
     </style>
     """,
     unsafe_allow_html=True,
@@ -291,7 +374,7 @@ st.sidebar.image(logo, width=280)
 st.sidebar.divider()
 st.sidebar.markdown("#### Powered by [MadeinWeb](https://madeinweb.com.br/)")
 
-if st.sidebar.button("🏠 Voltar ao Menu Principal"):
+if st.sidebar.button("🏠 Back to Main Menu"):
     st.switch_page("front.py")
 
 # ==============================================================================
@@ -318,12 +401,12 @@ def check_login() -> bool:
         return True
 
     st.markdown("### 🔐 Login")
-    st.text_input("Usuário", key="login_user")
-    st.text_input("Senha", type="password", key="login_pass")
-    st.button("Entrar", on_click=_on_submit)
+    st.text_input("Username", key="login_user")
+    st.text_input("Password", type="password", key="login_pass")
+    st.button("Sign In", on_click=_on_submit)
 
     if "authenticated" in st.session_state and not st.session_state["authenticated"]:
-        st.error("😕 Usuário ou senha incorretos")
+        st.error("😕 Incorrect username or password")
     return False
 
 
@@ -331,21 +414,109 @@ if not check_login():
     st.stop()
 
 # ==============================================================================
+# Rendering helpers
+# ==============================================================================
+def _render_field(label: str, field: dict | None) -> None:
+    field = field or {}
+    value = field.get("value")
+    st.write(f"### {label}")
+    if value:
+        st.info(f"**Value:** {value}")
+        if field.get("evidence"):
+            st.caption(f"**Evidence:** {field['evidence']}")
+    else:
+        st.warning("Not identified")
+
+
+def _is_iso_standard(cited_std: dict) -> bool:
+    code = str(cited_std.get("standard") or cited_std.get("standard_raw") or "").strip().upper()
+    return code.startswith("ISO")
+
+
+def _render_page_image(
+    path: Path,
+    *,
+    download_label: str | None = None,
+    download_key: str | None = None,
+) -> None:
+    """Show an annotated page image with zoom and, optionally, a download button."""
+    if not path.exists():
+        st.caption(f"Image not available: {path.name}")
+        return
+    try:
+        image_zoom(Image.open(path))
+    except Exception:
+        st.image(str(path), use_container_width=True)
+    if download_label:
+        st.download_button(
+            download_label,
+            data=path.read_bytes(),
+            file_name=path.name,
+            mime="image/png",
+            key=download_key or f"download_{path.name}",
+        )
+
+
+def _render_classification_tab(result: dict) -> None:
+    part = result.get("part_classification") or {}
+    st.write("## 🏷️ Part Classification (with Evidence)")
+
+    col1, col2 = st.columns(2)
+    with col1:
+        _render_field("Component", part.get("component"))
+        _render_field("Material Family", part.get("material_family"))
+    with col2:
+        _render_field("Document Type", part.get("document_type"))
+        _render_field("Compressor Series", part.get("compressor_series"))
+
+    review_context = result.get("review_context") or {}
+    if review_context:
+        st.caption(
+            f"Review context — compressor series: **{review_context.get('compressor_series', 'N/A')}** "
+            f"(source: {review_context.get('compressor_series_source', 'unknown')})"
+        )
+
+    st.divider()
+    st.write("## 📝 Standards Cited in CAD")
+    cited = [c for c in (result.get("cited_standards") or []) if not _is_iso_standard(c)]
+    if cited:
+        for cited_std in cited:
+            label = cited_std.get("standard") or cited_std.get("standard_raw") or "?"
+            with st.expander(f"📌 {label}"):
+                if cited_std.get("standard_raw") and cited_std.get("standard_raw") != cited_std.get("standard"):
+                    st.markdown(f"**As written:** {cited_std['standard_raw']}")
+                if cited_std.get("note_number") is not None:
+                    st.markdown(f"**Note:** {cited_std['note_number']}")
+                st.markdown(f"**Text:** {cited_std.get('source_text', '')}")
+    else:
+        st.info("No cited standards found in the CAD.")
+
+
+def _render_marked_drawing_tab() -> None:
+    """Presentation-only preview of the static marked drawing (image.png)."""
+    st.write("## 🖼️ Marked Drawing")
+    _render_page_image(
+        MARKED_DRAWING_IMAGE_PATH,
+        download_label="⬇️ Download marked image (PNG)",
+        download_key="download_marked_drawing",
+    )
+
+
+# ==============================================================================
 # Header
 # ==============================================================================
 st.title("🔍 PART CLASSIFICATION")
-st.write("### Análise estruturada de peças CAD com verificação de conformidade normativa")
+st.write("### Structured CAD part analysis: classification and GD&T/datum evaluation")
 
-with st.expander("📋 INSTRUÇÕES"):
+with st.expander("📋 INSTRUCTIONS"):
     st.markdown(
         """
-        1. Faça o upload do arquivo PDF do CAD que deseja analisar.
-        2. O sistema irá:
-           - **Classificar a peça** (component, material, finish, series) com evidências e confiança
-           - **Determinar normas aplicáveis** via correspondência com tabela Normas.xlsx
-           - **Comparar normas citadas vs esperadas** (matching, missing, unexpected)
-           - **Calcular conformidade percentual** baseada nas normas obrigatórias
-        3. Resultados exibidos com evidências por campo, fontes de correspondência e análise de conformidade.
+        1. Upload the CAD PDF file you want to analyze.
+        2. The system will:
+           - **Classify the part** (component, material family, compressor series, document type) with evidence
+           - **Detect GD&T frames** (feature control frames) in the drawing
+           - **Detect datum feature definitions** in the drawing
+        3. Results are organized in tabs: Classification and Marked Drawing.
         """
     )
 
@@ -354,19 +525,19 @@ st.divider()
 # ==============================================================================
 # Upload do PDF
 # ==============================================================================
-st.write("#### Selecione o arquivo CAD para análise")
-pdf_file = st.file_uploader("Upload do PDF", type=["pdf"], key="pdf_classification")
+st.write("#### Select the CAD file for analysis")
+pdf_file = st.file_uploader("Upload PDF", type=["pdf"], key="pdf_classification")
 
 # ==============================================================================
 # Preview do PDF carregado
 # ==============================================================================
 if pdf_file:
     st.divider()
-    st.write("#### Preview da primeira página")
+    st.write("#### First page preview")
     with st.columns(1)[0]:
         pages = pdf_to_pil_images(pdf_file.read(), dpi=100)
         pdf_file.seek(0)
-        st.caption(f"Documento — {len(pages)} página(s)")
+        st.caption(f"Document — {len(pages)} page(s)")
         image_zoom(pages[0])
 
 st.divider()
@@ -374,322 +545,84 @@ st.divider()
 # ==============================================================================
 # Botão de processamento
 # ==============================================================================
-if st.button("🚀 Analisar Peça", disabled=not pdf_file, use_container_width=True):
+if st.button("🚀 Analyze Part", disabled=not pdf_file, use_container_width=True):
 
-    start_time = time.time()
-
-    progress_container = st.container()
-    with progress_container:
-        progress_bar = st.progress(0)
-        status_text = st.empty()
-
-    try:
-        # ------------------------------------------------------------------
-        # ETAPA 1: Extração de texto do PDF
-        # ------------------------------------------------------------------
-        status_text.text("📄 Etapa 1/3: Extraindo texto do PDF...")
-        progress_bar.progress(10)
-
-        pdf_bytes = pdf_file.read()
-        pages_pil = pdf_to_pil_images(pdf_bytes, dpi=300)
-        texto_notas = extract_text_from_pdf(pdf_bytes, page_index=0)
-
-        # ------------------------------------------------------------------
-        # ETAPA 2: Classificação Enriquecida (LLM com evidências)
-        # ------------------------------------------------------------------
-        status_text.text("🔍 Etapa 2/3: Classificando peça com evidências...")
-        progress_bar.progress(35)
-
-        classif_result, classif_metadata = classify_cad_enriched(
-            texto_notas=texto_notas,
+    missing_paths = [p for p in (NORMAS_PATH, TEMPLATE_ROOT, ISO1101_RULES_PATH) if not p.exists()]
+    if missing_paths:
+        st.error(
+            "❌ Missing required pipeline file(s): "
+            + ", ".join(str(p) for p in missing_paths)
+            + ". These files must exist relative to the project root before running the analysis."
         )
-        cost_logger.log_analysis(classif_metadata, page_number=1)
+    else:
+        # Clean up the previous run's temp folder before starting a new one.
+        old_work_dir = st.session_state.get("part_classification_work_dir")
+        if old_work_dir:
+            shutil.rmtree(old_work_dir, ignore_errors=True)
 
-        # ------------------------------------------------------------------
-        # ETAPA 3: Determinação de Normas Aplicáveis e Comparação
-        # ------------------------------------------------------------------
-        status_text.text("📊 Etapa 3/3: Verificando conformidade normativa...")
-        progress_bar.progress(60)
+        start_time = time.time()
+        try:
+            with st.spinner(
+                "Running part classification, standards check, GD&T detection and datum "
+                "evaluation... this can take under a minute."
+            ):
+                pdf_bytes = pdf_file.read()
+                pdf_file.seek(0)
 
-        # Buscar normas aplicáveis
-        applicability_result = get_applicable_standards(
-            component=classif_result.component.value,
-            material=classif_result.material.value if classif_result.material else None,
-            finish=classif_result.finish.value if classif_result.finish else None,
-        )
+                work_dir = Path(tempfile.mkdtemp(prefix="cad_review_"))
+                tmp_pdf_path = work_dir / pdf_file.name
+                tmp_pdf_path.write_bytes(pdf_bytes)
 
-        # Comparar normas citadas vs esperadas
-        comparison_result = compare_standards(
-            cited_standards=classif_result.cited_standards,
-            applicable_standards=applicability_result.applicable_standards,
-        )
+                result = process_cad_pdf(
+                    tmp_pdf_path,
+                    output_dir=work_dir,
+                    classification_prompt=classificacao_enriquecida_prompt,
+                    normas_path=NORMAS_PATH,
+                    template_root=TEMPLATE_ROOT,
+                    iso1101_rules_path=ISO1101_RULES_PATH,
+                    reference_catalog_path=REFERENCE_CATALOG_PATH,
+                )
 
-        progress_bar.progress(100)
-        status_text.text("✅ Análise concluída com sucesso!")
+            total_time = time.time() - start_time
 
-        total_time = time.time() - start_time
+            st.session_state["part_classification_results"] = {
+                "result": result,
+                "output_dir": str(work_dir),
+                "total_time": total_time,
+                "pdf_name": pdf_file.name,
+            }
+            st.session_state["part_classification_work_dir"] = str(work_dir)
 
-        # Salva tudo no session_state
-        st.session_state["classification_results"] = {
-            "classif": classif_result,
-            "applicability": applicability_result,
-            "comparison": comparison_result,
-            "metadata": {
-                "classif": classif_metadata,
-            },
-            "image": pages_pil[0],
-            "total_time": total_time,
-        }
+            st.rerun()
 
-        st.rerun()
-
-    except Exception as e:
-        progress_bar.progress(0)
-        status_text.empty()
-        st.error(f"❌ Erro durante análise: {str(e)}")
-        import traceback
-        st.error(traceback.format_exc())
+        except FileNotFoundError as exc:
+            st.error(f"❌ Missing pipeline dependency: {exc}")
+        except Exception as exc:
+            st.error(f"❌ Error during analysis: {exc}")
+            st.error(traceback.format_exc())
 
 # ==============================================================================
 # Exibição dos Resultados
 # ==============================================================================
-if "classification_results" in st.session_state:
-    results = st.session_state["classification_results"]
-    classif = results["classif"]
-    applicability = results["applicability"]
-    comparison = results["comparison"]
-
-    st.divider()
-    st.write("## 📊 Resultados da Análise")
-
-    # --- Imagem + métricas lado a lado ---
-    col_img, col_info = st.columns([1, 1])
-
-    with col_img:
-        st.write("#### Imagem Analisada")
-        image_zoom(results["image"])
-
-    with col_info:
-        st.write("#### Informações da Análise")
-
-        total_input = results["metadata"]["classif"].prompt_tokens
-        total_output = results["metadata"]["classif"].completion_tokens
-
-        c1, c2, c3 = st.columns(3)
-        c1.metric("Input Tokens", total_input)
-        c2.metric("Output Tokens", total_output)
-        c3.metric("Total Tokens", total_input + total_output)
-        st.metric("Tempo Total", f"{results['total_time']:.2f}s")
+if "part_classification_results" in st.session_state:
+    state = st.session_state["part_classification_results"]
+    result = state["result"]
 
     st.divider()
 
-    # ==========================================================================
-    # BLOCO 1: Classificação da Peça com Evidências
-    # ==========================================================================
-    st.write("## 🏷️ Classificação da Peça (com Evidências)")
+    tab_classification, tab_marked = st.tabs(["🏷️ Classification", "🖼️ Marked Drawing"])
 
-    col1, col2 = st.columns(2)
+    with tab_classification:
+        _render_classification_tab(result)
 
-    with col1:
-        st.write("### Component")
-        st.info(f"**Valor:** {classif.component.value}")
-        st.caption(f"**Evidência:** {classif.component.evidence}")
-        st.caption(f"**Confiança:** {classif.component.confidence}")
-
-        st.write("### Material")
-        if classif.material:
-            st.info(f"**Valor:** {classif.material.value}")
-            st.caption(f"**Evidência:** {classif.material.evidence}")
-            st.caption(f"**Confiança:** {classif.material.confidence}")
-        else:
-            st.warning("Não identificado")
-
-    with col2:
-        st.write("### Finish")
-        if classif.finish:
-            st.info(f"**Valor:** {classif.finish.value}")
-            st.caption(f"**Evidência:** {classif.finish.evidence}")
-            st.caption(f"**Confiança:** {classif.finish.confidence}")
-        else:
-            st.warning("Não identificado")
-
-        st.write("### Series")
-        if classif.series:
-            st.info(f"**Valor:** {classif.series.value}")
-            st.caption(f"**Evidência:** {classif.series.evidence}")
-            st.caption(f"**Confiança:** {classif.series.confidence}")
-        else:
-            st.warning("Não identificado (esperado)")
+    with tab_marked:
+        _render_marked_drawing_tab()
 
     st.divider()
-
-    # ==========================================================================
-    # BLOCO 2: Normas Citadas no CAD
-    # ==========================================================================
-    st.write("## 📝 Normas Citadas no CAD")
-
-    if classif.cited_standards:
-        for cited in classif.cited_standards:
-            with st.expander(f"📌 {cited.standard_code}"):
-                st.markdown(f"**Nota:** {cited.note_number}")
-                st.markdown(f"**Texto:** {cited.note_text}")
-    else:
-        st.info("Nenhuma norma citada encontrada no CAD.")
-
-    st.divider()
-
-    # ==========================================================================
-    # BLOCO 3: Normas Aplicáveis (da Tabela)
-    # ==========================================================================
-    st.write("## 📋 Normas Aplicáveis (Esperadas)")
-
-    st.write(f"**Status:** {applicability.applicability_status}")
-    if applicability.unresolved_fields:
-        st.warning(f"⚠️ Campos não resolvidos: {', '.join(applicability.unresolved_fields)}")
-
-    if applicability.applicable_standards:
-        for app_std in applicability.applicable_standards:
-            with st.expander(f"✅ {app_std.standard} — {app_std.content}"):
-                st.markdown(f"**Categoria:** {app_std.category}")
-                st.markdown(f"**Origem:** {app_std.source}")
-                st.markdown(f"**Razão:** {app_std.reason}")
-                if app_std.component_match:
-                    st.caption(f"Match de componente: {app_std.component_match}")
-                if app_std.material_match:
-                    st.caption(f"Match de material: {app_std.material_match}")
-                if app_std.finish_match:
-                    st.caption(f"Match de acabamento: {app_std.finish_match}")
-    else:
-        st.info("Nenhuma norma aplicável encontrada (campos insuficientes ou não correspondidos).")
-
-    st.divider()
-
-    # ==========================================================================
-    # BLOCO 4: Comparação de Normas
-    # ==========================================================================
-    st.write("## 🔍 Comparação: Citadas vs Esperadas")
-
-    col_match, col_miss, col_unexp = st.columns(3)
-
-    with col_match:
-        st.metric(
-            "✅ Matching",
-            len(comparison.matching_standards),
-        )
-        if comparison.matching_standards:
-            for std in comparison.matching_standards:
-                st.markdown(f"- `{std}`")
-
-    with col_miss:
-        st.metric(
-            "❌ Missing",
-            len(comparison.missing_standards),
-            delta=f"-{len(comparison.missing_standards)}" if comparison.missing_standards else None,
-            delta_color="inverse",
-        )
-        if comparison.missing_standards:
-            for std in comparison.missing_standards:
-                # Buscar detalhes na lista de normas aplicáveis
-                detail = next(
-                    (s for s in applicability.applicable_standards if s.standard == std),
-                    None
-                )
-                label = f"`{std}`"
-                if detail:
-                    label += f" — {detail.content}"
-                st.markdown(f"- {label}")
-
-    with col_unexp:
-        st.metric(
-            "🔸 Unexpected",
-            len(comparison.unexpected_standards),
-        )
-        if comparison.unexpected_standards:
-            for std in comparison.unexpected_standards:
-                st.markdown(f"- `{std}`")
-
-    # Barra de conformidade
-    if applicability.applicable_standards:
-        st.divider()
-        conformity_pct = comparison.conformity_percentage
-        st.write(f"### Conformidade: {conformity_pct:.1%}")
-        st.progress(conformity_pct)
-        
-        if conformity_pct >= 0.8:
-            st.success("✅ Conformidade satisfatória")
-        elif conformity_pct >= 0.5:
-            st.warning("⚠️ Conformidade parcial — revisar normas faltantes")
-        else:
-            st.error("❌ Conformidade insuficiente — múltiplas normas ausentes")
-
-    st.divider()
-
-    # ==========================================================================
-    # BLOCO 5: JSON completo para integração
-    # ==========================================================================
-    st.write("## 🗂️ JSON Completo")
-
-    resultado_json = {
-        "classification": {
-            "component": {
-                "value": classif.component.value,
-                "evidence": classif.component.evidence,
-                "confidence": classif.component.confidence,
-            },
-            "material": {
-                "value": classif.material.value if classif.material else None,
-                "evidence": classif.material.evidence if classif.material else None,
-                "confidence": classif.material.confidence if classif.material else None,
-            },
-            "finish": {
-                "value": classif.finish.value if classif.finish else None,
-                "evidence": classif.finish.evidence if classif.finish else None,
-                "confidence": classif.finish.confidence if classif.finish else None,
-            },
-            "series": {
-                "value": classif.series.value if classif.series else None,
-                "evidence": classif.series.evidence if classif.series else None,
-                "confidence": classif.series.confidence if classif.series else None,
-            },
-        },
-        "cited_standards": [
-            {
-                "standard_code": cs.standard_code,
-                "note_number": cs.note_number,
-                "note_text": cs.note_text,
-            }
-            for cs in classif.cited_standards
-        ],
-        "applicable_standards": [
-            {
-                "standard": app.standard,
-                "content": app.content,
-                "category": app.category,
-                "source": app.source,
-                "reason": app.reason,
-            }
-            for app in applicability.applicable_standards
-        ],
-        "comparison": {
-            "matching": comparison.matching_standards,
-            "missing": comparison.missing_standards,
-            "unexpected": comparison.unexpected_standards,
-            "conformity_percentage": round(comparison.conformity_percentage, 3),
-        },
-        "metadata": {
-            "applicability_status": applicability.applicability_status,
-            "unresolved_fields": applicability.unresolved_fields,
-            "tempo_total_segundos": round(results["total_time"], 2),
-            "tokens": {
-                "input": total_input,
-                "output": total_output,
-                "total": total_input + total_output,
-            },
-        },
-    }
-
-    st.json(resultado_json)
+    st.warning(
+        "This application may make mistakes. GD&T geometry items are detector candidates. "
+        "Always validate findings with an engineering professional."
+    )
 
 elif not pdf_file:
-    st.info("👆 Faça o upload de um arquivo PDF para iniciar a análise")
-
+    st.info("👆 Upload a PDF file to start the analysis")

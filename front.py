@@ -7,7 +7,7 @@ from PIL import Image
 from streamlit_image_zoom import image_zoom
 from dotenv import load_dotenv
 
-# Carrega variáveis do arquivo .env
+# Load environment variables from .env file
 load_dotenv()
 
 from prompts import system_prompt
@@ -29,27 +29,60 @@ from src.utils.cad_quadrant_paint import (
     paint_single_item,
 )
 
-# Inicializa o logger de custos
+# Initialize the cost logger
 cost_logger = CostLogger("custos.csv")
 
 # ==============================================================================
-# Configuração de página
+# Page configuration
 # ==============================================================================
 st.set_page_config(page_title="CAD Analysis Platform", layout="wide")
 
 # ==============================================================================
-# Customização de Tema (CSS) - Tema Verde e Branco Completo
+# Theme Customization (CSS) - Full Green and White Theme
 # ==============================================================================
 st.markdown(
     """
     <style>
-    /* ===== FUNDO GERAL ===== */
+    /* ===== GENERAL BACKGROUND ===== */
     .stApp, .main, [data-testid="stMainBlockContainer"] {
         background-color: #FFFFFF !important;
     }
     
     .block-container {
         background-color: #FFFFFF !important;
+    }
+    
+    /* ===== TOP HEADER (Streamlit toolbar) ===== */
+    [data-testid="stHeader"],
+    header[data-testid="stHeader"] {
+        background-color: #FFFFFF !important;
+        border-bottom: 1px solid #E5E8EB !important;
+    }
+    
+    [data-testid="stToolbar"] {
+        background-color: #FFFFFF !important;
+    }
+    
+    /* Top toolbar buttons (Deploy, menu) */
+    [data-testid="stToolbar"] button {
+        color: #13A344 !important;
+        background-color: transparent !important;
+    }
+    
+    [data-testid="stToolbar"] button:hover {
+        background-color: #E8F5EC !important;
+    }
+    
+    /* Toolbar icons */
+    [data-testid="stToolbar"] svg {
+        fill: #13A344 !important;
+        color: #13A344 !important;
+    }
+    
+    /* Deploy button */
+    [data-testid="stAppDeployButton"] {
+        background-color: #13A344 !important;
+        color: #FFFFFF !important;
     }
     
     /* ===== SIDEBAR ===== */
@@ -61,7 +94,7 @@ st.markdown(
         background-color: #13A344 !important;
     }
     
-    /* Todos os textos da sidebar em branco */
+    /* All sidebar text in white */
     [data-testid="stSidebar"] * {
         color: #FFFFFF !important;
     }
@@ -76,12 +109,12 @@ st.markdown(
         color: #FFFFFF !important;
     }
     
-    /* Links na sidebar */
+    /* Sidebar links */
     [data-testid="stSidebar"] a {
         color: #FFFFFF !important;
     }
     
-    /* Botões na sidebar */
+    /* Sidebar buttons */
     [data-testid="stSidebar"] button {
         background-color: rgba(255, 255, 255, 0.2) !important;
         color: #FFFFFF !important;
@@ -92,7 +125,7 @@ st.markdown(
         background-color: rgba(255, 255, 255, 0.35) !important;
     }
     
-    /* Inputs na sidebar */
+    /* Sidebar inputs */
     [data-testid="stSidebar"] input,
     [data-testid="stSidebar"] textarea {
         background-color: rgba(255, 255, 255, 0.15) !important;
@@ -105,16 +138,16 @@ st.markdown(
         color: rgba(255, 255, 255, 0.7) !important;
     }
     
-    /* Divisores */
+    /* Dividers */
     [data-testid="stSidebar"] hr {
         background-color: rgba(255, 255, 255, 0.2) !important;
         border: none !important;
         height: 1px !important;
     }
     
-    /* ===== CONTEÚDO PRINCIPAL ===== */
+    /* ===== MAIN CONTENT ===== */
     
-    /* Textos gerais */
+    /* General text */
     body, p, span, label, div {
         color: #2C3E50 !important;
     }
@@ -123,7 +156,7 @@ st.markdown(
         color: #13A344 !important;
     }
     
-    /* ===== INPUTS E CAMPOS DE TEXTO ===== */
+    /* ===== INPUTS AND TEXT FIELDS ===== */
     input[type="text"],
     input[type="password"],
     input[type="email"],
@@ -140,7 +173,7 @@ st.markdown(
         color: #95A5A6 !important;
     }
     
-    /* ===== BOTÕES PRIMÁRIOS ===== */
+    /* ===== PRIMARY BUTTONS ===== */
     [role="button"],
     button:not([data-testid="stSidebar"] button),
     .stButton > button {
@@ -163,13 +196,13 @@ st.markdown(
         border-radius: 8px !important;
     }
     
-    /* Cards com bordas */
+    /* Bordered cards */
     [data-testid="stContainer"] {
         border-radius: 8px !important;
         border: 1px solid #E0E0E0 !important;
     }
     
-    /* ===== CARDS CUSTOMIZADAS (operation-card) ===== */
+    /* ===== CUSTOM CARDS (operation-card) ===== */
     .operation-card {
         background-color: #F0F5F2 !important;
         border: 2px solid #13A344 !important;
@@ -190,7 +223,7 @@ st.markdown(
         color: #34495E !important;
     }
     
-    /* ===== MENSAGENS DE ALERTA/INFO ===== */
+    /* ===== ALERT/INFO MESSAGES ===== */
     [data-testid="stAlert"] {
         background-color: #F0F5F2 !important;
         border-radius: 8px !important;
@@ -237,13 +270,13 @@ st.markdown(
         background-color: #E8F0EB !important;
     }
     
-    /* ===== SELECTBOX E DROPDOWNS ===== */
+    /* ===== SELECTBOX AND DROPDOWNS ===== */
     [data-baseweb="select"] {
         background-color: #F8F9FA !important;
         color: #2C3E50 !important;
     }
     
-    /* ===== MÉTRICS ===== */
+    /* ===== METRICS ===== */
     [data-testid="stMetricContainer"] {
         background-color: #F0F5F2 !important;
         border-radius: 8px !important;
@@ -269,7 +302,7 @@ st.markdown(
         text-decoration: underline !important;
     }
     
-    /* ===== DIVISORES ===== */
+    /* ===== DIVIDERS ===== */
     hr {
         background-color: #D5E8DC !important;
         border: none !important;
@@ -299,6 +332,61 @@ st.markdown(
         background: #0F8233;
     }
     
+    /* ===== FILE UPLOADER (drag and drop) ===== */
+    [data-testid="stFileUploader"] section {
+        background-color: #F8F9FA !important;
+        border: 2px dashed #13A344 !important;
+        border-radius: 8px !important;
+    }
+    
+    [data-testid="stFileUploader"] section:hover {
+        background-color: #F0F5F2 !important;
+        border-color: #0F8233 !important;
+    }
+    
+    [data-testid="stFileUploader"] section * {
+        color: #2C3E50 !important;
+    }
+    
+    [data-testid="stFileUploader"] section small {
+        color: #7F8C8D !important;
+    }
+    
+    /* "Browse files" button in the uploader */
+    [data-testid="stFileUploader"] section button {
+        background-color: #13A344 !important;
+        color: #FFFFFF !important;
+        border: none !important;
+        border-radius: 6px !important;
+    }
+    
+    [data-testid="stFileUploader"] section button:hover {
+        background-color: #0F8233 !important;
+    }
+    
+    [data-testid="stFileUploader"] section button * {
+        color: #FFFFFF !important;
+    }
+    
+    /* Cloud upload icon */
+    [data-testid="stFileUploader"] section svg {
+        color: #13A344 !important;
+        fill: #13A344 !important;
+    }
+    
+    /* ===== LARGE PRIMARY BUTTON (use_container_width=True) ===== */
+    .stButton > button[kind="primary"],
+    .stButton > button {
+        transition: all 0.2s ease !important;
+    }
+    
+    /* Disabled button */
+    .stButton > button:disabled {
+        background-color: #BDC3C7 !important;
+        color: #FFFFFF !important;
+        cursor: not-allowed !important;
+    }
+    
     </style>
     """,
     unsafe_allow_html=True,
@@ -313,10 +401,10 @@ st.sidebar.divider()
 st.sidebar.markdown("#### Powered by [MadeinWeb](https://madeinweb.com.br/)")
 
 # ==============================================================================
-# Autenticação por usuário e senha
+# Username and password authentication
 # ==============================================================================
 def check_login() -> bool:
-    """Retorna True se o usuário digitou credenciais corretos."""
+    """Returns True if the user entered valid credentials."""
 
     def _on_submit():
         username_ok = hmac.compare_digest(
@@ -336,12 +424,12 @@ def check_login() -> bool:
         return True
 
     st.markdown("### 🔐 Login")
-    st.text_input("Usuário", key="login_user")
-    st.text_input("Senha", type="password", key="login_pass")
-    st.button("Entrar", on_click=_on_submit)
+    st.text_input("Username", key="login_user")
+    st.text_input("Password", type="password", key="login_pass")
+    st.button("Sign In", on_click=_on_submit)
 
     if "authenticated" in st.session_state and not st.session_state["authenticated"]:
-        st.error("😕 Usuário ou senha incorretos")
+        st.error("😕 Incorrect username or password")
     return False
 
 
@@ -349,22 +437,22 @@ if not check_login():
     st.stop()
 
 # ==============================================================================
-# Landing Page - Seleção de Operação
+# Landing Page - Operation Selection
 # ==============================================================================
 if "selected_operation" not in st.session_state:
     st.session_state.selected_operation = None
 
 if st.session_state.selected_operation is None:
-    # Exibe landing page com cards de seleção
+    # Display landing page with selection cards
     st.markdown(
         """
         <style>
         .operation-card {
-            border: 2px solid #1f77e1;
+            border: 2px solid #13A344;
             border-radius: 12px;
             padding: 40px 30px;
             margin: 20px 0;
-            background: linear-gradient(135deg, #0e1117 0%, #161b22 100%);
+            background: linear-gradient(135deg, #FFFFFF 0%, #F5F9F6 100%);
             cursor: pointer;
             transition: all 0.3s ease;
             text-align: center;
@@ -372,12 +460,12 @@ if st.session_state.selected_operation is None:
             display: flex;
             flex-direction: column;
             justify-content: center;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 4px 12px rgba(19, 163, 68, 0.08);
         }
         .operation-card:hover {
-            border-color: #58a6ff;
-            background: linear-gradient(135deg, #161b22 0%, #0d47a1 100%);
-            box-shadow: 0 8px 16px rgba(88, 166, 255, 0.4);
+            border-color: #0F8233;
+            background: linear-gradient(135deg, #F5F9F6 0%, #E8F5EC 100%);
+            box-shadow: 0 8px 20px rgba(19, 163, 68, 0.25);
             transform: translateY(-4px);
         }
         .operation-emoji {
@@ -389,13 +477,16 @@ if st.session_state.selected_operation is None:
             font-size: 26px;
             font-weight: bold;
             margin-bottom: 12px;
-            color: #58a6ff;
+            color: #13A344 !important;
         }
         .operation-desc {
             font-size: 15px;
-            color: #8b949e;
+            color: #5A6C7D !important;
             line-height: 1.8;
             margin-bottom: 20px;
+        }
+        .operation-desc strong {
+            color: #2C3E50 !important;
         }
         @keyframes bounce {
             0%, 100% { transform: translateY(0); }
@@ -407,7 +498,7 @@ if st.session_state.selected_operation is None:
     )
     
     st.title("🎯 CAD Analysis Platform")
-    st.markdown("### Bem-vindo! Escolha a operação que deseja realizar")
+    st.markdown("### Welcome! Choose the operation you want to perform")
     st.divider()
     
     col1, col2 = st.columns(2, gap="large")
@@ -419,13 +510,13 @@ if st.session_state.selected_operation is None:
                 <div class="operation-emoji">🔄</div>
                 <div class="operation-title">CAD Review</div>
                 <div class="operation-desc">
-                    Compare dois arquivos CAD e identifique <strong>divergências visuais e técnicas</strong> com análise de IA avançada
+                    Compare two CAD files and identify <strong>visual and technical divergences</strong> with advanced AI analysis
                 </div>
             </div>
             """,
             unsafe_allow_html=True,
         )
-        if st.button("→  Abrir CAD Review", key="btn_cad_review", use_container_width=True):
+        if st.button("→  Open CAD Review", key="btn_cad_review", use_container_width=True):
             st.session_state.selected_operation = "cad_review"
             st.rerun()
     
@@ -436,25 +527,25 @@ if st.session_state.selected_operation is None:
                 <div class="operation-emoji">🔍</div>
                 <div class="operation-title">Part Classification</div>
                 <div class="operation-desc">
-                    Analise uma peça individual, <strong>classifique seu tipo</strong> e <strong>extraia normas</strong> aplicadas
+                    Analyze an individual part, <strong>classify its type</strong> and <strong>extract applicable standards</strong>
                 </div>
             </div>
             """,
             unsafe_allow_html=True,
         )
-        if st.button("→  Abrir Part Classification", key="btn_part_class", use_container_width=True):
+        if st.button("→  Open Part Classification", key="btn_part_class", use_container_width=True):
             st.session_state.selected_operation = "part_classification"
             st.rerun()
     
     st.divider()
-    st.info("💡 **Dica:** Clique no logo da MadeinWeb no sidebar a qualquer momento para retornar ao menu principal")
+    st.info("💡 **Tip:** Click the MadeinWeb logo in the sidebar at any time to return to the main menu")
     
     st.stop()
 
 # ==============================================================================
-# Botão "Voltar ao Menu"
+# "Back to Menu" Button
 # ==============================================================================
-if st.sidebar.button("🏠 Voltar ao Menu Principal"):
+if st.sidebar.button("🏠 Back to Main Menu"):
     st.session_state.selected_operation = None
     st.rerun()
 
@@ -463,70 +554,70 @@ if st.sidebar.button("🏠 Voltar ao Menu Principal"):
 # ==============================================================================
 if st.session_state.selected_operation == "cad_review":
     st.title("🔄 CAD REVIEW")
-    st.write("### Validação da comparação entre dois arquivos CAD (PDF)")
+    st.write("### Validation of comparison between two CAD files (PDF)")
 
-    with st.expander("📋 INSTRUÇÕES"):
+    with st.expander("📋 INSTRUCTIONS"):
         st.markdown(
             """
-            1. Faça o upload dos dois arquivos PDF de CAD que deseja comparar.
-            2. O arquivo da **esquerda** é o desenho **original/anterior**.
-            3. O arquivo da **direita** é o desenho **revisado/atual**.
-            4. Clique em **Processar Comparação**.
-            5. O sistema irá:
-               - Identificar páginas com diferenças visuais.
-               - Enviar cada par de páginas divergentes para análise pelo LLM (Gemini via GCP Vertex AI).
-               - Exibir um relatório técnico de divergências por página.
-               - Mostrar a sobreposição visual com as regiões alteradas marcadas em vermelho.
+            1. Upload the two CAD PDF files you want to compare.
+            2. The file on the **left** is the **original/previous** drawing.
+            3. The file on the **right** is the **revised/current** drawing.
+            4. Click on **Process Comparison**.
+            5. The system will:
+               - Identify pages with visual differences.
+               - Send each pair of divergent pages for analysis by the LLM (Gemini via GCP Vertex AI).
+               - Display a technical divergence report for each page.
+               - Show the visual overlay with altered regions marked in red.
             """
         )
 
     st.divider()
 
     # ==============================================================================
-    # Upload dos PDFs
+    # PDF Upload
     # ==============================================================================
     col_up1, col_up2 = st.columns(2)
 
     with col_up1:
-        st.write("#### PDF Original (versão anterior)")
-        pdf1 = st.file_uploader("Upload do PDF original", type=["pdf"], key="pdf1")
+        st.write("#### Original PDF (previous version)")
+        pdf1 = st.file_uploader("Upload original PDF", type=["pdf"], key="pdf1")
 
     with col_up2:
-        st.write("#### PDF Revisado (versão atual)")
-        pdf2 = st.file_uploader("Upload do PDF revisado", type=["pdf"], key="pdf2")
+        st.write("#### Revised PDF (current version)")
+        pdf2 = st.file_uploader("Upload revised PDF", type=["pdf"], key="pdf2")
 
     # ==============================================================================
-    # Preview dos PDFs carregados (primeira página)
+    # Preview of loaded PDFs (first page)
     # ==============================================================================
     if pdf1 or pdf2:
         st.divider()
-        st.write("#### Preview da primeira página")
+        st.write("#### First page preview")
         prev_col1, prev_col2 = st.columns(2)
 
         if pdf1:
             with prev_col1:
                 pages = pdf_to_pil_images(pdf1.read(), dpi=100)
                 pdf1.seek(0)
-                st.caption(f"Original — {len(pages)} página(s)")
+                st.caption(f"Original — {len(pages)} page(s)")
                 image_zoom(pages[0])
 
         if pdf2:
             with prev_col2:
                 pages = pdf_to_pil_images(pdf2.read(), dpi=100)
                 pdf2.seek(0)
-                st.caption(f"Revisado — {len(pages)} página(s)")
+                st.caption(f"Revised — {len(pages)} page(s)")
                 image_zoom(pages[0])
 
     st.divider()
 
     # ==============================================================================
-    # Botão de processamento
+    # Processing button
     # ==============================================================================
-    if st.button("🔄 Processar Comparação", disabled=not (pdf1 and pdf2), use_container_width=True):
+    if st.button("🔄 Process Comparison", disabled=not (pdf1 and pdf2), use_container_width=True):
 
         start_time = time.time()
 
-        with st.spinner("Convertendo PDFs em imagens..."):
+        with st.spinner("Converting PDFs to images..."):
             pdf1_bytes = pdf1.read()
             pdf2_bytes = pdf2.read()
 
@@ -535,7 +626,7 @@ if st.session_state.selected_operation == "cad_review":
             pages1_pil = pdf_to_pil_images(pdf1_bytes, dpi=300)
             pages2_pil = pdf_to_pil_images(pdf2_bytes, dpi=300)
 
-        with st.spinner("Otimizando imagens para análise..."):
+        with st.spinner("Optimizing images for analysis..."):
             pages1_b64_compressed = []
             pages2_b64_compressed = []
             
@@ -556,12 +647,12 @@ if st.session_state.selected_operation == "cad_review":
 
         if n_pages1 != n_pages2:
             st.warning(
-                f"Os PDFs têm números de páginas diferentes "
-                f"(original: {n_pages1}, revisado: {n_pages2}). "
-                f"Serão comparadas as primeiras {n_pages} páginas."
+                f"The PDFs have different page counts "
+                f"(original: {n_pages1}, revised: {n_pages2}). "
+                f"The first {n_pages} pages will be compared."
             )
 
-        with st.spinner("Identificando páginas com divergências..."):
+        with st.spinner("Identifying pages with divergences..."):
             changed_pages = []
             for i in range(n_pages):
                 n_regions = count_diff_regions(pages1_pil[i], pages2_pil[i])
@@ -569,7 +660,7 @@ if st.session_state.selected_operation == "cad_review":
                     changed_pages.append((i, n_regions))
 
         if not changed_pages:
-            st.success("✅ Nenhuma diferença visual detectada entre os dois PDFs.")
+            st.success("✅ No visual differences detected between the two PDFs.")
             st.stop()
 
         analysis_results = []
@@ -577,10 +668,10 @@ if st.session_state.selected_operation == "cad_review":
         for page_idx, n_regions in changed_pages:
             page_num = page_idx + 1
 
-            with st.spinner(f"Gerando comparação visual da página {page_num}..."):
+            with st.spinner(f"Generating visual comparison of page {page_num}..."):
                 diff_img = compute_visual_diff(pages1_pil[page_idx], pages2_pil[page_idx])
 
-            with st.spinner(f"Analisando divergências com IA na página {page_num}..."):
+            with st.spinner(f"Analyzing divergences with AI on page {page_num}..."):
                 try:
                     result, metadata = compare_cad_pages(
                         image1_base64=pages1_b64[page_idx],
@@ -590,10 +681,10 @@ if st.session_state.selected_operation == "cad_review":
                     )
                     cost_logger.log_analysis(metadata, page_number=page_num)
 
-                    # Pintura dos quadrantes reportados pela própria LLM sobre a
-                    # imagem revisada. Não faz nenhuma chamada adicional ao LLM:
-                    # apenas reaproveita o texto de "Localização (Quadrante)" que
-                    # já vem na tabela e a grade de zoneamento vetorial do PDF.
+                    # Paint the quadrants reported by the LLM itself on the
+                    # revised image. No additional LLM call is made: it just
+                    # reuses the "Location (Quadrant)" text that already
+                    # comes in the table and the PDF's vector zoning grid.
                     painted_img = None
                     painted_regions = None
                     grid = None
@@ -605,7 +696,7 @@ if st.session_state.selected_operation == "cad_review":
                         if grid is not None:
                             registros = parse_markdown_table(result)
                             col_item   = encontrar_coluna(registros[0], "item") if registros else None
-                            col_local  = encontrar_coluna(registros[0], "localiza", "quadrante") if registros else None
+                            col_local  = encontrar_coluna(registros[0], "location", "quadrant", "localiza", "quadrante") if registros else None
                             col_status = encontrar_coluna(registros[0], "status") if registros else None
                             if col_item and col_local:
                                 itens_localizacao = [
@@ -622,8 +713,8 @@ if st.session_state.selected_operation == "cad_review":
                                     dpi=300,
                                     status_list=status_list,
                                 )
-                        # Rasteriza ambos os PDFs em 150 dpi para os blocos por ID
-                        # (resolução suficiente para leitura; muito menor que 300 dpi).
+                        # Rasterize both PDFs at 150 dpi for per-ID blocks
+                        # (resolution sufficient for reading; much smaller than 300 dpi).
                         pages1_pil_150 = pdf_to_pil_images(pdf1_bytes, dpi=150)
                         pages2_pil_150 = pdf_to_pil_images(pdf2_bytes, dpi=150)
                     except Exception:
@@ -664,513 +755,408 @@ if st.session_state.selected_operation == "cad_review":
         st.session_state["total_time"] = total_time
 
     # ==============================================================================
-    # Exibição dos resultados
+    # Display of results
     # ==============================================================================
     if "analysis_results" in st.session_state:
         analysis_results = st.session_state["analysis_results"]
         changed_pages = st.session_state["changed_pages"]
-        total_time = st.session_state["total_time"]
 
         st.info(
-            f"**{len(changed_pages)}** página(s) com diferenças detectadas: "
-            + ", ".join([f"pág. {i+1}" for i, _ in changed_pages])
+            f"**{len(changed_pages)}** page(s) with detected differences: "
+            + ", ".join([f"p. {i+1}" for i, _ in changed_pages])
         )
 
         for item in analysis_results:
             page_num = item["page_num"]
             n_regions = item["n_regions"]
-            diff_img = item["diff_img"]
 
             st.divider()
-            st.write(f"### 📄 Página {page_num}")
-            st.caption(f"{n_regions} região(ões) com alteração visual detectada(s)")
+            st.write(f"### 📄 Page {page_num}")
+            st.caption(f"{n_regions} region(s) with detected visual changes")
 
             painted_img = item.get("painted_img")
             painted_regions = item.get("painted_regions")
 
             if painted_img is not None:
-                vis_col1, vis_col2, vis_col3, vis_col4 = st.columns(4)
+                st.write("###### Revised with Quadrants")
+                image_zoom(painted_img)
             else:
-                vis_col1, vis_col2, vis_col3 = st.columns(3)
-
-            with vis_col1:
-                st.write("###### Original")
-                image_zoom(item["original_img"])
-            with vis_col2:
-                st.write("###### Revisado")
+                st.write("###### Revised")
                 image_zoom(item["revised_img"])
-            with vis_col3:
-                st.write("###### Diferenças")
-                image_zoom(diff_img)
-            if painted_img is not None:
-                with vis_col4:
-                    st.write("###### Revisado com Quadrantes")
-                    image_zoom(painted_img)
 
             if painted_regions is not None:
                 n_resolvidos = sum(1 for r in painted_regions if r.resolvido)
                 if n_resolvidos < len(painted_regions):
                     st.caption(
-                        f"⚠️ {len(painted_regions) - n_resolvidos} de {len(painted_regions)} "
-                        f"item(ns) não puderam ser localizados na grade (texto de "
-                        f"localização sem quadrante identificável)."
+                        f"⚠️ {len(painted_regions) - n_resolvidos} of {len(painted_regions)} "
+                        f"item(s) could not be located on the grid (location text "
+                        f"without identifiable quadrant)."
                     )
 
-            if painted_img is not None:
-                dl_col1, dl_col2, dl_col3 = st.columns(3)
-            else:
-                dl_col1, dl_col2 = st.columns(2)
-                dl_col3 = None
+            if item.get("result"):
+                report_text = item["result"].replace("<br>", "\n").replace("<br/>", "\n").replace("<br />", "\n")
+                
+                from reportlab.lib.pagesizes import A4, landscape
+                from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+                from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+                from reportlab.platypus import Image as RLImage
+                from reportlab.lib.units import cm
+                from reportlab.lib import colors
+                
+                buf_report = BytesIO()
+                doc = SimpleDocTemplate(buf_report, pagesize=landscape(A4),
+                                        leftMargin=1.5*cm, rightMargin=1.5*cm,
+                                        topMargin=2*cm, bottomMargin=2*cm,
+                                        title=f"Divergence Report - Page {page_num}",
+                                        author="CAD Review - Nidec")
+                styles = getSampleStyleSheet()
+                
+                title_style = ParagraphStyle(
+                    'CustomTitle', parent=styles['Heading1'],
+                    fontSize=14, spaceAfter=12
+                )
+                body_style = ParagraphStyle(
+                    'CustomBody', parent=styles['Normal'],
+                    fontSize=9, leading=12, spaceAfter=6
+                )
+                cell_style = ParagraphStyle(
+                    'CellStyle', parent=styles['Normal'],
+                    fontSize=8, leading=10, spaceAfter=2
+                )
+                header_cell_style = ParagraphStyle(
+                    'HeaderCell', parent=styles['Normal'],
+                    fontSize=8, leading=10, fontName='Helvetica-Bold'
+                )
+                
+                story = []
+                story.append(Paragraph(f"Divergence Report — Page {page_num}", title_style))
+                story.append(Spacer(1, 0.5*cm))
+                
+                lines = report_text.split("\n")
+                table_lines = []
+                text_lines = []
+                in_table = False
+                
+                for line in lines:
+                    stripped = line.strip()
+                    if stripped.startswith("|") and stripped.endswith("|"):
+                        if all(c in "-|: " for c in stripped):
+                            in_table = True
+                            continue
+                        in_table = True
+                        table_lines.append(stripped)
+                    else:
+                        if in_table and not stripped:
+                            in_table = False
+                        if not in_table:
+                            text_lines.append((stripped, len(table_lines) > 0))
+                
+                for line, after_table in text_lines:
+                    if after_table:
+                        break
+                    if line:
+                        safe_line = line.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+                        safe_line = safe_line.replace("**", "")
+                        story.append(Paragraph(safe_line, body_style))
+                    else:
+                        story.append(Spacer(1, 0.2*cm))
+                
+                if table_lines:
+                    parsed_rows = []
+                    for tl in table_lines:
+                        cells = [c.strip() for c in tl.split("|")[1:-1]]
+                        parsed_rows.append(cells)
+                    
+                    if parsed_rows:
+                        n_cols = len(parsed_rows[0])
 
-            with dl_col1:
-                buf_img = BytesIO()
-                diff_rgb = diff_img.convert("RGB") if diff_img.mode == "RGBA" else diff_img
-                diff_rgb.save(buf_img, format="PDF", resolution=300)
-                buf_img.seek(0)
-                st.download_button(
-                    label="⬇️ Download Diff (PDF)",
-                    data=buf_img,
-                    file_name=f"diff_pagina_{page_num}.pdf",
-                    mime="application/pdf",
-                    key=f"download_diff_{page_num}",
+                        # Detect Status IA column index for conditional coloring
+                        status_col_idx = next(
+                            (i for i, h in enumerate(parsed_rows[0])
+                             if any(p in h.lower() for p in ("status", "ia", "aprovado"))),
+                            None,
+                        )
+
+                        table_data = []
+                        status_cell_styles = []  # lista de (row_idx, col_idx, cor)
+
+                        for row_idx, row in enumerate(parsed_rows):
+                            pdf_row = []
+                            for col_idx, cell in enumerate(row):
+                                safe_cell = cell.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+                                safe_cell = safe_cell.replace("**", "")
+                                if row_idx == 0:
+                                    pdf_row.append(Paragraph(safe_cell, header_cell_style))
+                                else:
+                                    # Bullet points in cells with semicolons
+                                    if ";" in safe_cell:
+                                        partes = [p.strip() for p in safe_cell.split(";") if p.strip()]
+                                        safe_cell = "<br/>".join(f"• {p}" for p in partes)
+                                    # Text coloring in the Status IA column
+                                    if status_col_idx is not None and col_idx == status_col_idx:
+                                        val = cell.strip().lower()
+                                        if "observa" in val or "observation" in val:
+                                            safe_cell = f'<font color="#7D5A00"><b>⚠ Approved with Observation</b></font>'
+                                            status_cell_styles.append((row_idx, col_idx, colors.HexColor("#FEF3CD")))
+                                        elif "requer" in val or "fixing" in val or "correc" in val or "require" in val:
+                                            safe_cell = f'<font color="#922B21"><b>✗ Requires Correction</b></font>'
+                                            status_cell_styles.append((row_idx, col_idx, colors.HexColor("#FADBD8")))
+                                        elif "aprovado" in val or "approved" in val:
+                                            safe_cell = f'<font color="#1E8449"><b>✓ Approved</b></font>'
+                                            status_cell_styles.append((row_idx, col_idx, colors.HexColor("#D5F5E3")))
+                                    pdf_row.append(Paragraph(safe_cell, cell_style))
+                            while len(pdf_row) < n_cols:
+                                pdf_row.append(Paragraph("", cell_style))
+                            table_data.append(pdf_row)
+                        
+                        available_width = landscape(A4)[0] - 3*cm
+                        if n_cols == 5:
+                            col_widths = [
+                                available_width * 0.05,  # Item
+                                available_width * 0.38,  # Difference Found
+                                available_width * 0.18,  # Location (Quadrant)
+                                available_width * 0.12,  # AI Status
+                                available_width * 0.27,  # Recommended Action
+                            ]
+                        elif n_cols == 4:
+                            col_widths = [
+                                available_width * 0.05,
+                                available_width * 0.42,
+                                available_width * 0.22,
+                                available_width * 0.31,
+                            ]
+                        else:
+                            col_widths = [available_width / n_cols] * n_cols
+                        
+                        table = Table(table_data, colWidths=col_widths, repeatRows=1)
+                        base_style = [
+                            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#27AE60')),
+                            ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+                            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                            ('FONTSIZE', (0, 0), (-1, 0), 8),
+                            ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
+                            ('TOPPADDING', (0, 0), (-1, 0), 8),
+                            ('FONTSIZE', (0, 1), (-1, -1), 8),
+                            ('TOPPADDING', (0, 1), (-1, -1), 5),
+                            ('BOTTOMPADDING', (0, 1), (-1, -1), 5),
+                            ('LEFTPADDING', (0, 0), (-1, -1), 6),
+                            ('RIGHTPADDING', (0, 0), (-1, -1), 6),
+                            ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+                            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#F8F9FA')]),
+                            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+                            ('ALIGN', (0, 0), (0, -1), 'CENTER'),
+                            ('ALIGN', (0, 0), (-1, 0), 'CENTER'),  # centered header
+                        ]
+                        # Apply background color to AI Status cells
+                        for r_idx, c_idx, bg_color in status_cell_styles:
+                            base_style.append(('BACKGROUND', (c_idx, r_idx), (c_idx, r_idx), bg_color))
+                        table.setStyle(TableStyle(base_style))
+                        
+                        story.append(Spacer(1, 0.3*cm))
+                        story.append(table)
+
+                # ------------------------------------------------------------------
+                # Per-ID blocks: after the table, one block for each row with
+                # the two CADs marked individually (only that ID).
+                # ------------------------------------------------------------------
+                item_grid     = item.get("grid")
+                itens_loc     = item.get("itens_localizacao", [])
+                p1_150        = item.get("pages1_pil_150")
+                p2_150        = item.get("pages2_pil_150")
+                p_idx         = item.get("page_idx", 0)
+
+                tem_dados_por_id = (
+                    item_grid is not None
+                    and itens_loc
+                    and p1_150 is not None
+                    and p2_150 is not None
+                    and p_idx < len(p1_150)
+                    and p_idx < len(p2_150)
+                    and parsed_rows
+                    and len(parsed_rows) > 1  # at least header + 1 data row
                 )
 
-            if item.get("result"):
-                with dl_col2:
-                    report_text = item["result"].replace("<br>", "\n").replace("<br/>", "\n").replace("<br />", "\n")
-                    
-                    from reportlab.lib.pagesizes import A4, landscape
-                    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-                    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
-                    from reportlab.platypus import Image as RLImage
-                    from reportlab.lib.units import cm
-                    from reportlab.lib import colors
-                    
-                    buf_report = BytesIO()
-                    doc = SimpleDocTemplate(buf_report, pagesize=landscape(A4),
-                                            leftMargin=1.5*cm, rightMargin=1.5*cm,
-                                            topMargin=2*cm, bottomMargin=2*cm,
-                                            title=f"Relatório de Divergências - Página {page_num}",
-                                            author="CAD Review - Nidec")
-                    styles = getSampleStyleSheet()
-                    
-                    title_style = ParagraphStyle(
-                        'CustomTitle', parent=styles['Heading1'],
-                        fontSize=14, spaceAfter=12
-                    )
-                    body_style = ParagraphStyle(
-                        'CustomBody', parent=styles['Normal'],
-                        fontSize=9, leading=12, spaceAfter=6
-                    )
-                    cell_style = ParagraphStyle(
-                        'CellStyle', parent=styles['Normal'],
-                        fontSize=8, leading=10, spaceAfter=2
-                    )
-                    header_cell_style = ParagraphStyle(
-                        'HeaderCell', parent=styles['Normal'],
-                        fontSize=8, leading=10, fontName='Helvetica-Bold'
-                    )
-                    
-                    story = []
-                    story.append(Paragraph(f"Relatório de Divergências — Página {page_num}", title_style))
-                    story.append(Spacer(1, 0.5*cm))
-                    
-                    lines = report_text.split("\n")
-                    table_lines = []
-                    text_lines = []
-                    in_table = False
-                    
-                    for line in lines:
-                        stripped = line.strip()
-                        if stripped.startswith("|") and stripped.endswith("|"):
-                            if all(c in "-|: " for c in stripped):
-                                in_table = True
-                                continue
-                            in_table = True
-                            table_lines.append(stripped)
-                        else:
-                            if in_table and not stripped:
-                                in_table = False
-                            if not in_table:
-                                text_lines.append((stripped, len(table_lines) > 0))
-                    
-                    for line, after_table in text_lines:
-                        if after_table:
-                            break
-                        if line:
-                            safe_line = line.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-                            safe_line = safe_line.replace("**", "")
-                            story.append(Paragraph(safe_line, body_style))
-                        else:
-                            story.append(Spacer(1, 0.2*cm))
-                    
-                    if table_lines:
-                        parsed_rows = []
-                        for tl in table_lines:
-                            cells = [c.strip() for c in tl.split("|")[1:-1]]
-                            parsed_rows.append(cells)
-                        
-                        if parsed_rows:
-                            n_cols = len(parsed_rows[0])
+                if tem_dados_por_id:
+                    from reportlab.platypus import HRFlowable, KeepTogether
+                    from reportlab.lib.utils import ImageReader
 
-                            # Detecta índice da coluna Status IA para coloração condicional
-                            status_col_idx = next(
-                                (i for i, h in enumerate(parsed_rows[0])
-                                 if any(p in h.lower() for p in ("status", "ia", "aprovado"))),
-                                None,
+                    id_title_style = ParagraphStyle(
+                        'IDTitle', parent=styles['Heading2'],
+                        fontSize=11, spaceAfter=4, spaceBefore=14,
+                        textColor=colors.HexColor('#1A5276'),
+                    )
+                    id_desc_style = ParagraphStyle(
+                        'IDDesc', parent=styles['Normal'],
+                        fontSize=8, leading=11, spaceAfter=4,
+                        textColor=colors.HexColor('#2C3E50'),
+                    )
+                    caption_style = ParagraphStyle(
+                        'Caption', parent=styles['Normal'],
+                        fontSize=7, leading=9, textColor=colors.grey,
+                        alignment=1,  # centrado
+                    )
+
+                    # Header of the location column (for lookup in rows)
+                    cabecalho_row = parsed_rows[0]
+                    col_item_idx  = next(
+                        (i for i, h in enumerate(cabecalho_row)
+                         if any(p in h.lower() for p in ("item", "id"))),
+                        0,
+                    )
+                    col_loc_idx = next(
+                        (i for i, h in enumerate(cabecalho_row)
+                         if any(p in h.lower() for p in ("location", "quadrant", "localiz", "quadrante"))),
+                        None,
+                    )
+                    col_dif_idx = next(
+                        (i for i, h in enumerate(cabecalho_row)
+                         if any(p in h.lower() for p in ("diferen", "difference", "found"))),
+                        1,
+                    )
+                    col_status_idx = next(
+                        (i for i, h in enumerate(cabecalho_row)
+                         if "status" in h.lower()),
+                        None,
+                    )
+
+                    # Available width for each image (two side by side)
+                    avail_w   = landscape(A4)[0] - 3*cm
+                    img_w_rl  = avail_w / 2.0 - 0.3*cm   # ReportLab width per image
+                    img_h_rl  = img_w_rl * (p1_150[p_idx].height / p1_150[p_idx].width)
+
+                    story.append(Spacer(1, 0.8*cm))
+                    story.append(HRFlowable(width="100%", thickness=1.5,
+                                             color=colors.HexColor('#27AE60')))
+                    story.append(Spacer(1, 0.3*cm))
+                    story.append(Paragraph("Details by ID", title_style))
+
+                    for data_row in parsed_rows[1:]:
+                        id_val  = data_row[col_item_idx] if col_item_idx < len(data_row) else "?"
+                        dif_val = data_row[col_dif_idx]  if col_dif_idx  < len(data_row) else ""
+                        loc_val = (data_row[col_loc_idx]
+                                   if col_loc_idx is not None and col_loc_idx < len(data_row)
+                                   else "")
+                        status_val = (data_row[col_status_idx]
+                                      if col_status_idx is not None and col_status_idx < len(data_row)
+                                      else "")
+
+                        # All flowables for this ID are collected here and wrapped in
+                        # KeepTogether below, so ReportLab moves the whole block to the
+                        # next page instead of splitting an ID's text/images across two
+                        # pages.
+                        id_block = []
+
+                        id_block.append(HRFlowable(width="100%", thickness=0.5,
+                                                    color=colors.HexColor('#BDC3C7')))
+                        id_block.append(Spacer(1, 0.2*cm))
+
+                        safe_id  = id_val.replace("&","&amp;").replace("<","&lt;").replace(">","&gt;")
+                        safe_dif = dif_val.replace("&","&amp;").replace("<","&lt;").replace(">","&gt;").replace("**","")
+                        safe_loc = loc_val.replace("&","&amp;").replace("<","&lt;").replace(">","&gt;")
+
+                        # Bullet points in the description
+                        if ";" in safe_dif:
+                            partes   = [p.strip() for p in safe_dif.split(";") if p.strip()]
+                            safe_dif = "<br/>".join(f"• {p}" for p in partes)
+
+                        id_block.append(Paragraph(f"<b>ID {safe_id}</b>", id_title_style))
+                        id_block.append(Paragraph(safe_dif, id_desc_style))
+                        if safe_loc:
+                            id_block.append(Paragraph(
+                                f"<font color='#7F8C8D'>Location: {safe_loc}</font>",
+                                id_desc_style,
+                            ))
+                        id_block.append(Spacer(1, 0.25*cm))
+
+                        # Generate the two annotated images with only this ID
+                        try:
+                            img1_anotada = paint_single_item(
+                                p1_150[p_idx], id_val, loc_val, item_grid, dpi=150,
+                                status=status_val,
+                            )
+                            img2_anotada = paint_single_item(
+                                p2_150[p_idx], id_val, loc_val, item_grid, dpi=150,
+                                status=status_val,
                             )
 
-                            table_data = []
-                            status_cell_styles = []  # lista de (row_idx, col_idx, cor)
+                            buf1 = BytesIO()
+                            img1_anotada.save(buf1, format="PNG")
+                            buf1.seek(0)
 
-                            for row_idx, row in enumerate(parsed_rows):
-                                pdf_row = []
-                                for col_idx, cell in enumerate(row):
-                                    safe_cell = cell.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-                                    safe_cell = safe_cell.replace("**", "")
-                                    if row_idx == 0:
-                                        pdf_row.append(Paragraph(safe_cell, header_cell_style))
-                                    else:
-                                        # Bullet points em células com ponto-e-vírgula
-                                        if ";" in safe_cell:
-                                            partes = [p.strip() for p in safe_cell.split(";") if p.strip()]
-                                            safe_cell = "<br/>".join(f"• {p}" for p in partes)
-                                        # Coloração do texto na coluna Status IA
-                                        if status_col_idx is not None and col_idx == status_col_idx:
-                                            val = cell.strip().lower()
-                                            if "observa" in val:
-                                                safe_cell = f'<font color="#7D5A00"><b>⚠ Aprovado com Observação</b></font>'
-                                                status_cell_styles.append((row_idx, col_idx, colors.HexColor("#FEF3CD")))
-                                            elif "requer" in val or "fixing" in val or "correc" in val:
-                                                safe_cell = f'<font color="#922B21"><b>✗ Requer Correção</b></font>'
-                                                status_cell_styles.append((row_idx, col_idx, colors.HexColor("#FADBD8")))
-                                            elif "aprovado" in val:
-                                                safe_cell = f'<font color="#1E8449"><b>✓ Aprovado</b></font>'
-                                                status_cell_styles.append((row_idx, col_idx, colors.HexColor("#D5F5E3")))
-                                        pdf_row.append(Paragraph(safe_cell, cell_style))
-                                while len(pdf_row) < n_cols:
-                                    pdf_row.append(Paragraph("", cell_style))
-                                table_data.append(pdf_row)
-                            
-                            available_width = landscape(A4)[0] - 3*cm
-                            if n_cols == 5:
-                                col_widths = [
-                                    available_width * 0.05,  # Item
-                                    available_width * 0.38,  # Diferença Encontrada
-                                    available_width * 0.18,  # Localização (Quadrante)
-                                    available_width * 0.12,  # Status IA
-                                    available_width * 0.27,  # Ação Recomendada
-                                ]
-                            elif n_cols == 4:
-                                col_widths = [
-                                    available_width * 0.05,
-                                    available_width * 0.42,
-                                    available_width * 0.22,
-                                    available_width * 0.31,
-                                ]
-                            else:
-                                col_widths = [available_width / n_cols] * n_cols
-                            
-                            table = Table(table_data, colWidths=col_widths, repeatRows=1)
-                            base_style = [
-                                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#27AE60')),
-                                ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
-                                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                                ('FONTSIZE', (0, 0), (-1, 0), 8),
-                                ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
-                                ('TOPPADDING', (0, 0), (-1, 0), 8),
-                                ('FONTSIZE', (0, 1), (-1, -1), 8),
-                                ('TOPPADDING', (0, 1), (-1, -1), 5),
-                                ('BOTTOMPADDING', (0, 1), (-1, -1), 5),
-                                ('LEFTPADDING', (0, 0), (-1, -1), 6),
-                                ('RIGHTPADDING', (0, 0), (-1, -1), 6),
-                                ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
-                                ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#F8F9FA')]),
-                                ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-                                ('ALIGN', (0, 0), (0, -1), 'CENTER'),
-                                ('ALIGN', (0, 0), (-1, 0), 'CENTER'),  # cabeçalho centrado
-                            ]
-                            # Aplica cor de fundo nas células de Status IA
-                            for r_idx, c_idx, bg_color in status_cell_styles:
-                                base_style.append(('BACKGROUND', (c_idx, r_idx), (c_idx, r_idx), bg_color))
-                            table.setStyle(TableStyle(base_style))
-                            
-                            story.append(Spacer(1, 0.3*cm))
-                            story.append(table)
+                            buf2 = BytesIO()
+                            img2_anotada.save(buf2, format="PNG")
+                            buf2.seek(0)
 
-                    # ------------------------------------------------------------------
-                    # Blocos por ID: após a tabela, um bloco para cada linha com os
-                    # dois CADs marcados individualmente (só aquele ID).
-                    # ------------------------------------------------------------------
-                    item_grid     = item.get("grid")
-                    itens_loc     = item.get("itens_localizacao", [])
-                    p1_150        = item.get("pages1_pil_150")
-                    p2_150        = item.get("pages2_pil_150")
-                    p_idx         = item.get("page_idx", 0)
+                            img_rl1 = RLImage(buf1, width=img_w_rl, height=img_h_rl)
+                            img_rl2 = RLImage(buf2, width=img_w_rl, height=img_h_rl)
 
-                    tem_dados_por_id = (
-                        item_grid is not None
-                        and itens_loc
-                        and p1_150 is not None
-                        and p2_150 is not None
-                        and p_idx < len(p1_150)
-                        and p_idx < len(p2_150)
-                        and parsed_rows
-                        and len(parsed_rows) > 1  # pelo menos cabeçalho + 1 dado
-                    )
+                            img_table = Table(
+                                [[img_rl1, img_rl2]],
+                                colWidths=[img_w_rl + 0.3*cm, img_w_rl + 0.3*cm],
+                            )
+                            img_table.setStyle(TableStyle([
+                                ('ALIGN',   (0, 0), (-1, -1), 'CENTER'),
+                                ('VALIGN',  (0, 0), (-1, -1), 'MIDDLE'),
+                                ('LEFTPADDING',  (0, 0), (-1, -1), 4),
+                                ('RIGHTPADDING', (0, 0), (-1, -1), 4),
+                            ]))
 
-                    if tem_dados_por_id:
-                        from reportlab.platypus import HRFlowable
-                        from reportlab.lib.utils import ImageReader
+                            cap_table = Table(
+                                [[Paragraph("Original", caption_style),
+                                  Paragraph("Revised", caption_style)]],
+                                colWidths=[img_w_rl + 0.3*cm, img_w_rl + 0.3*cm],
+                            )
+                            cap_table.setStyle(TableStyle([
+                                ('ALIGN',  (0, 0), (-1, -1), 'CENTER'),
+                                ('LEFTPADDING',  (0, 0), (-1, -1), 4),
+                                ('RIGHTPADDING', (0, 0), (-1, -1), 4),
+                            ]))
 
-                        id_title_style = ParagraphStyle(
-                            'IDTitle', parent=styles['Heading2'],
-                            fontSize=11, spaceAfter=4, spaceBefore=14,
-                            textColor=colors.HexColor('#1A5276'),
-                        )
-                        id_desc_style = ParagraphStyle(
-                            'IDDesc', parent=styles['Normal'],
-                            fontSize=8, leading=11, spaceAfter=4,
-                            textColor=colors.HexColor('#2C3E50'),
-                        )
-                        caption_style = ParagraphStyle(
-                            'Caption', parent=styles['Normal'],
-                            fontSize=7, leading=9, textColor=colors.grey,
-                            alignment=1,  # centrado
-                        )
+                            id_block.append(img_table)
+                            id_block.append(cap_table)
+                        except Exception:
+                            id_block.append(Paragraph(
+                                "<i>Images not available for this ID.</i>",
+                                id_desc_style,
+                            ))
 
-                        # Cabeçalho da coluna de localização (para lookup nas linhas)
-                        cabecalho_row = parsed_rows[0]
-                        col_item_idx  = next(
-                            (i for i, h in enumerate(cabecalho_row)
-                             if any(p in h.lower() for p in ("item", "id"))),
-                            0,
-                        )
-                        col_loc_idx = next(
-                            (i for i, h in enumerate(cabecalho_row)
-                             if any(p in h.lower() for p in ("localiz", "quadrante"))),
-                            None,
-                        )
-                        col_dif_idx = next(
-                            (i for i, h in enumerate(cabecalho_row)
-                             if any(p in h.lower() for p in ("diferen", "difference", "found"))),
-                            1,
-                        )
-                        col_status_idx = next(
-                            (i for i, h in enumerate(cabecalho_row)
-                             if "status" in h.lower()),
-                            None,
-                        )
+                        id_block.append(Spacer(1, 0.3*cm))
 
-                        # Largura disponível para cada imagem (duas lado a lado)
-                        avail_w   = landscape(A4)[0] - 3*cm
-                        img_w_rl  = avail_w / 2.0 - 0.3*cm   # largura ReportLab por imagem
-                        img_h_rl  = img_w_rl * (p1_150[p_idx].height / p1_150[p_idx].width)
+                        story.append(KeepTogether(id_block))
+                
+                found_after = False
+                for line, after_table in text_lines:
+                    if after_table:
+                        found_after = True
+                    if found_after and line:
+                        safe_line = line.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+                        safe_line = safe_line.replace("**", "")
+                        story.append(Spacer(1, 0.2*cm))
+                        story.append(Paragraph(safe_line, body_style))
+                
+                doc.build(story)
+                buf_report.seek(0)
+                
+                st.download_button(
+                    label="⬇️ Download AI Report (PDF)",
+                    data=buf_report,
+                    file_name=f"ai_report_page_{page_num}.pdf",
+                    mime="application/pdf",
+                    key=f"download_report_{page_num}",
+                )
 
-                        story.append(Spacer(1, 0.8*cm))
-                        story.append(HRFlowable(width="100%", thickness=1.5,
-                                                 color=colors.HexColor('#27AE60')))
-                        story.append(Spacer(1, 0.3*cm))
-                        story.append(Paragraph("Detalhamento por ID", title_style))
-
-                        for data_row in parsed_rows[1:]:
-                            id_val  = data_row[col_item_idx] if col_item_idx < len(data_row) else "?"
-                            dif_val = data_row[col_dif_idx]  if col_dif_idx  < len(data_row) else ""
-                            loc_val = (data_row[col_loc_idx]
-                                       if col_loc_idx is not None and col_loc_idx < len(data_row)
-                                       else "")
-                            status_val = (data_row[col_status_idx]
-                                          if col_status_idx is not None and col_status_idx < len(data_row)
-                                          else "")
-
-                            story.append(HRFlowable(width="100%", thickness=0.5,
-                                                     color=colors.HexColor('#BDC3C7')))
-                            story.append(Spacer(1, 0.2*cm))
-
-                            safe_id  = id_val.replace("&","&amp;").replace("<","&lt;").replace(">","&gt;")
-                            safe_dif = dif_val.replace("&","&amp;").replace("<","&lt;").replace(">","&gt;").replace("**","")
-                            safe_loc = loc_val.replace("&","&amp;").replace("<","&lt;").replace(">","&gt;")
-
-                            # Bullet points na descrição
-                            if ";" in safe_dif:
-                                partes   = [p.strip() for p in safe_dif.split(";") if p.strip()]
-                                safe_dif = "<br/>".join(f"• {p}" for p in partes)
-
-                            story.append(Paragraph(f"<b>ID {safe_id}</b>", id_title_style))
-                            story.append(Paragraph(safe_dif, id_desc_style))
-                            if safe_loc:
-                                story.append(Paragraph(
-                                    f"<font color='#7F8C8D'>Localização: {safe_loc}</font>",
-                                    id_desc_style,
-                                ))
-                            story.append(Spacer(1, 0.25*cm))
-
-                            # Gera as duas imagens anotadas com só este ID
-                            try:
-                                img1_anotada = paint_single_item(
-                                    p1_150[p_idx], id_val, loc_val, item_grid, dpi=150,
-                                    status=status_val,
-                                )
-                                img2_anotada = paint_single_item(
-                                    p2_150[p_idx], id_val, loc_val, item_grid, dpi=150,
-                                    status=status_val,
-                                )
-
-                                buf1 = BytesIO()
-                                img1_anotada.save(buf1, format="PNG")
-                                buf1.seek(0)
-
-                                buf2 = BytesIO()
-                                img2_anotada.save(buf2, format="PNG")
-                                buf2.seek(0)
-
-                                img_rl1 = RLImage(buf1, width=img_w_rl, height=img_h_rl)
-                                img_rl2 = RLImage(buf2, width=img_w_rl, height=img_h_rl)
-
-                                img_table = Table(
-                                    [[img_rl1, img_rl2]],
-                                    colWidths=[img_w_rl + 0.3*cm, img_w_rl + 0.3*cm],
-                                )
-                                img_table.setStyle(TableStyle([
-                                    ('ALIGN',   (0, 0), (-1, -1), 'CENTER'),
-                                    ('VALIGN',  (0, 0), (-1, -1), 'MIDDLE'),
-                                    ('LEFTPADDING',  (0, 0), (-1, -1), 4),
-                                    ('RIGHTPADDING', (0, 0), (-1, -1), 4),
-                                ]))
-
-                                cap_table = Table(
-                                    [[Paragraph("Original", caption_style),
-                                      Paragraph("Revisado", caption_style)]],
-                                    colWidths=[img_w_rl + 0.3*cm, img_w_rl + 0.3*cm],
-                                )
-                                cap_table.setStyle(TableStyle([
-                                    ('ALIGN',  (0, 0), (-1, -1), 'CENTER'),
-                                    ('LEFTPADDING',  (0, 0), (-1, -1), 4),
-                                    ('RIGHTPADDING', (0, 0), (-1, -1), 4),
-                                ]))
-
-                                story.append(img_table)
-                                story.append(cap_table)
-                            except Exception:
-                                story.append(Paragraph(
-                                    "<i>Imagens não disponíveis para este ID.</i>",
-                                    id_desc_style,
-                                ))
-
-                            story.append(Spacer(1, 0.3*cm))
-                    
-                    found_after = False
-                    for line, after_table in text_lines:
-                        if after_table:
-                            found_after = True
-                        if found_after and line:
-                            safe_line = line.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-                            safe_line = safe_line.replace("**", "")
-                            story.append(Spacer(1, 0.2*cm))
-                            story.append(Paragraph(safe_line, body_style))
-                    
-                    doc.build(story)
-                    buf_report.seek(0)
-                    
-                    st.download_button(
-                        label="⬇️ Download Relatório IA (PDF)",
-                        data=buf_report,
-                        file_name=f"relatorio_ia_pagina_{page_num}.pdf",
-                        mime="application/pdf",
-                        key=f"download_report_{page_num}",
-                    )
-
-            if painted_img is not None and dl_col3 is not None:
-                with dl_col3:
-                    buf_painted = BytesIO()
-                    painted_rgb = painted_img.convert("RGB") if painted_img.mode == "RGBA" else painted_img
-                    painted_rgb.save(buf_painted, format="PDF", resolution=300)
-                    buf_painted.seek(0)
-                    st.download_button(
-                        label="⬇️ Download Revisado com Quadrantes (PDF)",
-                        data=buf_painted,
-                        file_name=f"revisado_quadrantes_pagina_{page_num}.pdf",
-                        mime="application/pdf",
-                        key=f"download_painted_{page_num}",
-                    )
-
-            st.divider()
-
-            if item.get("result"):
-                metadata = item["metadata"]
-                col_meta1, col_meta2, col_meta3, col_meta4 = st.columns(4)
-                with col_meta1:
-                    st.metric("Input Tokens", metadata.prompt_tokens)
-                with col_meta2:
-                    st.metric("Output Tokens", metadata.completion_tokens)
-                with col_meta3:
-                    st.metric("Total de Tokens", metadata.total_tokens)
-                with col_meta4:
-                    st.metric("Latência", f"{metadata.latency_ms:.0f}ms")
-
-                st.markdown("#### 🔍 Relatório de Divergências")
-                result_clean = item["result"].replace("<br>", "; ").replace("<br/>", "; ").replace("<br />", "; ")
-                st.markdown(result_clean)
-            elif item.get("error"):
-                st.error(f"Erro ao analisar a página {page_num}: {item['error']}")
+            if item.get("error"):
+                st.divider()
+                st.error(f"Error analyzing page {page_num}: {item['error']}")
 
         st.divider()
-        st.write("## 📊 Sumário da Análise")
-
-        # Conta os status em todos os resultados desta sessão
-        n_aprovado = 0
-        n_observacao = 0
-        n_correcao = 0
-        for _item in analysis_results:
-            if not _item.get("result"):
-                continue
-            for _reg in parse_markdown_table(_item["result"]):
-                _col_st = encontrar_coluna(_reg, "status")
-                _val = _reg.get(_col_st, "").strip().lower() if _col_st else ""
-                if "observa" in _val:
-                    n_observacao += 1
-                elif "requer" in _val or "correc" in _val:
-                    n_correcao += 1
-                elif "aprovado" in _val:
-                    n_aprovado += 1
-
-        col_sum1, col_sum2, col_sum3, col_sum4, col_sum5 = st.columns(5)
-        with col_sum1:
-            st.metric("Páginas analisadas pelo LLM", len(changed_pages))
-        with col_sum2:
-            st.metric("Tempo total de processamento", f"{total_time:.1f}s")
-        with col_sum3:
-            st.metric("✅ Aprovado", n_aprovado)
-        with col_sum4:
-            st.metric("⚠️ Aprovado com Observação", n_observacao)
-        with col_sum5:
-            st.metric("❌ Requer Correção", n_correcao)
-
-        cost_summary = cost_logger.get_summary()
-        
-        st.divider()
-        st.write("## 💰 Resumo de Custos")
-        
-        col_cost1, col_cost2, col_cost3, col_cost4 = st.columns(4)
-        with col_cost1:
-            st.metric("Total de Tokens", cost_summary['total_tokens'])
-        with col_cost2:
-            st.metric("Latência Média", cost_summary['avg_latency_ms'] + "ms" if cost_summary['avg_latency_ms'] else "N/A")
-        with col_cost3:
-            st.metric("Custo Total", cost_summary['total_cost'])
-        with col_cost4:
-            st.info(f"📁 Dados salvos em:\n`{cost_summary['file_path']}`")
-        
-        st.divider()
-        st.info("✨ **Otimizações ativas:** Imagens PNG comprimidas com máxima compressão para reduzir tokens (~30-40% economia)")
-        
         st.warning(
-            "Esta aplicação pode cometer erros. Sempre valide as divergências apontadas "
-            "com um profissional de engenharia."
+            "This application may make mistakes. Always validate the identified divergences "
+            "with an engineering professional."
         )
 
 elif st.session_state.selected_operation == "part_classification":
     st.switch_page("pages/classification.py")
 
 else:
-    st.write("Faça o upload dos dois arquivos PDF para iniciar a comparação.")
+    st.write("Upload both PDF files to start the comparison.")

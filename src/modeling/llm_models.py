@@ -505,7 +505,7 @@ def compare_cad_pages(
         contents=[
             types.Part.from_bytes(data=image1_data, mime_type="image/png"),
             types.Part.from_bytes(data=image2_data, mime_type="image/png"),
-            types.Part.from_text(text=f"{system_prompt}\n\nPrimeira: ORIGINAL. Segunda: REVISADA."),
+            types.Part.from_text(text=f"{system_prompt}\n\nFirst image: ORIGINAL. Second image: REVISED."),
         ],
     )
     
