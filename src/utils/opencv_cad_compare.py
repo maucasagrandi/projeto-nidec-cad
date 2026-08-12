@@ -85,6 +85,11 @@ class CompareConfig:
     box_padding: int = 8
     """Padding around each detected difference bounding box."""
 
+    merge_distance: int = 50
+    """Maximum gap (in pixels) between two bounding boxes to merge them into one.
+    Nearby boxes often correspond to the same modification (e.g., a note with
+    multiple text lines). Set to 0 to disable merging."""
+
 
 # ==============================================================================
 # Result dataclass
@@ -420,6 +425,93 @@ def _align_image(
 # Step 4: Difference Detection
 # ==============================================================================
 
+def _boxes_are_close(box1: tuple, box2: tuple, max_gap: int) -> bool:
+    """Check if two bounding boxes are within max_gap pixels of each other."""
+    x1, y1, w1, h1 = box1
+    x2, y2, w2, h2 = box2
+    # Compute gap between the two boxes (negative = overlapping)
+    gap_x = max(0, max(x1, x2) - min(x1 + w1, x2 + w2))
+    gap_y = max(0, max(y1, y2) - min(y1 + h1, y2 + h2))
+    return gap_x <= max_gap and gap_y <= max_gap
+
+
+def _merge_nearby_boxes(
+    bboxes: list[tuple[int, int, int, int]],
+    divergences: list[float],
+    thresh_img: np.ndarray,
+    max_gap: int,
+) -> tuple[list[tuple[int, int, int, int]], list[float]]:
+    """Merge bounding boxes that are within max_gap pixels of each other.
+
+    Uses a union-find approach: iteratively merge overlapping/close boxes
+    until no more merges are possible. Recomputes divergence for merged boxes.
+
+    Args:
+        bboxes: List of (x, y, w, h) bounding boxes.
+        divergences: List of divergence percentages per bbox.
+        thresh_img: Binary threshold image for recomputing divergence.
+        max_gap: Maximum pixel gap to consider boxes as part of the same group.
+
+    Returns:
+        (merged_bboxes, merged_divergences)
+    """
+    n = len(bboxes)
+    # Union-find parent array
+    parent = list(range(n))
+
+    def find(i):
+        while parent[i] != i:
+            parent[i] = parent[parent[i]]
+            i = parent[i]
+        return i
+
+    def union(i, j):
+        ri, rj = find(i), find(j)
+        if ri != rj:
+            parent[ri] = rj
+
+    # Find pairs that should be merged
+    for i in range(n):
+        for j in range(i + 1, n):
+            if find(i) != find(j) and _boxes_are_close(bboxes[i], bboxes[j], max_gap):
+                union(i, j)
+
+    # Group boxes by their root
+    from collections import defaultdict
+    groups = defaultdict(list)
+    for i in range(n):
+        groups[find(i)].append(i)
+
+    # Merge each group into a single bounding box
+    merged_bboxes = []
+    merged_divergences = []
+    h_img, w_img = thresh_img.shape[:2]
+
+    for indices in groups.values():
+        # Compute the union bounding box
+        x_min = min(bboxes[i][0] for i in indices)
+        y_min = min(bboxes[i][1] for i in indices)
+        x_max = max(bboxes[i][0] + bboxes[i][2] for i in indices)
+        y_max = max(bboxes[i][1] + bboxes[i][3] for i in indices)
+
+        merged_w = x_max - x_min
+        merged_h = y_max - y_min
+
+        # Recompute divergence for the merged box
+        region = thresh_img[y_min:y_min+merged_h, x_min:x_min+merged_w]
+        total_pixels = region.size
+        if total_pixels > 0:
+            diff_pixels = int(np.count_nonzero(region))
+            div_pct = (diff_pixels / total_pixels) * 100.0
+        else:
+            div_pct = max(divergences[i] for i in indices)
+
+        merged_bboxes.append((x_min, y_min, merged_w, merged_h))
+        merged_divergences.append(div_pct)
+
+    return merged_bboxes, merged_divergences
+
+
 def _detect_differences(
     img1: np.ndarray,
     img2_aligned: np.ndarray,
@@ -514,6 +606,12 @@ def _detect_differences(
             # Accepted difference
             bboxes.append((x, y, bw, bh))
             divergences.append(divergence_pct)
+
+    # Merge nearby accepted boxes that likely belong to the same modification
+    if config.merge_distance > 0 and len(bboxes) > 1:
+        bboxes, divergences = _merge_nearby_boxes(
+            bboxes, divergences, thresh, config.merge_distance
+        )
 
     return bboxes, divergences, excluded_bboxes, excluded_divergences, cleaned
 
