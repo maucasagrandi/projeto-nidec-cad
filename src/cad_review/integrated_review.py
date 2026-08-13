@@ -142,6 +142,7 @@ def _default_gdt_analyzer(
     template_root: Path,
     dpi: int,
     score_threshold: float,
+    max_workers: int,
 ) -> GdtPageResult:
     from src.gdt.gdt_report import analyze_page, render_annotated_page
 
@@ -151,6 +152,7 @@ def _default_gdt_analyzer(
         template_root=str(template_root),
         dpi=dpi,
         score_threshold=score_threshold,
+        max_workers=max_workers,
     )
     image = render_annotated_page(
         revised_pdf,
@@ -191,6 +193,7 @@ def run_integrated_review(
     comparison_model: str | None = None,
     gdt_dpi: int = 150,
     gdt_threshold: float = 0.74,
+    gdt_workers: int = 1,
     template_root: str | Path = "assets/gdt/templates",
     opencv_config: Any = None,
     classifier: Callable[[str, str, str | None], tuple[Any, Any]] | None = None,
@@ -203,6 +206,8 @@ def run_integrated_review(
 
     if not original_pdf or not revised_pdf:
         raise ValueError("Both original and revised PDF bytes are required")
+    if gdt_workers < 1:
+        raise ValueError("gdt_workers must be at least 1")
 
     from prompts import classificacao_e_normas_prompt
 
@@ -245,6 +250,7 @@ def run_integrated_review(
             template_root=resolved_template_root,
             dpi=gdt_dpi,
             score_threshold=gdt_threshold,
+            max_workers=gdt_workers,
         )
         for page_index in range(revised_page_count)
     ]
@@ -273,6 +279,7 @@ def run_integrated_review(
             "revised_pages": revised_page_count,
             "compared_pages": len(comparison_pages),
             "gdt_mode": "deterministic_template_and_geometry",
+            "gdt_workers": gdt_workers,
             "comparison_mode": "opencv_candidates_then_llm_verification",
         },
     )

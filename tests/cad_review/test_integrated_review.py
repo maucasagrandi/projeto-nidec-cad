@@ -49,6 +49,7 @@ def test_integrated_review_uses_revised_for_classification_and_gdt() -> None:
 
     def gdt_analyzer(pdf_bytes, page_index, **kwargs):
         assert pdf_bytes == revised
+        assert kwargs["max_workers"] == 1
         calls["gdt_pages"].append(page_index)
         return GdtPageResult(
             page_index=page_index,
@@ -124,5 +125,14 @@ def test_integrated_review_requires_both_pdfs() -> None:
         run_integrated_review(b"", b"revised")
     except ValueError as exc:
         assert "Both original and revised" in str(exc)
+    else:
+        raise AssertionError("Expected ValueError")
+
+
+def test_integrated_review_rejects_invalid_gdt_workers() -> None:
+    try:
+        run_integrated_review(b"original", b"revised", gdt_workers=0)
+    except ValueError as exc:
+        assert "gdt_workers" in str(exc)
     else:
         raise AssertionError("Expected ValueError")

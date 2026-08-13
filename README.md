@@ -37,7 +37,7 @@ streamlit run front.py
 Também existe um ponto de entrada por linha de comando:
 
 ```bash
-python run_review.py original.pdf revisado.pdf -o REVIEW_RESULTS
+python run_review.py original.pdf revisado.pdf -o REVIEW_RESULTS --gdt-workers 1
 ```
 
 Para executar apenas o detector determinístico de GD&T/datums:
@@ -73,5 +73,4 @@ python run_gdt.py revisado.pdf -o GDT_RESULTS/revisado
 - `GCP_PROJECT_ID` - ID do projeto GCP
 - `GCP_REGION` - Região (padrão: us-east5)
 - `APP_USERNAME` e `APP_PASSWORD` - autenticação da interface Streamlit
-
 

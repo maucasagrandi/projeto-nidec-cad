@@ -122,6 +122,7 @@ if st.button(
                 original_name=original_file.name,
                 revised_name=revised_file.name,
                 comparison_model="gemini-2.5-flash",
+                gdt_workers=1,
                 opencv_config=CompareConfig(),
             )
             report_bytes = build_unified_report(result)

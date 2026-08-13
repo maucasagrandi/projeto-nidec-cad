@@ -28,6 +28,12 @@ def main() -> None:
     parser.add_argument("--comparison-model", default="gemini-2.5-flash")
     parser.add_argument("--gdt-dpi", type=int, default=150)
     parser.add_argument("--gdt-threshold", type=float, default=0.74)
+    parser.add_argument(
+        "--gdt-workers",
+        type=int,
+        default=1,
+        help="Parallel GD&T template matches (default: 1, memory-safe on Windows)",
+    )
     parser.add_argument("--opencv-threshold", type=int, default=40)
     parser.add_argument("--merge-distance", type=int, default=50)
     args = parser.parse_args()
@@ -45,6 +51,7 @@ def main() -> None:
         comparison_model=args.comparison_model,
         gdt_dpi=args.gdt_dpi,
         gdt_threshold=args.gdt_threshold,
+        gdt_workers=args.gdt_workers,
         opencv_config=CompareConfig(
             diff_threshold=args.opencv_threshold,
             merge_distance=args.merge_distance,
