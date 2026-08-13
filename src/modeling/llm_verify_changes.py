@@ -376,6 +376,7 @@ def render_verified_highlights(
     true_changes: list[VerifiedChange],
     highlight_color: tuple[int, int, int] = (0, 0, 255),
     highlight_alpha: float = 0.35,
+    max_output_height: int = 1800,
 ) -> np.ndarray:
     """Render the side-by-side image with only true-change highlights and contiguous ID labels.
 
@@ -387,16 +388,44 @@ def render_verified_highlights(
         true_changes: List of verified true changes with contiguous indices.
         highlight_color: BGR color for boxes (default red).
         highlight_alpha: Transparency for the overlay.
+        max_output_height: Maximum height of the side-by-side output. The
+            source images remain at detection resolution; only the report
+            visualization is reduced.
 
     Returns:
         Combined side-by-side BGR image.
     """
-    # Draw highlights on a copy of the revised image
-    revised = image_revised_aligned.copy()
+    if max_output_height < 1:
+        raise ValueError("max_output_height must be at least 1")
+
+    source_height = image_revised_aligned.shape[0]
+    output_scale = min(1.0, max_output_height / source_height)
+
+    def resize_panel(image: np.ndarray) -> np.ndarray:
+        if output_scale >= 1.0:
+            return image.copy()
+        return cv2.resize(
+            image,
+            (
+                max(1, round(image.shape[1] * output_scale)),
+                max(1, round(image.shape[0] * output_scale)),
+            ),
+            interpolation=cv2.INTER_AREA,
+        )
+
+    # Reduce the panels before creating overlays or concatenating. A pair of
+    # 300-DPI A3 pages can otherwise require a contiguous allocation >200 MB.
+    original = resize_panel(image_original)
+    revised = resize_panel(image_revised_aligned)
     overlay = revised.copy()
 
     for change in true_changes:
-        x, y, w, h = change.x, change.y, change.width, change.height
+        x, y, w, h = (
+            round(change.x * output_scale),
+            round(change.y * output_scale),
+            max(1, round(change.width * output_scale)),
+            max(1, round(change.height * output_scale)),
+        )
         cv2.rectangle(overlay, (x, y), (x + w, y + h), highlight_color, -1)
 
     cv2.addWeighted(overlay, highlight_alpha, revised, 1 - highlight_alpha, 0, revised)
@@ -407,7 +436,12 @@ def render_verified_highlights(
     font_thickness = max(1, int(font_scale * 2.5))
 
     for change in true_changes:
-        x, y, w, h = change.x, change.y, change.width, change.height
+        x, y, w, h = (
+            round(change.x * output_scale),
+            round(change.y * output_scale),
+            max(1, round(change.width * output_scale)),
+            max(1, round(change.height * output_scale)),
+        )
         cv2.rectangle(revised, (x, y), (x + w, y + h), highlight_color, 2)
 
         # ID label
@@ -436,7 +470,7 @@ def render_verified_highlights(
         )
 
     # Combine side by side: [Original] | [Revised highlighted]
-    panels = [image_original, revised]
+    panels = [original, revised]
     max_h = max(p.shape[0] for p in panels)
     resized = []
     for p in panels:
@@ -485,6 +519,9 @@ def run_verification_pipeline(
     # Step 1: OpenCV comparison
     logger.info(f"Running OpenCV comparison on page {page_index}...")
     cv_result = compare_cad_pages_opencv(pdf1_bytes, pdf2_bytes, page_index, opencv_config)
+    # The OpenCV candidate overlay is not part of the verified customer output.
+    # Release this full-resolution array before LLM verification/rendering.
+    cv_result.diff_highlighted = np.empty((0, 0, 3), dtype=np.uint8)
 
     if cv_result.num_differences == 0:
         logger.info("No candidate regions detected by OpenCV.")
@@ -492,7 +529,7 @@ def run_verification_pipeline(
             page_index=page_index,
             true_changes=[],
             false_positive_ids=[],
-            image_original=cv_result.image1,
+            image_original=None,
             image_highlighted=render_verified_highlights(
                 cv_result.image1, cv_result.image2_aligned, []
             ),
@@ -529,7 +566,7 @@ def run_verification_pipeline(
     result = _build_verified_result(page_index, regions_metadata, llm_output, metadata)
 
     # Step 4: Render final image
-    result.image_original = cv_result.image1
+    result.image_original = None
     result.image_highlighted = render_verified_highlights(
         cv_result.image1, cv_result.image2_aligned, result.true_changes
     )

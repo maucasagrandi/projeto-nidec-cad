@@ -9,6 +9,7 @@ from src.cad_review.integrated_review import GdtPageResult, run_integrated_revie
 from src.modeling.llm_verify_changes import (
     VerificationResult,
     VerifiedChange,
+    render_verified_highlights,
     save_verification_result,
 )
 from src.reporting.unified_cad_report import _image_flowable, build_unified_report
@@ -176,3 +177,30 @@ def test_large_report_image_is_downsampled_before_reportlab_decodes_it() -> None
     assert flowable.imageHeight <= 720
     assert flowable.drawWidth == 720
     assert flowable.drawHeight == 360
+
+
+def test_comparison_panels_are_resized_before_side_by_side_allocation() -> None:
+    original = np.full((1200, 2400, 3), 255, dtype=np.uint8)
+    revised = original.copy()
+    changes = [
+        VerifiedChange(
+            index=1,
+            original_id="page_01_diff_001",
+            x=1200,
+            y=600,
+            width=200,
+            height=100,
+            divergence_pct=50.0,
+            description="Changed dimension",
+        )
+    ]
+
+    combined = render_verified_highlights(
+        original,
+        revised,
+        changes,
+        max_output_height=400,
+    )
+
+    assert combined.shape == (400, 1600, 3)
+    assert np.any(combined[:, 800:, 2] > combined[:, 800:, 1])
