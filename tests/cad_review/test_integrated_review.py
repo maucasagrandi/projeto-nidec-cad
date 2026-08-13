@@ -11,7 +11,7 @@ from src.modeling.llm_verify_changes import (
     VerifiedChange,
     save_verification_result,
 )
-from src.reporting.unified_cad_report import build_unified_report
+from src.reporting.unified_cad_report import _image_flowable, build_unified_report
 
 
 def _pdf_with_text(text: str, pages: int = 1) -> bytes:
@@ -164,3 +164,15 @@ def test_comparison_artifacts_are_written_as_utf8(tmp_path) -> None:
 
     assert "φ" in (tmp_path / "report.json").read_text(encoding="utf-8")
     assert "Símbolo φ alterado" in (tmp_path / "report.txt").read_text(encoding="utf-8")
+
+
+def test_large_report_image_is_downsampled_before_reportlab_decodes_it() -> None:
+    source = np.full((2500, 5000, 3), 255, dtype=np.uint8)
+
+    flowable = _image_flowable(source, max_width=720, max_height=360)
+    flowable._setup_inner()
+
+    assert flowable.imageWidth <= 1440
+    assert flowable.imageHeight <= 720
+    assert flowable.drawWidth == 720
+    assert flowable.drawHeight == 360

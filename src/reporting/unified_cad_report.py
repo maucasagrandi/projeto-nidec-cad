@@ -6,12 +6,12 @@ from io import BytesIO
 from typing import Any
 
 import cv2
+import numpy as np
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_CENTER
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import cm
-from reportlab.lib.utils import ImageReader
 from reportlab.platypus import (
     Image,
     PageBreak,
@@ -51,16 +51,51 @@ def _classification_rows(classification: dict[str, Any]) -> list[list[Any]]:
     return [[labels.get(key, key.replace("_", " ").title()), _display(classification[key])] for key in ordered]
 
 
-def _image_flowable(image_bgr: Any, *, max_width: float, max_height: float) -> Image:
-    ok, encoded = cv2.imencode(".png", image_bgr)
+def _image_flowable(
+    image_bgr: np.ndarray,
+    *,
+    max_width: float,
+    max_height: float,
+    raster_dpi: int = 144,
+) -> Image:
+    """Fit an image to the PDF and downsample it before ReportLab decodes it.
+
+    OpenCV comparison panels can exceed 8,000 pixels in width. ReportLab would
+    otherwise expand the full PNG to RGB even though the image is displayed at
+    roughly 10 inches, causing a large temporary allocation on Windows.
+    """
+
+    if not isinstance(image_bgr, np.ndarray) or image_bgr.ndim not in (2, 3):
+        raise TypeError("Report image must be a NumPy array")
+    height, width = image_bgr.shape[:2]
+    if width < 1 or height < 1:
+        raise ValueError("Report image cannot be empty")
+
+    display_scale = min(max_width / width, max_height / height)
+    display_width = width * display_scale
+    display_height = height * display_scale
+
+    pixels_per_point = raster_dpi / 72.0
+    max_raster_width = max(1, round(display_width * pixels_per_point))
+    max_raster_height = max(1, round(display_height * pixels_per_point))
+    raster_scale = min(1.0, max_raster_width / width, max_raster_height / height)
+
+    report_image = image_bgr
+    if raster_scale < 1.0:
+        report_image = cv2.resize(
+            image_bgr,
+            (
+                max(1, round(width * raster_scale)),
+                max(1, round(height * raster_scale)),
+            ),
+            interpolation=cv2.INTER_AREA,
+        )
+
+    ok, encoded = cv2.imencode(".png", report_image)
     if not ok:
         raise ValueError("Could not encode report image")
     source = BytesIO(encoded.tobytes())
-    reader = ImageReader(source)
-    width, height = reader.getSize()
-    scale = min(max_width / width, max_height / height)
-    source.seek(0)
-    return Image(source, width=width * scale, height=height * scale)
+    return Image(source, width=display_width, height=display_height)
 
 
 def _bullet(text: str, style: ParagraphStyle) -> Paragraph:
