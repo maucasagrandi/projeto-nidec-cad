@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "standard": "ISO 5459",
+  "edition": null,
+  "mode": "reference_baseline",
+  "source": "User-provided datum related symbols table",
+  "scope_note": "Reference baseline for checking that datums referenced by GD&T specifications have a corresponding Datum Feature Indicator in the drawing. The supplied table points Datum Feature Indicator to ISO 5459, but no ISO 5459 edition or clause was supplied; this configuration therefore does not establish normative applicability or an edition-specific compliance claim.",
+  "rules": [
+    {
+      "code": "ISO5459_REFERENCED_DATUM_NOT_DEFINED",
+      "subject": "datum_feature_indicator",
+      "requirement": "A datum referenced by the GD&T review must have a corresponding detected datum feature definition before the review can consider the reference resolved.",
+      "source_ref": "Datum related symbols table: Datum Feature Indicator -> ISO 5459"
+    }
+  ]
+}

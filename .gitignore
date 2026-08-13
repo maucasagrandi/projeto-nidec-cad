@@ -2,3 +2,7 @@ __pycache__
 .venv
 .env
 
+# Generated outputs from the integrated review pipelines
+REVIEW_RESULTS/
+GDT_RESULTS/
+opencv_compare_results/
