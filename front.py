@@ -123,7 +123,7 @@ if st.button(
                 revised_name=revised_file.name,
                 comparison_model="gemini-2.5-flash",
                 gdt_workers=1,
-                opencv_config=CompareConfig(),
+                opencv_config=CompareConfig(dpi=150),
             )
             report_bytes = build_unified_report(result)
         st.session_state["integrated_review_result"] = result

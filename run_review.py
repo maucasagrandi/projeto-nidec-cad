@@ -35,6 +35,12 @@ def main() -> None:
         help="Parallel GD&T template matches (default: 1, memory-safe on Windows)",
     )
     parser.add_argument("--opencv-threshold", type=int, default=40)
+    parser.add_argument(
+        "--opencv-dpi",
+        type=int,
+        default=150,
+        help="OpenCV rasterization DPI (default: 150, memory-safe on Windows)",
+    )
     parser.add_argument("--merge-distance", type=int, default=50)
     args = parser.parse_args()
 
@@ -53,6 +59,7 @@ def main() -> None:
         gdt_threshold=args.gdt_threshold,
         gdt_workers=args.gdt_workers,
         opencv_config=CompareConfig(
+            dpi=args.opencv_dpi,
             diff_threshold=args.opencv_threshold,
             merge_distance=args.merge_distance,
         ),

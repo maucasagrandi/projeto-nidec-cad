@@ -542,9 +542,12 @@ def _detect_differences(
             - excluded_divergences: List of divergence percentages for excluded boxes
             - binary_mask: The cleaned binary mask of differences
     """
-    # Compute absolute difference
-    diff = cv2.absdiff(img1, img2_aligned)
-    gray_diff = cv2.cvtColor(diff, cv2.COLOR_BGR2GRAY)
+    # Convert first and subtract in one channel. Subtracting BGR first creates a
+    # full-size 3-channel temporary array, which can exceed available RAM for
+    # 300-DPI engineering drawings on Windows.
+    gray1 = cv2.cvtColor(img1, cv2.COLOR_BGR2GRAY)
+    gray2 = cv2.cvtColor(img2_aligned, cv2.COLOR_BGR2GRAY)
+    gray_diff = cv2.absdiff(gray1, gray2)
 
     # Gaussian blur to reduce rendering noise
     gray_diff = cv2.GaussianBlur(gray_diff, (5, 5), 0)
@@ -718,6 +721,8 @@ def compare_cad_pages_opencv(
     pdf2_bytes: bytes,
     page_index: int = 0,
     config: Optional[CompareConfig] = None,
+    *,
+    include_visualization: bool = True,
 ) -> CompareResult:
     """Compare two CAD drawing pages using OpenCV-based alignment and diff detection.
 
@@ -734,6 +739,9 @@ def compare_cad_pages_opencv(
         pdf2_bytes: Raw bytes of the revised PDF.
         page_index: Which page to compare (0-indexed).
         config: Pipeline configuration. Uses defaults if None.
+        include_visualization: Build the unverified OpenCV overlay. The
+            integrated LLM flow disables it because only verified highlights
+            are customer-facing.
 
     Returns:
         CompareResult with aligned images, highlighted differences, and metadata.
@@ -778,8 +786,17 @@ def compare_cad_pages_opencv(
     bboxes, divergences, excluded_bboxes, excluded_divergences, _ = _detect_differences(img1, img2_aligned, config)
 
     # --- Step 6: Visualize ---
-    diff_highlighted = _draw_diff_highlights(
-        img2_aligned, bboxes, divergences, excluded_bboxes, excluded_divergences, config
+    diff_highlighted = (
+        _draw_diff_highlights(
+            img2_aligned,
+            bboxes,
+            divergences,
+            excluded_bboxes,
+            excluded_divergences,
+            config,
+        )
+        if include_visualization
+        else np.empty((0, 0, 3), dtype=np.uint8)
     )
 
     return CompareResult(

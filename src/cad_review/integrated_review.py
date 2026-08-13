@@ -175,8 +175,11 @@ def _default_comparator(
     opencv_config: Any,
 ) -> list[Any]:
     from src.modeling.llm_verify_changes import run_verification_pipeline_all_pages
+    from src.utils.opencv_cad_compare import CompareConfig
 
-    kwargs: dict[str, Any] = {"opencv_config": opencv_config}
+    kwargs: dict[str, Any] = {
+        "opencv_config": opencv_config or CompareConfig(dpi=150),
+    }
     if model:
         kwargs["model"] = model
     return run_verification_pipeline_all_pages(original_pdf, revised_pdf, **kwargs)

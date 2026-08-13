@@ -518,10 +518,13 @@ def run_verification_pipeline(
 
     # Step 1: OpenCV comparison
     logger.info(f"Running OpenCV comparison on page {page_index}...")
-    cv_result = compare_cad_pages_opencv(pdf1_bytes, pdf2_bytes, page_index, opencv_config)
-    # The OpenCV candidate overlay is not part of the verified customer output.
-    # Release this full-resolution array before LLM verification/rendering.
-    cv_result.diff_highlighted = np.empty((0, 0, 3), dtype=np.uint8)
+    cv_result = compare_cad_pages_opencv(
+        pdf1_bytes,
+        pdf2_bytes,
+        page_index,
+        opencv_config,
+        include_visualization=False,
+    )
 
     if cv_result.num_differences == 0:
         logger.info("No candidate regions detected by OpenCV.")
