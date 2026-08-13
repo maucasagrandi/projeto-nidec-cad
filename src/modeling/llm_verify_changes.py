@@ -598,11 +598,14 @@ def save_verification_result(
 
     # Report JSON
     report_path = output_dir / "report.json"
-    report_path.write_text(json.dumps(result.report_json(), indent=2, ensure_ascii=False))
+    report_path.write_text(
+        json.dumps(result.report_json(), indent=2, ensure_ascii=False),
+        encoding="utf-8",
+    )
 
     # Report text
     txt_path = output_dir / "report.txt"
-    txt_path.write_text(result.report_text())
+    txt_path.write_text(result.report_text(), encoding="utf-8")
 
     # Comparison image
     if result.image_highlighted is not None:

@@ -6,7 +6,11 @@ import fitz
 import numpy as np
 
 from src.cad_review.integrated_review import GdtPageResult, run_integrated_review
-from src.modeling.llm_verify_changes import VerificationResult, VerifiedChange
+from src.modeling.llm_verify_changes import (
+    VerificationResult,
+    VerifiedChange,
+    save_verification_result,
+)
 from src.reporting.unified_cad_report import build_unified_report
 
 
@@ -136,3 +140,27 @@ def test_integrated_review_rejects_invalid_gdt_workers() -> None:
         assert "gdt_workers" in str(exc)
     else:
         raise AssertionError("Expected ValueError")
+
+
+def test_comparison_artifacts_are_written_as_utf8(tmp_path) -> None:
+    result = VerificationResult(
+        page_index=0,
+        true_changes=[
+            VerifiedChange(
+                index=1,
+                original_id="page_01_diff_001",
+                x=0,
+                y=0,
+                width=10,
+                height=10,
+                divergence_pct=50.0,
+                description="Símbolo φ alterado",
+            )
+        ],
+        false_positive_ids=[],
+    )
+
+    save_verification_result(result, tmp_path)
+
+    assert "φ" in (tmp_path / "report.json").read_text(encoding="utf-8")
+    assert "Símbolo φ alterado" in (tmp_path / "report.txt").read_text(encoding="utf-8")
