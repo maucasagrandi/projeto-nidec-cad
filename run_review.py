@@ -20,7 +20,9 @@ from src.utils.opencv_cad_compare import CompareConfig
 
 def main() -> None:
     load_dotenv()
-    parser = argparse.ArgumentParser(description="Integrated Part Classification, GD&T and CAD comparison")
+    parser = argparse.ArgumentParser(
+        description="Integrated Part Classification, dimensions, GD&T and CAD comparison"
+    )
     parser.add_argument("original", type=Path, help="Original/reference drawing PDF")
     parser.add_argument("revised", type=Path, help="Revised drawing PDF")
     parser.add_argument("-o", "--output", type=Path, default=Path("REVIEW_RESULTS"))
@@ -28,6 +30,12 @@ def main() -> None:
     parser.add_argument("--comparison-model", default="gemini-2.5-flash")
     parser.add_argument("--gdt-dpi", type=int, default=150)
     parser.add_argument("--gdt-threshold", type=float, default=0.74)
+    parser.add_argument(
+        "--dimension-dpi",
+        type=int,
+        default=150,
+        help="Dimension annotation DPI (default: 150, memory-safe on Windows)",
+    )
     parser.add_argument(
         "--gdt-workers",
         type=int,
@@ -56,6 +64,7 @@ def main() -> None:
         classification_model=args.classification_model,
         comparison_model=args.comparison_model,
         gdt_dpi=args.gdt_dpi,
+        dimension_dpi=args.dimension_dpi,
         gdt_threshold=args.gdt_threshold,
         gdt_workers=args.gdt_workers,
         opencv_config=CompareConfig(
@@ -67,6 +76,7 @@ def main() -> None:
     paths = save_integrated_review(result, args.output)
     print(f"JSON:   {paths['json']}")
     print(f"Report: {paths['report']}")
+    print(f"Cotas:  {paths['dimensions']}")
 
 
 if __name__ == "__main__":

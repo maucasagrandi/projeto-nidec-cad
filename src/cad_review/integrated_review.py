@@ -1,8 +1,9 @@
 """End-to-end CAD review using one original and one revised PDF.
 
-The revised drawing is the only input to Part Classification and deterministic
-GD&T/datum detection.  The original and revised drawings are both passed to the
-OpenCV comparison pipeline, whose candidate regions are verified by the LLM.
+The revised drawing is the only input to Part Classification, deterministic
+dimension extraction and GD&T/datum detection.  The original and revised
+drawings are both passed to the OpenCV comparison pipeline, whose candidate
+regions are verified by the LLM.
 """
 
 from __future__ import annotations
@@ -16,6 +17,8 @@ from typing import Any
 import cv2
 import fitz
 import numpy as np
+
+from src.cad_review.dimensions import DimensionPageResult, analyze_dimension_page
 
 
 @dataclass
@@ -35,6 +38,7 @@ class IntegratedReviewResult:
     revised_name: str
     part_classification: dict[str, Any]
     inferred_standards: dict[str, Any]
+    dimension_pages: list[DimensionPageResult]
     gdt_pages: list[GdtPageResult]
     comparison_pages: list[Any]
     paper_format_changes: list[dict[str, Any]] = field(default_factory=list)
@@ -42,7 +46,7 @@ class IntegratedReviewResult:
 
     def to_dict(self) -> dict[str, Any]:
         return {
-            "schema_version": 1,
+            "schema_version": 2,
             "inputs": {
                 "original": self.original_name,
                 "revised": self.revised_name,
@@ -52,6 +56,10 @@ class IntegratedReviewResult:
                 "cited": self.part_classification.get("lista_normas", []),
                 "suggested": self.inferred_standards.get("normas_sugeridas", []),
                 "inference": self.inferred_standards,
+            },
+            "dimensions": {
+                "count": sum(len(page.dimensions) for page in self.dimension_pages),
+                "pages": [page.to_dict() for page in self.dimension_pages],
             },
             "gdt": [page.report for page in self.gdt_pages],
             "comparison": {
@@ -197,20 +205,24 @@ def run_integrated_review(
     gdt_dpi: int = 150,
     gdt_threshold: float = 0.74,
     gdt_workers: int = 1,
+    dimension_dpi: int = 150,
     template_root: str | Path = "assets/gdt/templates",
     opencv_config: Any = None,
     classifier: Callable[[str, str, str | None], tuple[Any, Any]] | None = None,
     standards_inferer: Callable[[str, list[str], str, str | None], tuple[Any, Any]] | None = None,
+    dimension_analyzer: Callable[..., DimensionPageResult] | None = None,
     gdt_analyzer: Callable[..., GdtPageResult] | None = None,
     comparator: Callable[..., list[Any]] | None = None,
     format_checker: Callable[[bytes, bytes], list[dict[str, Any]]] | None = None,
 ) -> IntegratedReviewResult:
-    """Run classification, GD&T/datum detection and comparison in one flow."""
+    """Run classification, dimension/GD&T detection and comparison in one flow."""
 
     if not original_pdf or not revised_pdf:
         raise ValueError("Both original and revised PDF bytes are required")
     if gdt_workers < 1:
         raise ValueError("gdt_workers must be at least 1")
+    if dimension_dpi < 72:
+        raise ValueError("dimension_dpi must be at least 72")
 
     from prompts import classificacao_e_normas_prompt
 
@@ -244,6 +256,12 @@ def run_integrated_review(
     with fitz.open(stream=revised_pdf, filetype="pdf") as document:
         revised_page_count = len(document)
 
+    analyze_dimensions = dimension_analyzer or analyze_dimension_page
+    dimension_pages = [
+        analyze_dimensions(revised_pdf, page_index, dpi=dimension_dpi)
+        for page_index in range(revised_page_count)
+    ]
+
     analyze_gdt = gdt_analyzer or _default_gdt_analyzer
     resolved_template_root = Path(template_root)
     gdt_pages = [
@@ -272,6 +290,7 @@ def run_integrated_review(
         revised_name=revised_name,
         part_classification=classification,
         inferred_standards=inferred,
+        dimension_pages=dimension_pages,
         gdt_pages=gdt_pages,
         comparison_pages=comparison_pages,
         paper_format_changes=paper_format_changes,
@@ -282,6 +301,8 @@ def run_integrated_review(
             "revised_pages": revised_page_count,
             "compared_pages": len(comparison_pages),
             "gdt_mode": "deterministic_template_and_geometry",
+            "dimension_mode": "deterministic_pdf_text_and_drawing_grid",
+            "dimension_count": sum(len(page.dimensions) for page in dimension_pages),
             "gdt_workers": gdt_workers,
             "comparison_mode": "opencv_candidates_then_llm_verification",
         },
@@ -295,10 +316,19 @@ def save_integrated_review(result: IntegratedReviewResult, output_dir: str | Pat
 
     output = Path(output_dir)
     output.mkdir(parents=True, exist_ok=True)
+    dimensions_dir = output / "dimensions"
     gdt_dir = output / "gdt"
     comparison_dir = output / "comparison"
+    dimensions_dir.mkdir(exist_ok=True)
     gdt_dir.mkdir(exist_ok=True)
     comparison_dir.mkdir(exist_ok=True)
+
+    for page in result.dimension_pages:
+        if page.annotated_image is not None:
+            cv2.imwrite(
+                str(dimensions_dir / f"page_{page.page_index + 1:03d}_annotated.png"),
+                page.annotated_image,
+            )
 
     for page in result.gdt_pages:
         if page.annotated_image is not None:
@@ -315,10 +345,17 @@ def save_integrated_review(result: IntegratedReviewResult, output_dir: str | Pat
 
     report_pdf = output / "integrated_review_report.pdf"
     report_pdf.write_bytes(build_unified_report(result))
-    return {"json": result_json, "report": report_pdf, "gdt": gdt_dir, "comparison": comparison_dir}
+    return {
+        "json": result_json,
+        "report": report_pdf,
+        "dimensions": dimensions_dir,
+        "gdt": gdt_dir,
+        "comparison": comparison_dir,
+    }
 
 
 __all__ = [
+    "DimensionPageResult",
     "GdtPageResult",
     "IntegratedReviewResult",
     "extract_all_pdf_text",

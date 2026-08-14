@@ -14,6 +14,7 @@ from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import cm
 from reportlab.platypus import (
     Image,
+    KeepTogether,
     PageBreak,
     Paragraph,
     SimpleDocTemplate,
@@ -103,7 +104,7 @@ def _bullet(text: str, style: ParagraphStyle) -> Paragraph:
 
 
 def build_unified_report(result: Any) -> bytes:
-    """Build the report in the agreed classification → GD&T → comparison order."""
+    """Build the classification → dimensions → GD&T → comparison report."""
 
     buffer = BytesIO()
     page_size = landscape(A4)
@@ -173,7 +174,55 @@ def build_unified_report(result: Any) -> bytes:
         if reasoning:
             story.append(Paragraph(f"Justificativa: {_escape(reasoning)}", body))
 
-    story.extend([PageBreak(), Paragraph("3. GD&T e datums no desenho revisado", heading)])
+    story.extend([PageBreak(), Paragraph("3. Cotas do desenho revisado", heading)])
+    dimension_total = sum(len(page.dimensions) for page in result.dimension_pages)
+    story.append(_bullet(f"Total de cotas detectadas: {dimension_total}", bullet))
+    for index, page in enumerate(result.dimension_pages):
+        if index:
+            story.append(PageBreak())
+        story.append(Paragraph(f"Página {page.page_index + 1}", subheading))
+        story.append(_bullet(f"Cotas detectadas nesta página: {len(page.dimensions)}", bullet))
+        if page.dimensions:
+            dimension_rows = [[
+                Paragraph("ID", header),
+                Paragraph("Cota extraída", header),
+                Paragraph("Quadrante", header),
+                Paragraph("BBox PDF (x0, y0, x1, y1)", header),
+            ]]
+            for dimension in page.dimensions:
+                bbox = ", ".join(f"{coordinate:.1f}" for coordinate in dimension.bbox)
+                dimension_rows.append([
+                    Paragraph(_escape(dimension.dimension_id), cell),
+                    Paragraph(_escape(dimension.value), cell),
+                    Paragraph(_escape(dimension.quadrant), cell),
+                    Paragraph(bbox, cell),
+                ])
+            dimensions_table = Table(
+                dimension_rows,
+                colWidths=[3.2 * cm, 7.0 * cm, 3.0 * cm, 12.4 * cm],
+                repeatRows=1,
+            )
+            dimensions_table.setStyle(TableStyle([
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#B71C1C")),
+                ("GRID", (0, 0), (-1, -1), 0.4, colors.grey),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#FFF5F5")]),
+                ("LEFTPADDING", (0, 0), (-1, -1), 5),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 5),
+                ("TOPPADDING", (0, 0), (-1, -1), 4),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+            ]))
+            story.extend([Spacer(1, 0.15 * cm), dimensions_table])
+        else:
+            story.append(_bullet("Nenhuma cota compatível foi encontrada na camada de texto.", bullet))
+        if page.annotated_image is not None:
+            story.append(Spacer(1, 0.25 * cm))
+            story.append(KeepTogether([
+                Paragraph("Desenho revisado com cotas marcadas", subheading),
+                _image_flowable(page.annotated_image, max_width=25.5 * cm, max_height=12.5 * cm),
+            ]))
+
+    story.extend([PageBreak(), Paragraph("4. GD&T e datums no desenho revisado", heading)])
     for index, page in enumerate(result.gdt_pages):
         if index:
             story.append(PageBreak())
@@ -186,7 +235,7 @@ def build_unified_report(result: Any) -> bytes:
             story.append(Spacer(1, 0.15 * cm))
             story.append(_image_flowable(page.annotated_image, max_width=25.5 * cm, max_height=14.2 * cm))
 
-    story.extend([PageBreak(), Paragraph("4. Part Comparison", heading)])
+    story.extend([PageBreak(), Paragraph("5. Part Comparison", heading)])
     if result.paper_format_changes:
         story.append(Paragraph("Alterações determinísticas de formato do desenho", subheading))
         for change in result.paper_format_changes:

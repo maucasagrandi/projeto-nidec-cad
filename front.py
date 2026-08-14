@@ -76,7 +76,7 @@ st.sidebar.markdown("#### Powered by [MadeinWeb](https://madeinweb.com.br/)")
 
 st.title("CAD Review integrado")
 st.write(
-    "Envie o desenho original e o revisado. A classificação, as normas e o "
+    "Envie o desenho original e o revisado. A classificação, as normas, as cotas e o "
     "GD&T são extraídos somente do revisado; a comparação usa os dois arquivos."
 )
 
@@ -84,9 +84,10 @@ with st.expander("Fluxo executado"):
     st.markdown(
         """
         1. **Part Classification no revisado:** classificação da peça e normas citadas.
-        2. **GD&T e datums no revisado:** detecção determinística e imagem anotada.
-        3. **Part Comparison:** OpenCV encontra regiões candidatas e a LLM valida/descreve as mudanças.
-        4. **Relatório único:** tabela da classificação, normas, imagem GD&T/datums e comparação.
+        2. **Cotas no revisado:** extração determinística, tabela, contador e imagem anotada.
+        3. **GD&T e datums no revisado:** detecção determinística e imagem anotada.
+        4. **Part Comparison:** OpenCV encontra regiões candidatas e a LLM valida/descreve as mudanças.
+        5. **Relatório único:** classificação, normas, cotas, GD&T/datums e comparação.
         """
     )
 
@@ -115,7 +116,7 @@ if st.button(
     use_container_width=True,
 ):
     try:
-        with st.spinner("Executando classificação, GD&T e comparação..."):
+        with st.spinner("Executando classificação, cotas, GD&T e comparação..."):
             result = run_integrated_review(
                 original_file.getvalue(),
                 revised_file.getvalue(),
@@ -156,7 +157,26 @@ if result is not None:
         for standard in suggested:
             st.markdown(f"- {standard}")
 
-    st.header("3. GD&T e datums no revisado")
+    st.header("3. Cotas no revisado")
+    dimension_total = sum(len(page.dimensions) for page in result.dimension_pages)
+    st.metric("Total de cotas detectadas", dimension_total)
+    for page in result.dimension_pages:
+        st.subheader(f"Página {page.page_index + 1}")
+        st.metric("Cotas nesta página", len(page.dimensions))
+        if page.dimensions:
+            st.table([
+                {
+                    "ID": dimension.dimension_id,
+                    "Cota": dimension.value,
+                    "Quadrante": dimension.quadrant,
+                    "BBox": ", ".join(f"{value:.1f}" for value in dimension.bbox),
+                }
+                for dimension in page.dimensions
+            ])
+        if page.annotated_image is not None:
+            st.image(bgr_to_rgb(page.annotated_image), use_container_width=True)
+
+    st.header("4. GD&T e datums no revisado")
     for page in result.gdt_pages:
         st.subheader(f"Página {page.page_index + 1}")
         summary = page.report.get("summary", {})
@@ -167,7 +187,7 @@ if result is not None:
         if page.annotated_image is not None:
             st.image(bgr_to_rgb(page.annotated_image), use_container_width=True)
 
-    st.header("4. Part Comparison")
+    st.header("5. Part Comparison")
     if result.paper_format_changes:
         st.subheader("Mudanças de formato do desenho")
         for change in result.paper_format_changes:
