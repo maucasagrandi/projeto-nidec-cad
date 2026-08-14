@@ -1,0 +1,3 @@
+﻿candidate_id,page,frame_bbox,symbol_bbox,num_cells,top1_class,top1_score,top2_class,top2_score,margin,decision_policy,catalog_complete,referenced_datums,unresolved_fields,human_is_real_gdt,human_true_characteristic,human_notes
+GDT-CAND-P01-001,1,"[213.487, 200.01, 286.353, 232.255]","[213.487, 200.01, 235.811, 232.255]",2,angularity,0.381964,perpendicularity,0.355838,0.026126,ranking_only_no_global_threshold,,,,,,
+GDT-CAND-P01-002,1,"[1464.665, 965.674, 1592.033, 996.258]","[1464.665, 965.674, 1530.194, 996.258]",2,straightness,0.423889,symmetry,0.356828,0.067061,ranking_only_no_global_threshold,,,,,,

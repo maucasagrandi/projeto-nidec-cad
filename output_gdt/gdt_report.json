@@ -1,0 +1,949 @@
+{
+  "pdf_name": "113340048_REV5_draw_1.pdf",
+  "page": 1,
+  "summary": {
+    "total_detections": 13,
+    "fcf_frames_expanded": 12,
+    "constraints_with_datums": 7,
+    "total_datum_refs": 7,
+    "resolved_datum_refs": 7,
+    "unresolved_datum_refs": 0,
+    "datum_definitions_found": 4,
+    "datum_box_candidates_found": 3,
+    "undefined_referenced_datums": 0,
+    "datum_visual_templates": 30,
+    "datum_visual_template_labels": [
+      "A",
+      "B",
+      "C",
+      "D",
+      "E",
+      "F",
+      "L",
+      "N",
+      "Y",
+      "Z"
+    ],
+    "datum_refs_resolved_by_visual_template": 7,
+    "datum_visual_matches_rejected": 0,
+    "datum_cells_reclassified_empty": 1,
+    "constraint_types": {
+      "angularity": 1,
+      "circular_runout": 1,
+      "circularity": 3,
+      "concentricity_coaxiality": 2,
+      "cylindricity": 1,
+      "flatness": 1,
+      "perpendicularity": 3,
+      "total_runout": 1
+    }
+  },
+  "constraints": [
+    {
+      "class_name": "circular_runout",
+      "detection_score": 0.9792,
+      "symbol_bbox_pt": [
+        1348.8,
+        173.3,
+        1368.5,
+        187.7
+      ],
+      "frame_bbox_pt": [
+        1348.9,
+        173.4,
+        1408.3,
+        187.6
+      ],
+      "cell_count": 3,
+      "datum_count": 1,
+      "datum_refs": [
+        {
+          "cell_index": 2,
+          "bbox_pt": [
+            1396.4,
+            173.4,
+            1408.3,
+            187.6
+          ],
+          "text": "B",
+          "confidence": 0.931,
+          "text_source": "visual_template_from_pdf_text",
+          "text_bbox_pt": null,
+          "visual_match_margin": 0.1832,
+          "visual_template_source": "datum_definition:p1:B",
+          "ink_ratio": 0.147,
+          "has_content": true
+        }
+      ],
+      "referenced_datums": [
+        "B"
+      ],
+      "unresolved_datum_ref_count": 0,
+      "datum_definition_findings": [
+        {
+          "datum": "B",
+          "status": "PASS",
+          "code": "ISO5459_DATUM_DEFINITION_FOUND",
+          "standard": "ISO 5459",
+          "mode": "reference",
+          "finding": "Datum B is referenced and a corresponding datum feature indicator was identified in the drawing.",
+          "recommended_action": "No action required for datum-definition presence.",
+          "normative_claim": false,
+          "definition_count": 1,
+          "definition_evidence": [
+            {
+              "label": "B",
+              "page": 1,
+              "text_bbox": [
+                228.1912,
+                401.9944,
+                233.7188,
+                417.665
+              ],
+              "box_bbox": [
+                224.64,
+                400.68,
+                237.6,
+                415.08
+              ],
+              "marker_bbox": [
+                241.501,
+                403.7657,
+                248.5876,
+                411.9486
+              ],
+              "marker_side": "right",
+              "stem_coverage": 1.0,
+              "box_rectangularity": 0.9465,
+              "source": "pymupdf_word+raster_box+vector_filled_marker+stem"
+            }
+          ],
+          "source_ref": "Datum related symbols table: Datum Feature Indicator -> ISO 5459"
+        }
+      ],
+      "has_datums": true,
+      "scale": 0.8,
+      "rotation": 0
+    },
+    {
+      "class_name": "perpendicularity",
+      "detection_score": 0.9646,
+      "symbol_bbox_pt": [
+        1093.4,
+        90.2,
+        1117.0,
+        104.6
+      ],
+      "frame_bbox_pt": [
+        1093.5,
+        90.3,
+        1156.7,
+        104.5
+      ],
+      "cell_count": 4,
+      "datum_count": 1,
+      "datum_refs": [
+        {
+          "cell_index": 3,
+          "bbox_pt": [
+            1144.8,
+            90.3,
+            1156.7,
+            104.5
+          ],
+          "text": "B",
+          "confidence": 0.909,
+          "text_source": "visual_template_from_pdf_text",
+          "text_bbox_pt": null,
+          "visual_match_margin": 0.1984,
+          "visual_template_source": "datum_definition:p1:B",
+          "ink_ratio": 0.13,
+          "has_content": true
+        }
+      ],
+      "referenced_datums": [
+        "B"
+      ],
+      "unresolved_datum_ref_count": 0,
+      "datum_definition_findings": [
+        {
+          "datum": "B",
+          "status": "PASS",
+          "code": "ISO5459_DATUM_DEFINITION_FOUND",
+          "standard": "ISO 5459",
+          "mode": "reference",
+          "finding": "Datum B is referenced and a corresponding datum feature indicator was identified in the drawing.",
+          "recommended_action": "No action required for datum-definition presence.",
+          "normative_claim": false,
+          "definition_count": 1,
+          "definition_evidence": [
+            {
+              "label": "B",
+              "page": 1,
+              "text_bbox": [
+                228.1912,
+                401.9944,
+                233.7188,
+                417.665
+              ],
+              "box_bbox": [
+                224.64,
+                400.68,
+                237.6,
+                415.08
+              ],
+              "marker_bbox": [
+                241.501,
+                403.7657,
+                248.5876,
+                411.9486
+              ],
+              "marker_side": "right",
+              "stem_coverage": 1.0,
+              "box_rectangularity": 0.9465,
+              "source": "pymupdf_word+raster_box+vector_filled_marker+stem"
+            }
+          ],
+          "source_ref": "Datum related symbols table: Datum Feature Indicator -> ISO 5459"
+        }
+      ],
+      "has_datums": true,
+      "scale": 0.8,
+      "rotation": 0
+    },
+    {
+      "class_name": "perpendicularity",
+      "detection_score": 0.9241,
+      "symbol_bbox_pt": [
+        388.3,
+        379.2,
+        411.8,
+        393.6
+      ],
+      "frame_bbox_pt": [
+        388.5,
+        379.2,
+        455.5,
+        393.3
+      ],
+      "cell_count": 4,
+      "datum_count": 1,
+      "datum_refs": [
+        {
+          "cell_index": 3,
+          "bbox_pt": [
+            443.6,
+            379.2,
+            455.5,
+            393.3
+          ],
+          "text": "Z",
+          "confidence": 0.82,
+          "text_source": "visual_template_from_pdf_text",
+          "text_bbox_pt": null,
+          "visual_match_margin": 0.2282,
+          "visual_template_source": "datum_definition:p1:Z",
+          "ink_ratio": 0.089,
+          "has_content": true
+        }
+      ],
+      "referenced_datums": [
+        "Z"
+      ],
+      "unresolved_datum_ref_count": 0,
+      "datum_definition_findings": [
+        {
+          "datum": "Z",
+          "status": "PASS",
+          "code": "ISO5459_DATUM_DEFINITION_FOUND",
+          "standard": "ISO 5459",
+          "mode": "reference",
+          "finding": "Datum Z is referenced and a corresponding datum feature indicator was identified in the drawing.",
+          "recommended_action": "No action required for datum-definition presence.",
+          "normative_claim": false,
+          "definition_count": 1,
+          "definition_evidence": [
+            {
+              "label": "Z",
+              "page": 1,
+              "text_bbox": [
+                717.2697,
+                198.1726,
+                722.7973,
+                213.8432
+              ],
+              "box_bbox": [
+                713.52,
+                196.92,
+                726.48,
+                211.32
+              ],
+              "marker_bbox": [
+                716.0129,
+                219.6555,
+                724.1959,
+                226.7421
+              ],
+              "marker_side": "bottom",
+              "stem_coverage": 1.0,
+              "box_rectangularity": 0.9465,
+              "source": "pymupdf_word+raster_box+vector_filled_marker+stem"
+            }
+          ],
+          "source_ref": "Datum related symbols table: Datum Feature Indicator -> ISO 5459"
+        }
+      ],
+      "has_datums": true,
+      "scale": 0.8,
+      "rotation": 0
+    },
+    {
+      "class_name": "flatness",
+      "detection_score": 0.9221,
+      "symbol_bbox_pt": [
+        1349.8,
+        187.7,
+        1373.3,
+        202.1
+      ],
+      "frame_bbox_pt": [
+        1348.8,
+        187.6,
+        1408.3,
+        201.8
+      ],
+      "cell_count": 3,
+      "datum_count": 0,
+      "datum_refs": [],
+      "referenced_datums": [],
+      "unresolved_datum_ref_count": 0,
+      "datum_definition_findings": [],
+      "has_datums": false,
+      "scale": 0.8,
+      "rotation": 0
+    },
+    {
+      "class_name": "total_runout",
+      "detection_score": 0.9048,
+      "symbol_bbox_pt": [
+        970.1,
+        353.8,
+        996.0,
+        368.2
+      ],
+      "frame_bbox_pt": [
+        969.8,
+        353.9,
+        1035.6,
+        368.1
+      ],
+      "cell_count": 3,
+      "datum_count": 1,
+      "datum_refs": [
+        {
+          "cell_index": 2,
+          "bbox_pt": [
+            1023.8,
+            353.9,
+            1035.6,
+            368.1
+          ],
+          "text": "B",
+          "confidence": 0.992,
+          "text_source": "visual_template_from_pdf_text",
+          "text_bbox_pt": null,
+          "visual_match_margin": 0.2895,
+          "visual_template_source": "datum_definition:p1:B",
+          "ink_ratio": 0.142,
+          "has_content": true
+        }
+      ],
+      "referenced_datums": [
+        "B"
+      ],
+      "unresolved_datum_ref_count": 0,
+      "datum_definition_findings": [
+        {
+          "datum": "B",
+          "status": "PASS",
+          "code": "ISO5459_DATUM_DEFINITION_FOUND",
+          "standard": "ISO 5459",
+          "mode": "reference",
+          "finding": "Datum B is referenced and a corresponding datum feature indicator was identified in the drawing.",
+          "recommended_action": "No action required for datum-definition presence.",
+          "normative_claim": false,
+          "definition_count": 1,
+          "definition_evidence": [
+            {
+              "label": "B",
+              "page": 1,
+              "text_bbox": [
+                228.1912,
+                401.9944,
+                233.7188,
+                417.665
+              ],
+              "box_bbox": [
+                224.64,
+                400.68,
+                237.6,
+                415.08
+              ],
+              "marker_bbox": [
+                241.501,
+                403.7657,
+                248.5876,
+                411.9486
+              ],
+              "marker_side": "right",
+              "stem_coverage": 1.0,
+              "box_rectangularity": 0.9465,
+              "source": "pymupdf_word+raster_box+vector_filled_marker+stem"
+            }
+          ],
+          "source_ref": "Datum related symbols table: Datum Feature Indicator -> ISO 5459"
+        }
+      ],
+      "has_datums": true,
+      "scale": 0.8,
+      "rotation": 0
+    },
+    {
+      "class_name": "circularity",
+      "detection_score": 0.9019,
+      "symbol_bbox_pt": [
+        531.8,
+        830.4,
+        551.0,
+        844.8
+      ],
+      "frame_bbox_pt": [
+        532.0,
+        830.4,
+        585.7,
+        844.5
+      ],
+      "cell_count": 2,
+      "datum_count": 0,
+      "datum_refs": [],
+      "referenced_datums": [],
+      "unresolved_datum_ref_count": 0,
+      "datum_definition_findings": [],
+      "has_datums": false,
+      "scale": 0.8,
+      "rotation": 0
+    },
+    {
+      "class_name": "concentricity_coaxiality",
+      "detection_score": 0.8995,
+      "symbol_bbox_pt": [
+        140.6,
+        422.9,
+        159.8,
+        437.3
+      ],
+      "frame_bbox_pt": [
+        140.4,
+        423.1,
+        203.3,
+        437.3
+      ],
+      "cell_count": 3,
+      "datum_count": 1,
+      "datum_refs": [
+        {
+          "cell_index": 2,
+          "bbox_pt": [
+            191.4,
+            423.1,
+            203.3,
+            437.3
+          ],
+          "text": "B",
+          "confidence": 0.969,
+          "text_source": "visual_template_from_pdf_text",
+          "text_bbox_pt": null,
+          "visual_match_margin": 0.2436,
+          "visual_template_source": "datum_definition:p1:B",
+          "ink_ratio": 0.143,
+          "has_content": true
+        }
+      ],
+      "referenced_datums": [
+        "B"
+      ],
+      "unresolved_datum_ref_count": 0,
+      "datum_definition_findings": [
+        {
+          "datum": "B",
+          "status": "PASS",
+          "code": "ISO5459_DATUM_DEFINITION_FOUND",
+          "standard": "ISO 5459",
+          "mode": "reference",
+          "finding": "Datum B is referenced and a corresponding datum feature indicator was identified in the drawing.",
+          "recommended_action": "No action required for datum-definition presence.",
+          "normative_claim": false,
+          "definition_count": 1,
+          "definition_evidence": [
+            {
+              "label": "B",
+              "page": 1,
+              "text_bbox": [
+                228.1912,
+                401.9944,
+                233.7188,
+                417.665
+              ],
+              "box_bbox": [
+                224.64,
+                400.68,
+                237.6,
+                415.08
+              ],
+              "marker_bbox": [
+                241.501,
+                403.7657,
+                248.5876,
+                411.9486
+              ],
+              "marker_side": "right",
+              "stem_coverage": 1.0,
+              "box_rectangularity": 0.9465,
+              "source": "pymupdf_word+raster_box+vector_filled_marker+stem"
+            }
+          ],
+          "source_ref": "Datum related symbols table: Datum Feature Indicator -> ISO 5459"
+        }
+      ],
+      "has_datums": true,
+      "scale": 0.8,
+      "rotation": 0
+    },
+    {
+      "class_name": "circularity",
+      "detection_score": 0.8799,
+      "symbol_bbox_pt": [
+        236.2,
+        908.2,
+        255.4,
+        922.6
+      ],
+      "frame_bbox_pt": [
+        236.3,
+        908.3,
+        290.1,
+        922.5
+      ],
+      "cell_count": 2,
+      "datum_count": 0,
+      "datum_refs": [],
+      "referenced_datums": [],
+      "unresolved_datum_ref_count": 0,
+      "datum_definition_findings": [],
+      "has_datums": false,
+      "scale": 0.8,
+      "rotation": 0
+    },
+    {
+      "class_name": "concentricity_coaxiality",
+      "detection_score": 0.8681,
+      "symbol_bbox_pt": [
+        388.8,
+        393.1,
+        408.0,
+        407.5
+      ],
+      "frame_bbox_pt": [
+        388.5,
+        393.3,
+        455.5,
+        407.5
+      ],
+      "cell_count": 4,
+      "datum_count": 1,
+      "datum_refs": [
+        {
+          "cell_index": 2,
+          "bbox_pt": [
+            428.1,
+            393.3,
+            440.0,
+            407.5
+          ],
+          "text": "Y",
+          "confidence": 0.769,
+          "text_source": "visual_template_from_pdf_text",
+          "text_bbox_pt": null,
+          "visual_match_margin": 0.1941,
+          "visual_template_source": "datum_definition:p1:Y",
+          "ink_ratio": 0.069,
+          "has_content": true
+        }
+      ],
+      "referenced_datums": [
+        "Y"
+      ],
+      "unresolved_datum_ref_count": 0,
+      "datum_definition_findings": [
+        {
+          "datum": "Y",
+          "status": "PASS",
+          "code": "ISO5459_DATUM_DEFINITION_FOUND",
+          "standard": "ISO 5459",
+          "mode": "reference",
+          "finding": "Datum Y is referenced and a corresponding datum feature indicator was identified in the drawing.",
+          "recommended_action": "No action required for datum-definition presence.",
+          "normative_claim": false,
+          "definition_count": 1,
+          "definition_evidence": [
+            {
+              "label": "Y",
+              "page": 1,
+              "text_bbox": [
+                191.8491,
+                186.0699,
+                197.3766,
+                201.7406
+              ],
+              "box_bbox": [
+                188.28,
+                184.68,
+                201.24,
+                199.08
+              ],
+              "marker_bbox": [
+                217.4912,
+                187.2565,
+                224.5712,
+                195.4642
+              ],
+              "marker_side": "right",
+              "stem_coverage": 1.0,
+              "box_rectangularity": 0.9465,
+              "source": "pymupdf_word+raster_box+vector_filled_marker+stem"
+            }
+          ],
+          "source_ref": "Datum related symbols table: Datum Feature Indicator -> ISO 5459"
+        }
+      ],
+      "has_datums": true,
+      "scale": 0.8,
+      "rotation": 0
+    },
+    {
+      "class_name": "perpendicularity",
+      "detection_score": 0.8583,
+      "symbol_bbox_pt": [
+        1047.4,
+        58.1,
+        1070.9,
+        72.5
+      ],
+      "frame_bbox_pt": [
+        1047.2,
+        58.0,
+        1136.9,
+        72.2
+      ],
+      "cell_count": 4,
+      "datum_count": 1,
+      "datum_refs": [
+        {
+          "cell_index": 3,
+          "bbox_pt": [
+            1125.0,
+            58.0,
+            1136.9,
+            72.2
+          ],
+          "text": "C",
+          "confidence": 0.766,
+          "text_source": "visual_template_from_pdf_text",
+          "text_bbox_pt": null,
+          "visual_match_margin": 0.1946,
+          "visual_template_source": "datum_definition:p1:C",
+          "ink_ratio": 0.087,
+          "has_content": true
+        }
+      ],
+      "referenced_datums": [
+        "C"
+      ],
+      "unresolved_datum_ref_count": 0,
+      "datum_definition_findings": [
+        {
+          "datum": "C",
+          "status": "PASS",
+          "code": "ISO5459_DATUM_DEFINITION_FOUND",
+          "standard": "ISO 5459",
+          "mode": "reference",
+          "finding": "Datum C is referenced and a corresponding datum feature indicator was identified in the drawing.",
+          "recommended_action": "No action required for datum-definition presence.",
+          "normative_claim": false,
+          "definition_count": 1,
+          "definition_evidence": [
+            {
+              "label": "C",
+              "page": 1,
+              "text_bbox": [
+                1076.4882,
+                237.8871,
+                1082.0157,
+                253.5578
+              ],
+              "box_bbox": [
+                1072.8,
+                236.52,
+                1085.76,
+                250.92
+              ],
+              "marker_bbox": [
+                1075.2313,
+                222.4901,
+                1083.4142,
+                229.5767
+              ],
+              "marker_side": "top",
+              "stem_coverage": 1.0,
+              "box_rectangularity": 0.9465,
+              "source": "pymupdf_word+raster_box+vector_filled_marker+stem"
+            }
+          ],
+          "source_ref": "Datum related symbols table: Datum Feature Indicator -> ISO 5459"
+        }
+      ],
+      "has_datums": true,
+      "scale": 0.8,
+      "rotation": 0
+    },
+    {
+      "class_name": "circularity",
+      "detection_score": 0.8515,
+      "symbol_bbox_pt": [
+        388.3,
+        421.4,
+        407.5,
+        435.8
+      ],
+      "frame_bbox_pt": [
+        388.5,
+        421.7,
+        442.2,
+        435.8
+      ],
+      "cell_count": 2,
+      "datum_count": 0,
+      "datum_refs": [],
+      "referenced_datums": [],
+      "unresolved_datum_ref_count": 0,
+      "datum_definition_findings": [],
+      "has_datums": false,
+      "scale": 0.8,
+      "rotation": 0
+    },
+    {
+      "class_name": "cylindricity",
+      "detection_score": 0.8034,
+      "symbol_bbox_pt": [
+        388.8,
+        407.5,
+        411.4,
+        421.9
+      ],
+      "frame_bbox_pt": [
+        348.7,
+        407.5,
+        444.9,
+        421.7
+      ],
+      "cell_count": 3,
+      "datum_count": 0,
+      "datum_refs": [],
+      "referenced_datums": [],
+      "unresolved_datum_ref_count": 0,
+      "datum_definition_findings": [],
+      "has_datums": false,
+      "scale": 0.8,
+      "rotation": 0
+    },
+    {
+      "class_name": "angularity",
+      "detection_score": 0.7476,
+      "symbol_bbox_pt": [
+        174.7,
+        696.5,
+        198.7,
+        722.9
+      ],
+      "frame_bbox_pt": null,
+      "cell_count": 0,
+      "datum_count": 0,
+      "datum_refs": [],
+      "referenced_datums": [],
+      "unresolved_datum_ref_count": 0,
+      "datum_definition_findings": [],
+      "has_datums": false,
+      "scale": 0.7,
+      "rotation": 90
+    }
+  ],
+  "datum_definitions": [
+    {
+      "label": "Y",
+      "page": 1,
+      "text_bbox": [
+        191.8491,
+        186.0699,
+        197.3766,
+        201.7406
+      ],
+      "box_bbox": [
+        188.28,
+        184.68,
+        201.24,
+        199.08
+      ],
+      "marker_bbox": [
+        217.4912,
+        187.2565,
+        224.5712,
+        195.4642
+      ],
+      "marker_side": "right",
+      "stem_coverage": 1.0,
+      "box_rectangularity": 0.9465,
+      "source": "pymupdf_word+raster_box+vector_filled_marker+stem"
+    },
+    {
+      "label": "Z",
+      "page": 1,
+      "text_bbox": [
+        717.2697,
+        198.1726,
+        722.7973,
+        213.8432
+      ],
+      "box_bbox": [
+        713.52,
+        196.92,
+        726.48,
+        211.32
+      ],
+      "marker_bbox": [
+        716.0129,
+        219.6555,
+        724.1959,
+        226.7421
+      ],
+      "marker_side": "bottom",
+      "stem_coverage": 1.0,
+      "box_rectangularity": 0.9465,
+      "source": "pymupdf_word+raster_box+vector_filled_marker+stem"
+    },
+    {
+      "label": "C",
+      "page": 1,
+      "text_bbox": [
+        1076.4882,
+        237.8871,
+        1082.0157,
+        253.5578
+      ],
+      "box_bbox": [
+        1072.8,
+        236.52,
+        1085.76,
+        250.92
+      ],
+      "marker_bbox": [
+        1075.2313,
+        222.4901,
+        1083.4142,
+        229.5767
+      ],
+      "marker_side": "top",
+      "stem_coverage": 1.0,
+      "box_rectangularity": 0.9465,
+      "source": "pymupdf_word+raster_box+vector_filled_marker+stem"
+    },
+    {
+      "label": "B",
+      "page": 1,
+      "text_bbox": [
+        228.1912,
+        401.9944,
+        233.7188,
+        417.665
+      ],
+      "box_bbox": [
+        224.64,
+        400.68,
+        237.6,
+        415.08
+      ],
+      "marker_bbox": [
+        241.501,
+        403.7657,
+        248.5876,
+        411.9486
+      ],
+      "marker_side": "right",
+      "stem_coverage": 1.0,
+      "box_rectangularity": 0.9465,
+      "source": "pymupdf_word+raster_box+vector_filled_marker+stem"
+    }
+  ],
+  "datum_box_candidates": [
+    {
+      "center_pt": [
+        720.1,
+        204.0
+      ],
+      "bbox_pt": [
+        713.7,
+        196.9,
+        726.5,
+        211.1
+      ],
+      "size_pt": [
+        12.8,
+        14.2
+      ],
+      "ink_ratio": 0.073
+    },
+    {
+      "center_pt": [
+        1079.3,
+        243.8
+      ],
+      "bbox_pt": [
+        1072.9,
+        236.7,
+        1085.7,
+        250.8
+      ],
+      "size_pt": [
+        12.8,
+        14.1
+      ],
+      "ink_ratio": 0.074
+    },
+    {
+      "center_pt": [
+        231.0,
+        407.9
+      ],
+      "bbox_pt": [
+        224.6,
+        400.8,
+        237.4,
+        414.9
+      ],
+      "size_pt": [
+        12.8,
+        14.1
+      ],
+      "ink_ratio": 0.127
+    }
+  ]
+}
