@@ -5,11 +5,10 @@ from dataclasses import dataclass
 import fitz
 import numpy as np
 
-from src.cad_review.dimensions import DimensionPageResult, DimensionRecord
 from src.cad_review.integrated_review import (
     GdtPageResult,
+    _format_elapsed,
     run_integrated_review,
-    save_integrated_review,
 )
 from src.modeling.llm_verify_changes import (
     VerificationResult,
@@ -35,10 +34,11 @@ class _Metadata:
     total_tokens: int = 10
 
 
-def test_integrated_review_uses_revised_for_classification_and_gdt(tmp_path) -> None:
+def test_integrated_review_uses_revised_for_classification_and_gdt(caplog) -> None:
+    caplog.set_level("INFO", logger="src.cad_review.integrated_review")
     original = _pdf_with_text("ORIGINAL ONLY")
     revised = _pdf_with_text("REVISED CONNECTING ROD ISO 1101", pages=2)
-    calls: dict[str, object] = {"dimension_pages": [], "gdt_pages": []}
+    calls: dict[str, object] = {"gdt_pages": []}
 
     def classifier(text, prompt, model):
         assert "REVISED CONNECTING ROD ISO 1101" in text
@@ -71,23 +71,6 @@ def test_integrated_review_uses_revised_for_classification_and_gdt(tmp_path) -> 
                     "datum_definitions_found": 1,
                 },
             },
-            annotated_image=np.full((80, 120, 3), 255, dtype=np.uint8),
-        )
-
-    def dimension_analyzer(pdf_bytes, page_index, **kwargs):
-        assert pdf_bytes == revised
-        calls["dimension_pages"].append(page_index)
-        return DimensionPageResult(
-            page_index=page_index,
-            dimensions=[
-                DimensionRecord(
-                    dimension_id=f"DIM-P{page_index + 1:02d}-001",
-                    value="10.5",
-                    page_index=page_index,
-                    quadrant="A1",
-                    bbox=(10.0, 20.0, 30.0, 40.0),
-                )
-            ],
             annotated_image=np.full((80, 120, 3), 255, dtype=np.uint8),
         )
 
@@ -129,30 +112,37 @@ def test_integrated_review_uses_revised_for_classification_and_gdt(tmp_path) -> 
         comparison_model="comparison-model",
         classifier=classifier,
         standards_inferer=inferer,
-        dimension_analyzer=dimension_analyzer,
         gdt_analyzer=gdt_analyzer,
         comparator=comparator,
         format_checker=format_checker,
     )
 
     assert calls == {
-        "dimension_pages": [0, 1],
         "gdt_pages": [0, 1],
         "classification_model": "classification-model",
         "comparison_model": "comparison-model",
     }
     assert result.to_dict()["inputs"] == {"original": "old.pdf", "revised": "new.pdf"}
-    assert result.to_dict()["dimensions"]["count"] == 2
     assert result.to_dict()["comparison"]["pages"][0]["num_true_changes"] == 1
+    assert set(result.metadata["timings_seconds"]) == {
+        "pdf_text_extraction",
+        "part_classification",
+        "standards_inference",
+        "gdt_and_datums",
+        "part_comparison",
+        "paper_format_check",
+        "pipeline_total",
+    }
+    assert "TEMPO | Pipeline concluído | total=" in caplog.text
 
     report = build_unified_report(result)
     assert report.startswith(b"%PDF")
     assert len(report) > 2_000
 
-    paths = save_integrated_review(result, tmp_path)
-    assert paths["dimensions"] == tmp_path / "dimensions"
-    assert (paths["dimensions"] / "page_001_annotated.png").is_file()
-    assert result.to_dict()["schema_version"] == 2
+
+def test_elapsed_time_format_is_readable() -> None:
+    assert _format_elapsed(0) == "00:00:00.0"
+    assert _format_elapsed(3661.25) == "01:01:01.2"
 
 
 def test_integrated_review_requires_both_pdfs() -> None:
@@ -169,15 +159,6 @@ def test_integrated_review_rejects_invalid_gdt_workers() -> None:
         run_integrated_review(b"original", b"revised", gdt_workers=0)
     except ValueError as exc:
         assert "gdt_workers" in str(exc)
-    else:
-        raise AssertionError("Expected ValueError")
-
-
-def test_integrated_review_rejects_invalid_dimension_dpi() -> None:
-    try:
-        run_integrated_review(b"original", b"revised", dimension_dpi=50)
-    except ValueError as exc:
-        assert "dimension_dpi" in str(exc)
     else:
         raise AssertionError("Expected ValueError")
 
