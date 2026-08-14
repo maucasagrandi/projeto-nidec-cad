@@ -13,9 +13,10 @@ o desenho original e o segundo é o desenho revisado.
    candidatas; a LLM valida os candidatos e descreve as mudanças reais.
 4. Gera um relatório PDF único com:
    - tabelas Header e Drawing Block Transcription;
-   - mapa de diferenças com IDs;
    - Applied Standards em bullet points;
-   - tabela e detalhes das diferenças por ID;
+   - mapa de diferenças com IDs;
+   - tabela consolidada de diferenças;
+   - comparação visual Previous/Current para cada ID confirmado;
    - desenho revisado com GD&T e datums marcados.
 
 ## Setup

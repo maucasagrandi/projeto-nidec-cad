@@ -143,13 +143,7 @@ if result is not None:
     st.subheader("Drawing Block Transcription")
     st.table(metadata_table(result.part_classification.get("drawing_block") or {}, DRAWING_BLOCK_FIELDS))
 
-    st.header("2. Difference Map with IDs")
-    for page in result.comparison_pages:
-        st.subheader(f"Página {page.page_index + 1}")
-        if page.image_highlighted is not None:
-            st.image(bgr_to_rgb(page.image_highlighted), use_container_width=True)
-
-    st.header("3. Applied Standards")
+    st.header("2. Applied Standards")
     cited = result.part_classification.get("lista_normas", []) or []
     evidence = result.part_classification.get("justificativas_normas", []) or []
     if cited:
@@ -165,6 +159,12 @@ if result is not None:
         st.subheader("Normas sugeridas para validação humana")
         for standard in suggested:
             st.markdown(f"- {standard}")
+
+    st.header("3. Difference Map with IDs")
+    for page in result.comparison_pages:
+        st.subheader(f"Página {page.page_index + 1}")
+        if page.image_highlighted is not None:
+            st.image(bgr_to_rgb(page.image_highlighted), use_container_width=True)
 
     st.header("4. Difference Table")
     if result.paper_format_changes:
@@ -184,15 +184,36 @@ if result is not None:
             ])
         else:
             st.success("Nenhuma mudança significativa confirmada.")
-        if page.true_changes:
-            st.subheader("Differences by ID")
-            for change in page.true_changes:
-                st.markdown(
-                    f"- **ID {change.index}:** {change.description} "
-                    f"(x={change.x}, y={change.y}, w={change.width}, h={change.height})"
-                )
 
-    st.header("5. GD&T and Datums")
+    st.header("5. Part Comparison by ID")
+    comparison_count = 0
+    for page in result.comparison_pages:
+        for change in page.true_changes:
+            comparison_count += 1
+            st.subheader(f"Página {page.page_index + 1} - ID {change.index}")
+            previous_column, current_column = st.columns(2)
+            with previous_column:
+                st.caption("Previous")
+                if change.original_crop is not None:
+                    st.image(bgr_to_rgb(change.original_crop), use_container_width=True)
+                else:
+                    st.info("Imagem indisponível")
+            with current_column:
+                st.caption("Current")
+                if change.revised_crop is not None:
+                    st.image(bgr_to_rgb(change.revised_crop), use_container_width=True)
+                else:
+                    st.info("Imagem indisponível")
+            st.markdown(f"- **Difference found:** {change.description}")
+            st.markdown(
+                "- **Recommended Action:** Validate the change against the applicable "
+                "technical requirement."
+            )
+            st.caption(f"x={change.x}, y={change.y}, w={change.width}, h={change.height}")
+    if not comparison_count:
+        st.success("Nenhuma mudança significativa confirmada.")
+
+    st.header("6. GD&T and Datums")
     for page in result.gdt_pages:
         st.subheader(f"Página {page.page_index + 1}")
         summary = page.report.get("summary", {})

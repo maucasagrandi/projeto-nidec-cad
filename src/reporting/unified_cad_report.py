@@ -34,9 +34,9 @@ def _display(value: Any) -> str:
     if isinstance(value, bool):
         return "Sim" if value else "Não"
     if isinstance(value, (list, tuple, set)):
-        return "; ".join(_display(item) for item in value) or "—"
+        return "; ".join(_display(item) for item in value) or "-"
     if isinstance(value, dict):
-        return "; ".join(f"{key}: {_display(item)}" for key, item in value.items()) or "—"
+        return "; ".join(f"{key}: {_display(item)}" for key, item in value.items()) or "-"
     return str(value)
 
 
@@ -192,24 +192,8 @@ def build_unified_report(result: Any) -> bytes:
         Paragraph("Drawing Block Transcription", heading),
         _metadata_table(_metadata_rows(drawing_block, DRAWING_BLOCK_FIELDS, label_cell, cell)),
         PageBreak(),
-        Paragraph("2. Difference Map with IDs", heading),
+        Paragraph("2. Applied Standards", heading),
     ])
-
-    comparison_images = 0
-    for index, page in enumerate(result.comparison_pages):
-        highlighted = getattr(page, "image_highlighted", None)
-        if highlighted is None:
-            continue
-        if comparison_images:
-            story.append(PageBreak())
-        page_number = int(getattr(page, "page_index", index)) + 1
-        story.append(Paragraph(f"Comparison - page {page_number}", subheading))
-        story.append(_image_flowable(highlighted, max_width=25.5 * cm, max_height=15.8 * cm))
-        comparison_images += 1
-    if not comparison_images:
-        story.append(_bullet("No comparison image was generated.", bullet))
-
-    story.extend([PageBreak(), Paragraph("3. Applied Standards", heading)])
 
     cited = result.part_classification.get("lista_normas", []) or []
     evidence = result.part_classification.get("justificativas_normas", []) or []
@@ -229,6 +213,22 @@ def build_unified_report(result: Any) -> bytes:
         reasoning = result.inferred_standards.get("reasoning")
         if reasoning:
             story.append(Paragraph(f"Reasoning: {_escape(reasoning)}", body))
+
+    story.extend([PageBreak(), Paragraph("3. Difference Map with IDs", heading)])
+
+    comparison_images = 0
+    for index, page in enumerate(result.comparison_pages):
+        highlighted = getattr(page, "image_highlighted", None)
+        if highlighted is None:
+            continue
+        if comparison_images:
+            story.append(PageBreak())
+        page_number = int(getattr(page, "page_index", index)) + 1
+        story.append(Paragraph(f"Comparison - page {page_number}", subheading))
+        story.append(_image_flowable(highlighted, max_width=25.5 * cm, max_height=15.8 * cm))
+        comparison_images += 1
+    if not comparison_images:
+        story.append(_bullet("No comparison image was generated.", bullet))
 
     story.extend([PageBreak(), Paragraph("4. Difference Table", heading)])
     if result.paper_format_changes:
@@ -270,18 +270,72 @@ def build_unified_report(result: Any) -> bytes:
                 ("TOPPADDING", (0, 0), (-1, -1), 5),
                 ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
             ]))
-            story.extend([Spacer(1, 0.2 * cm), changes_table, Spacer(1, 0.35 * cm)])
-            story.append(Paragraph("Differences by ID", subheading))
-            for change in true_changes:
-                change_id = getattr(change, "index", "-")
-                description = getattr(change, "description", "Change identified")
-                location = (
-                    f"x={getattr(change, 'x', '-')}, y={getattr(change, 'y', '-')}, "
-                    f"w={getattr(change, 'width', '-')}, h={getattr(change, 'height', '-')}"
-                )
-                story.append(_bullet(f"ID {change_id}: {description} ({location})", bullet))
+            story.extend([Spacer(1, 0.2 * cm), changes_table])
         else:
             story.append(_bullet("No significant change was confirmed.", bullet))
+
+    story.append(PageBreak())
+    comparison_by_id_count = 0
+    for page_index, page in enumerate(result.comparison_pages):
+        page_number = int(getattr(page, "page_index", page_index)) + 1
+        for change in list(getattr(page, "true_changes", []) or []):
+            if comparison_by_id_count:
+                story.append(PageBreak())
+
+            card: list[Any] = []
+            if comparison_by_id_count == 0:
+                card.append(Paragraph("5. Part Comparison by ID", heading))
+            change_id = getattr(change, "index", "-")
+            card.append(Paragraph(f"Page {page_number} - ID {change_id}", subheading))
+
+            previous_crop = getattr(change, "original_crop", None)
+            current_crop = getattr(change, "revised_crop", None)
+            crop_rows: list[list[Any]] = [[
+                Paragraph("Previous", label_cell),
+                Paragraph("Current", label_cell),
+            ]]
+            crop_rows.append([
+                _image_flowable(previous_crop, max_width=11.8 * cm, max_height=7.2 * cm)
+                if previous_crop is not None
+                else Paragraph("Image unavailable", cell),
+                _image_flowable(current_crop, max_width=11.8 * cm, max_height=7.2 * cm)
+                if current_crop is not None
+                else Paragraph("Image unavailable", cell),
+            ])
+            crop_table = Table(crop_rows, colWidths=[12.5 * cm, 12.5 * cm])
+            crop_table.setStyle(TableStyle([
+                ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#777777")),
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#E8EEF3")),
+                ("ALIGN", (0, 0), (-1, 0), "CENTER"),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("LEFTPADDING", (0, 0), (-1, -1), 5),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 5),
+                ("TOPPADDING", (0, 0), (-1, -1), 5),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+            ]))
+            description = getattr(change, "description", "Change identified")
+            location = (
+                f"x={getattr(change, 'x', '-')}, y={getattr(change, 'y', '-')}, "
+                f"w={getattr(change, 'width', '-')}, h={getattr(change, 'height', '-')}"
+            )
+            card.extend([
+                crop_table,
+                Spacer(1, 0.25 * cm),
+                _bullet(f"Difference found: {description}", bullet),
+                _bullet(
+                    "Recommended Action: Validate the change against the applicable technical requirement.",
+                    bullet,
+                ),
+                _bullet(f"Location: {location}", bullet),
+            ])
+            story.append(KeepTogether(card))
+            comparison_by_id_count += 1
+
+    if not comparison_by_id_count:
+        story.extend([
+            Paragraph("5. Part Comparison by ID", heading),
+            _bullet("No significant change was confirmed.", bullet),
+        ])
 
     story.append(PageBreak())
     for index, page in enumerate(result.gdt_pages):
@@ -290,7 +344,7 @@ def build_unified_report(result: Any) -> bytes:
         summary = page.report.get("summary", {})
         page_story = []
         if index == 0:
-            page_story.append(Paragraph("5. GD&T and Datums", heading))
+            page_story.append(Paragraph("6. GD&amp;T and Datums", heading))
         page_story.append(Paragraph(f"Page {page.page_index + 1}", subheading))
         page_story.append(_bullet(f"GD&T detected: {summary.get('total_detections', 0)}", bullet))
         page_story.append(_bullet(f"Resolved datum references: {summary.get('resolved_datum_refs', 0)}", bullet))

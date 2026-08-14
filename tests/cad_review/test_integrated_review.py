@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from types import SimpleNamespace
 
 import fitz
 import numpy as np
@@ -11,9 +12,12 @@ from src.cad_review.integrated_review import (
     run_integrated_review,
 )
 from src.modeling.llm_verify_changes import (
+    RegionVerdict,
+    VerificationOutput,
     VerificationResult,
     VerifiedChange,
     render_verified_highlights,
+    run_verification_pipeline,
     save_verification_result,
 )
 from src.reporting.unified_cad_report import _image_flowable, build_unified_report
@@ -114,6 +118,8 @@ def test_integrated_review_uses_revised_for_classification_and_gdt(caplog) -> No
                         height=20,
                         divergence_pct=42.0,
                         description="Dimension changed from 10 to 12 mm",
+                        original_crop=np.full((30, 50, 3), 240, dtype=np.uint8),
+                        revised_crop=np.full((30, 50, 3), 200, dtype=np.uint8),
                     )
                 ],
                 false_positive_ids=[],
@@ -162,6 +168,21 @@ def test_integrated_review_uses_revised_for_classification_and_gdt(caplog) -> No
     report = build_unified_report(result)
     assert report.startswith(b"%PDF")
     assert len(report) > 2_000
+    with fitz.open(stream=report, filetype="pdf") as report_document:
+        report_text = "\n".join(page.get_text() for page in report_document)
+    expected_sections = [
+        "1. Header",
+        "2. Applied Standards",
+        "3. Difference Map with IDs",
+        "4. Difference Table",
+        "5. Part Comparison by ID",
+        "6. GD&T and Datums",
+    ]
+    section_positions = [report_text.index(section) for section in expected_sections]
+    assert section_positions == sorted(section_positions)
+    assert "Previous" in report_text
+    assert "Current" in report_text
+    assert "Difference found: Dimension changed from 10 to 12 mm" in report_text
 
 
 def test_elapsed_time_format_is_readable() -> None:
@@ -248,3 +269,50 @@ def test_comparison_panels_are_resized_before_side_by_side_allocation() -> None:
 
     assert combined.shape == (400, 1600, 3)
     assert np.any(combined[:, 800:, 2] > combined[:, 800:, 1])
+
+
+def test_verification_pipeline_preserves_only_confirmed_crop_pairs(monkeypatch) -> None:
+    original = np.full((40, 60, 3), 245, dtype=np.uint8)
+    revised = np.full((40, 60, 3), 205, dtype=np.uint8)
+    comparison = SimpleNamespace(
+        image1=original,
+        image2_aligned=revised,
+        diff_bboxes=[(10, 8, 20, 12)],
+        diff_divergences=[35.0],
+        num_differences=1,
+    )
+
+    def fake_compare(*args, **kwargs):
+        return comparison
+
+    def fake_verify(*args, **kwargs):
+        return (
+            VerificationOutput(
+                verdicts=[
+                    RegionVerdict(
+                        id="page_01_diff_001",
+                        is_true_change=True,
+                        description="Confirmed dimensional change",
+                    )
+                ]
+            ),
+            _Metadata(),
+        )
+
+    monkeypatch.setattr(
+        "src.utils.opencv_cad_compare.compare_cad_pages_opencv",
+        fake_compare,
+    )
+    monkeypatch.setattr(
+        "src.modeling.llm_verify_changes.verify_changes_with_llm",
+        fake_verify,
+    )
+
+    result = run_verification_pipeline(b"original", b"revised")
+
+    assert result.image_original is None
+    assert len(result.true_changes) == 1
+    assert result.true_changes[0].original_crop.shape == (12, 20, 3)
+    assert result.true_changes[0].revised_crop.shape == (12, 20, 3)
+    assert np.all(result.true_changes[0].original_crop == 245)
+    assert np.all(result.true_changes[0].revised_crop == 205)

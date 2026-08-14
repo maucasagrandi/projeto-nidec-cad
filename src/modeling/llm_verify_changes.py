@@ -84,6 +84,8 @@ class VerifiedChange:
     height: int
     divergence_pct: float
     description: str
+    original_crop: np.ndarray | None = None
+    revised_crop: np.ndarray | None = None
 
 
 @dataclass
@@ -567,6 +569,15 @@ def run_verification_pipeline(
 
     # Step 3: Post-process into contiguously-indexed result
     result = _build_verified_result(page_index, regions_metadata, llm_output, metadata)
+
+    # Keep only the small, verified crop pairs for the customer-facing
+    # comparison-by-ID section. The full detection-resolution images are still
+    # released below to avoid retaining hundreds of megabytes per page.
+    original_crops_by_id = dict(crops_original)
+    revised_crops_by_id = dict(crops_revised)
+    for change in result.true_changes:
+        change.original_crop = original_crops_by_id.get(change.original_id)
+        change.revised_crop = revised_crops_by_id.get(change.original_id)
 
     # Step 4: Render final image
     result.image_original = None
