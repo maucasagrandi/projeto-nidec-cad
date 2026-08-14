@@ -135,11 +135,21 @@ def extract_all_pdf_text(pdf_bytes: bytes) -> str:
         return "\n\n".join(page.get_text() for page in document)
 
 
-def _default_classifier(text: str, prompt: str, model: str | None) -> tuple[Any, Any]:
+def _default_classifier(
+    revised_pdf: bytes,
+    text: str,
+    prompt: str,
+    model: str | None,
+) -> tuple[Any, Any]:
     from src.modeling.llm_models import classify_and_extract_norms
 
     kwargs = {"model": model} if model else {}
-    return classify_and_extract_norms(texto_notas=text, system_prompt=prompt, **kwargs)
+    return classify_and_extract_norms(
+        texto_notas=text,
+        system_prompt=prompt,
+        pdf_bytes=revised_pdf,
+        **kwargs,
+    )
 
 
 def _default_inferer(
@@ -255,12 +265,19 @@ def run_integrated_review(
     prompt_template = classification_prompt or classificacao_e_normas_prompt
     prompt = prompt_template.replace("{{texto_extraido}}", revised_text)
 
-    classify = classifier or _default_classifier
-    classification_value, classification_metadata = classify(
-        revised_text,
-        prompt,
-        classification_model,
-    )
+    if classifier is None:
+        classification_value, classification_metadata = _default_classifier(
+            revised_pdf,
+            revised_text,
+            prompt,
+            classification_model,
+        )
+    else:
+        classification_value, classification_metadata = classifier(
+            revised_text,
+            prompt,
+            classification_model,
+        )
     classification = _as_dict(classification_value)
     stage_started, timings["part_classification"] = _log_timing(
         "Part Classification concluída",

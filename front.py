@@ -13,7 +13,11 @@ from PIL import Image
 from streamlit_image_zoom import image_zoom
 
 from src.cad_review.integrated_review import run_integrated_review
-from src.reporting.unified_cad_report import build_unified_report
+from src.reporting.unified_cad_report import (
+    DRAWING_BLOCK_FIELDS,
+    HEADER_FIELDS,
+    build_unified_report,
+)
 from src.utils.opencv_cad_compare import CompareConfig
 
 load_dotenv()
@@ -47,18 +51,13 @@ def check_login() -> bool:
     return False
 
 
-def classification_table(classification: dict) -> list[dict[str, str]]:
-    labels = {
-        "classificacao": "Classificação da peça",
-        "justificativa_classificacao": "Evidência da classificação",
-        "lista_normas": "Normas citadas",
-        "justificativas_normas": "Evidências das normas",
-    }
+def metadata_table(values: dict, fields: list[tuple[str, str]]) -> list[dict[str, str]]:
     rows = []
-    for key, value in classification.items():
+    for key, label in fields:
+        value = values.get(key)
         if isinstance(value, list):
             value = "; ".join(str(item) for item in value)
-        rows.append({"Campo": labels.get(key, key), "Valor extraído": str(value)})
+        rows.append({"Campo": label, "Valor extraído": "—" if value in (None, "") else str(value)})
     return rows
 
 
@@ -83,7 +82,7 @@ st.write(
 with st.expander("Fluxo executado"):
     st.markdown(
         """
-        1. **Part Classification no revisado:** classificação da peça e normas citadas.
+        1. **Header e drawing block no revisado:** extração multimodal do carimbo, classificação e normas.
         2. **GD&T e datums no revisado:** detecção determinística e imagem anotada.
         3. **Part Comparison:** OpenCV encontra regiões candidatas e a LLM valida/descreve as mudanças.
         4. **Relatório único:** tabela da classificação, normas, imagem GD&T/datums e comparação.
@@ -115,7 +114,7 @@ if st.button(
     use_container_width=True,
 ):
     try:
-        with st.spinner("Executando classificação, GD&T e comparação..."):
+        with st.spinner("Extraindo carimbo, classificando e executando a comparação..."):
             result = run_integrated_review(
                 original_file.getvalue(),
                 revised_file.getvalue(),
@@ -136,10 +135,21 @@ if st.button(
 result = st.session_state.get("integrated_review_result")
 if result is not None:
     st.divider()
-    st.header("1. Part Classification")
-    st.table(classification_table(result.part_classification))
+    st.header("1. Header")
+    header_values = dict(result.part_classification.get("header") or {})
+    if not header_values.get("classification"):
+        header_values["classification"] = result.part_classification.get("classificacao")
+    st.table(metadata_table(header_values, HEADER_FIELDS))
+    st.subheader("Drawing Block Transcription")
+    st.table(metadata_table(result.part_classification.get("drawing_block") or {}, DRAWING_BLOCK_FIELDS))
 
-    st.header("2. Normas")
+    st.header("2. Difference Map with IDs")
+    for page in result.comparison_pages:
+        st.subheader(f"Página {page.page_index + 1}")
+        if page.image_highlighted is not None:
+            st.image(bgr_to_rgb(page.image_highlighted), use_container_width=True)
+
+    st.header("3. Applied Standards")
     cited = result.part_classification.get("lista_normas", []) or []
     evidence = result.part_classification.get("justificativas_normas", []) or []
     if cited:
@@ -156,18 +166,7 @@ if result is not None:
         for standard in suggested:
             st.markdown(f"- {standard}")
 
-    st.header("3. GD&T e datums no revisado")
-    for page in result.gdt_pages:
-        st.subheader(f"Página {page.page_index + 1}")
-        summary = page.report.get("summary", {})
-        col1, col2, col3 = st.columns(3)
-        col1.metric("GD&T", summary.get("total_detections", 0))
-        col2.metric("Referências resolvidas", summary.get("resolved_datum_refs", 0))
-        col3.metric("Datums definidos", summary.get("datum_definitions_found", 0))
-        if page.annotated_image is not None:
-            st.image(bgr_to_rgb(page.annotated_image), use_container_width=True)
-
-    st.header("4. Part Comparison")
+    st.header("4. Difference Table")
     if result.paper_format_changes:
         st.subheader("Mudanças de formato do desenho")
         for change in result.paper_format_changes:
@@ -185,8 +184,24 @@ if result is not None:
             ])
         else:
             st.success("Nenhuma mudança significativa confirmada.")
-        if page.image_highlighted is not None:
-            st.image(bgr_to_rgb(page.image_highlighted), use_container_width=True)
+        if page.true_changes:
+            st.subheader("Differences by ID")
+            for change in page.true_changes:
+                st.markdown(
+                    f"- **ID {change.index}:** {change.description} "
+                    f"(x={change.x}, y={change.y}, w={change.width}, h={change.height})"
+                )
+
+    st.header("5. GD&T and Datums")
+    for page in result.gdt_pages:
+        st.subheader(f"Página {page.page_index + 1}")
+        summary = page.report.get("summary", {})
+        col1, col2, col3 = st.columns(3)
+        col1.metric("GD&T", summary.get("total_detections", 0))
+        col2.metric("Referências resolvidas", summary.get("resolved_datum_refs", 0))
+        col3.metric("Datums definidos", summary.get("datum_definitions_found", 0))
+        if page.annotated_image is not None:
+            st.image(bgr_to_rgb(page.annotated_image), use_container_width=True)
 
     json_bytes = json.dumps(result.to_dict(), indent=2, ensure_ascii=False).encode("utf-8")
     download_left, download_right = st.columns(2)

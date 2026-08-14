@@ -46,6 +46,29 @@ def test_integrated_review_uses_revised_for_classification_and_gdt(caplog) -> No
         assert "REVISED CONNECTING ROD ISO 1101" in prompt
         calls["classification_model"] = model
         return {
+            "header": {
+                "drawing_number": "13358002",
+                "title": "CONNECTING ROD",
+                "compressor_series_code": None,
+                "cr": "26177",
+                "classification": "Connecting Rod",
+                "last_revision_date": "2025.12.18",
+            },
+            "drawing_block": {
+                "materials": ["STEEL"],
+                "material_code": "MAT-01",
+                "drawn_by": "ENGINEER",
+                "approved_by": "APPROVER",
+                "drawing_code_ecm": "26177",
+                "date": "2012.NOV.13",
+                "name_and_document_type": "CONNECTING ROD",
+                "general_tolerance": None,
+                "angular_tolerance": None,
+                "scale": "1:1",
+                "unit": "mm",
+                "replace": None,
+                "number": "13358002",
+            },
             "classificacao": "Connecting Rod",
             "justificativa_classificacao": "CONNECTING ROD",
             "lista_normas": ["ISO 1101"],
@@ -123,6 +146,7 @@ def test_integrated_review_uses_revised_for_classification_and_gdt(caplog) -> No
         "comparison_model": "comparison-model",
     }
     assert result.to_dict()["inputs"] == {"original": "old.pdf", "revised": "new.pdf"}
+    assert result.to_dict()["part_classification"]["header"]["drawing_number"] == "13358002"
     assert result.to_dict()["comparison"]["pages"][0]["num_true_changes"] == 1
     assert set(result.metadata["timings_seconds"]) == {
         "pdf_text_extraction",

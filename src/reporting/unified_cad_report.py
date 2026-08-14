@@ -14,6 +14,7 @@ from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import cm
 from reportlab.platypus import (
     Image,
+    KeepTogether,
     PageBreak,
     Paragraph,
     SimpleDocTemplate,
@@ -29,7 +30,7 @@ def _escape(value: Any) -> str:
 
 def _display(value: Any) -> str:
     if value is None:
-        return "—"
+        return "-"
     if isinstance(value, bool):
         return "Sim" if value else "Não"
     if isinstance(value, (list, tuple, set)):
@@ -39,16 +40,59 @@ def _display(value: Any) -> str:
     return str(value)
 
 
-def _classification_rows(classification: dict[str, Any]) -> list[list[Any]]:
-    labels = {
-        "classificacao": "Classificação da peça",
-        "justificativa_classificacao": "Evidência da classificação",
-        "lista_normas": "Normas citadas",
-        "justificativas_normas": "Evidências das normas",
-    }
-    ordered = [key for key in labels if key in classification]
-    ordered.extend(key for key in classification if key not in ordered)
-    return [[labels.get(key, key.replace("_", " ").title()), _display(classification[key])] for key in ordered]
+HEADER_FIELDS = [
+    ("drawing_number", "Drawing No."),
+    ("title", "Title"),
+    ("compressor_series_code", "Compressor Series Code"),
+    ("cr", "CR"),
+    ("classification", "Classification"),
+    ("last_revision_date", "Last revision date"),
+]
+
+DRAWING_BLOCK_FIELDS = [
+    ("materials", "Materials"),
+    ("material_code", "Material Code"),
+    ("drawn_by", "Drawn by"),
+    ("approved_by", "Approved by"),
+    ("drawing_code_ecm", "Drawing Code (ECM)"),
+    ("date", "Date"),
+    ("name_and_document_type", "Name and document type"),
+    ("general_tolerance", "General tolerance"),
+    ("angular_tolerance", "Angular tolerance"),
+    ("scale", "Scale"),
+    ("unit", "Unit"),
+    ("replace", "Replace"),
+    ("number", "Number"),
+]
+
+
+def _metadata_rows(
+    values: dict[str, Any],
+    fields: list[tuple[str, str]],
+    label_style: ParagraphStyle,
+    value_style: ParagraphStyle,
+) -> list[list[Paragraph]]:
+    return [
+        [
+            Paragraph(_escape(label), label_style),
+            Paragraph(_escape(_display(values.get(key))), value_style),
+        ]
+        for key, label in fields
+    ]
+
+
+def _metadata_table(rows: list[list[Paragraph]]) -> Table:
+    table = Table(rows, colWidths=[7.2 * cm, 18.3 * cm])
+    table.setStyle(TableStyle([
+        ("GRID", (0, 0), (-1, -1), 0.6, colors.HexColor("#333333")),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("ROWBACKGROUNDS", (0, 0), (-1, -1), [colors.white, colors.HexColor("#F7F7F7")]),
+        ("LEFTPADDING", (0, 0), (-1, -1), 5),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 5),
+        ("TOPPADDING", (0, 0), (-1, -1), 3),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+    ]))
+    return table
 
 
 def _image_flowable(
@@ -99,11 +143,11 @@ def _image_flowable(
 
 
 def _bullet(text: str, style: ParagraphStyle) -> Paragraph:
-    return Paragraph(f"• {_escape(text)}", style)
+    return Paragraph(f"- {_escape(text)}", style)
 
 
 def build_unified_report(result: Any) -> bytes:
-    """Build the report in the agreed classification → GD&T → comparison order."""
+    """Build the customer report in metadata → diff → standards → findings order."""
 
     buffer = BytesIO()
     page_size = landscape(A4)
@@ -123,7 +167,8 @@ def build_unified_report(result: Any) -> bytes:
     subheading = ParagraphStyle("Subsection", parent=styles["Heading2"], fontSize=12, spaceAfter=7)
     body = ParagraphStyle("Body", parent=styles["BodyText"], fontSize=9, leading=12, spaceAfter=5)
     bullet = ParagraphStyle("Bullet", parent=body, leftIndent=12, firstLineIndent=-8)
-    cell = ParagraphStyle("Cell", parent=body, fontSize=8, leading=10)
+    cell = ParagraphStyle("Cell", parent=body, fontSize=7.5, leading=8.5, spaceAfter=0)
+    label_cell = ParagraphStyle("LabelCell", parent=cell, fontName="Helvetica-Bold")
     header = ParagraphStyle("HeaderCell", parent=cell, textColor=colors.white, alignment=TA_CENTER)
 
     story: list[Any] = [
@@ -132,67 +177,66 @@ def build_unified_report(result: Any) -> bytes:
         Paragraph(f"Original: {_escape(result.original_name)}", body),
         Paragraph(f"Revisado: {_escape(result.revised_name)}", body),
         Spacer(1, 0.35 * cm),
-        Paragraph("1. Part Classification", heading),
+        Paragraph("1. Header", heading),
     ]
 
-    rows = [[Paragraph("Campo", header), Paragraph("Valor extraído", header)]]
-    rows.extend(
-        [Paragraph(_escape(label), cell), Paragraph(_escape(value), cell)]
-        for label, value in _classification_rows(result.part_classification)
-    )
-    table = Table(rows, colWidths=[5.2 * cm, 20.3 * cm], repeatRows=1)
-    table.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1F4E78")),
-        ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#A0A0A0")),
-        ("VALIGN", (0, 0), (-1, -1), "TOP"),
-        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#F3F6F8")]),
-        ("LEFTPADDING", (0, 0), (-1, -1), 6),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 6),
-        ("TOPPADDING", (0, 0), (-1, -1), 5),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
-    ]))
-    story.extend([table, Spacer(1, 0.45 * cm), Paragraph("2. Normas", heading)])
+    classification = result.part_classification
+    header_values = dict(classification.get("header") or {})
+    if not header_values.get("classification"):
+        header_values["classification"] = classification.get("classificacao")
+    drawing_block = dict(classification.get("drawing_block") or {})
+
+    story.extend([
+        _metadata_table(_metadata_rows(header_values, HEADER_FIELDS, label_cell, cell)),
+        Spacer(1, 0.4 * cm),
+        Paragraph("Drawing Block Transcription", heading),
+        _metadata_table(_metadata_rows(drawing_block, DRAWING_BLOCK_FIELDS, label_cell, cell)),
+        PageBreak(),
+        Paragraph("2. Difference Map with IDs", heading),
+    ])
+
+    comparison_images = 0
+    for index, page in enumerate(result.comparison_pages):
+        highlighted = getattr(page, "image_highlighted", None)
+        if highlighted is None:
+            continue
+        if comparison_images:
+            story.append(PageBreak())
+        page_number = int(getattr(page, "page_index", index)) + 1
+        story.append(Paragraph(f"Comparison - page {page_number}", subheading))
+        story.append(_image_flowable(highlighted, max_width=25.5 * cm, max_height=15.8 * cm))
+        comparison_images += 1
+    if not comparison_images:
+        story.append(_bullet("No comparison image was generated.", bullet))
+
+    story.extend([PageBreak(), Paragraph("3. Applied Standards", heading)])
 
     cited = result.part_classification.get("lista_normas", []) or []
     evidence = result.part_classification.get("justificativas_normas", []) or []
     if cited:
-        story.append(Paragraph("Normas explicitamente citadas no desenho revisado", subheading))
         for index, standard in enumerate(cited):
-            suffix = f" — {evidence[index]}" if index < len(evidence) and evidence[index] else ""
+            suffix = f" - {evidence[index]}" if index < len(evidence) and evidence[index] else ""
             story.append(_bullet(f"{standard}{suffix}", bullet))
     else:
-        story.append(_bullet("Nenhuma norma explícita foi extraída do desenho revisado.", bullet))
+        story.append(_bullet("No explicit standard was extracted from the revised drawing.", bullet))
 
     suggested = result.inferred_standards.get("normas_sugeridas", []) or []
     if suggested:
         story.append(Spacer(1, 0.15 * cm))
-        story.append(Paragraph("Normas sugeridas para validação humana", subheading))
+        story.append(Paragraph("Standards suggested for human validation", subheading))
         for standard in suggested:
             story.append(_bullet(str(standard), bullet))
         reasoning = result.inferred_standards.get("reasoning")
         if reasoning:
-            story.append(Paragraph(f"Justificativa: {_escape(reasoning)}", body))
+            story.append(Paragraph(f"Reasoning: {_escape(reasoning)}", body))
 
-    story.extend([PageBreak(), Paragraph("3. GD&T e datums no desenho revisado", heading)])
-    for index, page in enumerate(result.gdt_pages):
-        if index:
-            story.append(PageBreak())
-        summary = page.report.get("summary", {})
-        story.append(Paragraph(f"Página {page.page_index + 1}", subheading))
-        story.append(_bullet(f"GD&T detectados: {summary.get('total_detections', 0)}", bullet))
-        story.append(_bullet(f"Referências de datum resolvidas: {summary.get('resolved_datum_refs', 0)}", bullet))
-        story.append(_bullet(f"Definições de datum encontradas: {summary.get('datum_definitions_found', 0)}", bullet))
-        if page.annotated_image is not None:
-            story.append(Spacer(1, 0.15 * cm))
-            story.append(_image_flowable(page.annotated_image, max_width=25.5 * cm, max_height=14.2 * cm))
-
-    story.extend([PageBreak(), Paragraph("4. Part Comparison", heading)])
+    story.extend([PageBreak(), Paragraph("4. Difference Table", heading)])
     if result.paper_format_changes:
-        story.append(Paragraph("Alterações determinísticas de formato do desenho", subheading))
+        story.append(Paragraph("Deterministic drawing format changes", subheading))
         for change in result.paper_format_changes:
             story.append(
                 _bullet(
-                    f"Página {change.get('page', '?')}: {change.get('description', 'formato alterado')}",
+                    f"Page {change.get('page', '?')}: {change.get('description', 'format changed')}",
                     bullet,
                 )
             )
@@ -201,19 +245,19 @@ def build_unified_report(result: Any) -> bytes:
         if index:
             story.append(PageBreak())
         page_number = int(getattr(page, "page_index", index)) + 1
-        story.append(Paragraph(f"Comparação — página {page_number}", subheading))
+        story.append(Paragraph(f"Comparison - page {page_number}", subheading))
         true_changes = list(getattr(page, "true_changes", []) or [])
         false_positives = list(getattr(page, "false_positive_ids", []) or [])
-        story.append(_bullet(f"Mudanças confirmadas: {len(true_changes)}", bullet))
-        story.append(_bullet(f"Falsos positivos filtrados: {len(false_positives)}", bullet))
+        story.append(_bullet(f"Confirmed changes: {len(true_changes)}", bullet))
+        story.append(_bullet(f"Filtered false positives: {len(false_positives)}", bullet))
         if true_changes:
             change_rows = [[Paragraph("ID", header), Paragraph("Difference found", header), Paragraph("Recommended Action", header)]]
             for change in true_changes:
-                description = str(getattr(change, "description", "Mudança identificada"))
+                description = str(getattr(change, "description", "Change identified"))
                 change_rows.append([
-                    Paragraph(str(getattr(change, "index", "—")), cell),
+                    Paragraph(str(getattr(change, "index", "-")), cell),
                     Paragraph(_escape(description), cell),
-                    Paragraph("Validar a alteração em relação ao requisito técnico aplicável.", cell),
+                    Paragraph("Validate the change against the applicable technical requirement.", cell),
                 ])
             changes_table = Table(change_rows, colWidths=[1.4 * cm, 16.2 * cm, 8.0 * cm], repeatRows=1)
             changes_table.setStyle(TableStyle([
@@ -226,16 +270,37 @@ def build_unified_report(result: Any) -> bytes:
                 ("TOPPADDING", (0, 0), (-1, -1), 5),
                 ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
             ]))
-            story.extend([Spacer(1, 0.2 * cm), changes_table])
+            story.extend([Spacer(1, 0.2 * cm), changes_table, Spacer(1, 0.35 * cm)])
+            story.append(Paragraph("Differences by ID", subheading))
+            for change in true_changes:
+                change_id = getattr(change, "index", "-")
+                description = getattr(change, "description", "Change identified")
+                location = (
+                    f"x={getattr(change, 'x', '-')}, y={getattr(change, 'y', '-')}, "
+                    f"w={getattr(change, 'width', '-')}, h={getattr(change, 'height', '-')}"
+                )
+                story.append(_bullet(f"ID {change_id}: {description} ({location})", bullet))
         else:
-            story.append(_bullet("Nenhuma mudança significativa confirmada.", bullet))
+            story.append(_bullet("No significant change was confirmed.", bullet))
 
-        highlighted = getattr(page, "image_highlighted", None)
-        if highlighted is not None:
-            story.extend([
-                Spacer(1, 0.3 * cm),
-                _image_flowable(highlighted, max_width=25.5 * cm, max_height=10.5 * cm),
-            ])
+    story.append(PageBreak())
+    for index, page in enumerate(result.gdt_pages):
+        if index:
+            story.append(PageBreak())
+        summary = page.report.get("summary", {})
+        page_story = []
+        if index == 0:
+            page_story.append(Paragraph("5. GD&T and Datums", heading))
+        page_story.append(Paragraph(f"Page {page.page_index + 1}", subheading))
+        page_story.append(_bullet(f"GD&T detected: {summary.get('total_detections', 0)}", bullet))
+        page_story.append(_bullet(f"Resolved datum references: {summary.get('resolved_datum_refs', 0)}", bullet))
+        page_story.append(_bullet(f"Datum definitions found: {summary.get('datum_definitions_found', 0)}", bullet))
+        if page.annotated_image is not None:
+            page_story.append(Spacer(1, 0.15 * cm))
+            page_story.append(
+                _image_flowable(page.annotated_image, max_width=25.5 * cm, max_height=13.4 * cm)
+            )
+        story.append(KeepTogether(page_story))
 
     doc.build(story)
     return buffer.getvalue()

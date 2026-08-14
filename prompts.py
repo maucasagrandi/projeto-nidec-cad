@@ -199,22 +199,40 @@ Retorne somente um objeto JSON válido no seguinte formato:
 
 classificacao_e_normas_prompt = """
 <Contexto>
-Você é um especialista em análise de textos extraídos de desenhos técnicos CAD e documentos de engenharia.
+Você é um especialista em leitura visual e textual de desenhos técnicos CAD.
+Você recebeu o PDF revisado completo e, abaixo, o texto vetorial extraído dele.
 
 <Tarefa>
-Analise o texto fornecido e execute DUAS tarefas:
+Execute três tarefas na mesma análise:
 
 <Tarefa 1>
-Identifique o tipo da peça com base nas informações textuais disponíveis no desenho, como:
+Localize visualmente o drawing block/title block, independentemente da posição ou
+orientação, e transcreva os campos solicitados em "header" e "drawing_block".
+
+Regras do carimbo:
+- Preserve grafia, pontuação, códigos e datas exatamente como aparecem.
+- Use null quando um campo estiver vazio, ilegível ou ausente. Nunca invente valores.
+- "drawing_number" e "number" correspondem ao campo "No." do drawing block.
+- "title" e "name_and_document_type" correspondem ao valor de "TITLE, DOCUMENT TYPE".
+- "cr" corresponde ao valor ECM/ECAM do drawing block, conforme solicitado pelo cliente.
+- "last_revision_date" vem da revisão mais recente da tabela de revisões, não da DATE do drawing block.
+- "compressor_series_code" só pode ser preenchido se a série estiver explícita no desenho;
+  caso dependa de Windchill ou de uma tabela externa, retorne null.
+- "materials" deve conter material principal e alternativas, quando houver.
+- Não confunda códigos de tabelas de produto com o número principal do desenho.
+
+<Tarefa 2>
+Identifique o tipo da peça com base nas informações disponíveis no desenho, como:
 
 - título ou descrição no bloco de título;
 - nome da peça (PART NAME, DESCRIPTION);
 - referências a função ou aplicação mencionadas no texto;
 - material indicado que sugere o tipo de componente.
 
-Caso não encontre no texto a sua classificação, utilize "Não encontrado"
+Caso não encontre a classificação, utilize "Não encontrado".
+Repita a classificação em "header.classification" e "classificacao".
 
-<Tarefa 2>
+<Tarefa 3>
 Identifique somente normas, padrões ou especificações técnicas explicitamente mencionados no texto. As normas vem dentro de Notes, portanto verifique o texto que vem depois de "Notes" ou "Notas"
 
 Podem ser consideradas referências normativas explícitas:
@@ -229,7 +247,7 @@ Podem ser consideradas referências normativas explícitas:
 - especificações internas, como TSS;
 - outros códigos normativos escritos diretamente no texto.
 
-<Regras da tarefa 2>
+<Regras da tarefa 3>
 - Extraia somente códigos ou referências que estejam explicitamente escritos no texto.
 - Preserve o código da norma exatamente como aparece.
 - Não deduza normas a partir de materiais, símbolos, tolerâncias, rugosidade, GD&T, datums ou descrições técnicas.
@@ -254,6 +272,29 @@ Para cada norma encontrada, produza uma justificativa curta contendo o trecho ou
 Retorne somente um objeto JSON válido no seguinte formato:
 
 {
+  "header": {
+    "drawing_number": "valor ou null",
+    "title": "valor ou null",
+    "compressor_series_code": "valor ou null",
+    "cr": "valor ECM/ECAM ou null",
+    "classification": "classificação semântica ou null",
+    "last_revision_date": "data ou null"
+  },
+  "drawing_block": {
+    "materials": ["material principal", "material alternativo"],
+    "material_code": "valor ou null",
+    "drawn_by": "valor ou null",
+    "approved_by": "valor ou null",
+    "drawing_code_ecm": "valor ou null",
+    "date": "valor ou null",
+    "name_and_document_type": "valor ou null",
+    "general_tolerance": "valor ou null",
+    "angular_tolerance": "valor ou null",
+    "scale": "valor ou null",
+    "unit": "valor ou null",
+    "replace": "valor ou null",
+    "number": "valor ou null"
+  },
   "classificacao": "tipo da peça",
   "justificativa_classificacao": "trecho ou evidência textual que identifica o tipo da peça",
   "lista_normas": [
@@ -271,6 +312,9 @@ Retorne somente um objeto JSON válido no seguinte formato:
 - Não utilize Markdown.
 - Não utilize blocos de código.
 - Não adicione campos além dos especificados.
+- Os objetos "header" e "drawing_block" são obrigatórios, mesmo quando seus valores forem null.
+- Campos vazios, ausentes ou dependentes de sistemas externos devem ser null.
+- "materials" deve ser uma lista, vazia quando nenhum material for encontrado.
 - "classificacao" deve ser uma string.
 - "justificativa_classificacao" deve ser uma string.
 - "lista_normas" deve ser uma lista de strings.

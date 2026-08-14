@@ -5,17 +5,18 @@ o desenho original e o segundo é o desenho revisado.
 
 ## Fluxo
 
-1. Executa **Part Classification somente no PDF revisado** e extrai as normas
-   explicitamente citadas no texto vetorial.
+1. Envia **o PDF revisado e seu texto vetorial** em uma chamada multimodal para
+   transcrever Header/Drawing Block, classificar a peça e extrair normas citadas.
 2. Executa a detecção **determinística de GD&T e datums somente no revisado** e
    produz uma imagem anotada por página.
 3. Compara **original e revisado**: OpenCV alinha as páginas e encontra regiões
    candidatas; a LLM valida os candidatos e descreve as mudanças reais.
 4. Gera um relatório PDF único com:
-   - tabela do JSON de Part Classification;
-   - normas em bullet points;
-   - desenho revisado com GD&T e datums marcados;
-   - relatório e imagens da Part Comparison.
+   - tabelas Header e Drawing Block Transcription;
+   - mapa de diferenças com IDs;
+   - Applied Standards em bullet points;
+   - tabela e detalhes das diferenças por ID;
+   - desenho revisado com GD&T e datums marcados.
 
 ## Setup
 
