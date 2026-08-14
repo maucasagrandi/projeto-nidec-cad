@@ -1,0 +1,9 @@
+# Ignore everything not needed for the pipeline function
+.git
+.venv
+__pycache__
+*.pyc
+CADS/
+CAD_Review_Test_Battery_V1/
+REVIEW_RESULTS/
+.env
