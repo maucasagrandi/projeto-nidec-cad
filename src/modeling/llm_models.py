@@ -1,14 +1,13 @@
 import base64
-import os
 import logging
+import os
 import time
-import json
 from dataclasses import dataclass
-from typing import Tuple, List
-from datetime import datetime
-from pydantic import BaseModel, Field
-import google.genai as genai
+from datetime import datetime, timezone
+
+from google import genai
 from google.genai import types
+from pydantic import BaseModel, Field
 
 # Configurar logging
 logging.basicConfig(level=logging.INFO)
@@ -26,21 +25,59 @@ class ClassificacaoOutput(BaseModel):
 
 class NormasOutput(BaseModel):
     """Estrutura de saída para extração de normas"""
-    lista_normas: List[str] = Field(description="Lista de normas encontradas")
-    justificativas: List[str] = Field(description="Evidência textual de cada norma")
+    lista_normas: list[str] = Field(description="Lista de normas encontradas")
+    justificativas: list[str] = Field(description="Evidência textual de cada norma")
+
+
+class HeaderOutput(BaseModel):
+    """Customer-facing drawing header extracted from the revised PDF."""
+
+    drawing_number: str | None = Field(default=None, description="No. at drawing block")
+    title: str | None = Field(default=None, description="TITLE, DOCUMENT TYPE at drawing block")
+    compressor_series_code: str | None = Field(
+        default=None,
+        description="Compressor series explicitly present in the drawing; null when external lookup is required",
+    )
+    cr: str | None = Field(default=None, description="ECM or ECAM value at drawing block")
+    classification: str | None = Field(default=None, description="Semantic part classification")
+    last_revision_date: str | None = Field(
+        default=None,
+        description="DATE on the latest row or column of the revision table",
+    )
+
+
+class DrawingBlockOutput(BaseModel):
+    """Literal transcription of the revised drawing title block."""
+
+    materials: list[str] = Field(default_factory=list, description="All MATERIAL values")
+    material_code: str | None = Field(default=None, description="MATERIAL CODE or CODE value")
+    drawn_by: str | None = Field(default=None, description="DRAWN value")
+    approved_by: str | None = Field(default=None, description="APP. or APPROVED value")
+    drawing_code_ecm: str | None = Field(default=None, description="ECM value")
+    date: str | None = Field(default=None, description="DATE at drawing block")
+    name_and_document_type: str | None = Field(default=None, description="TITLE, DOCUMENT TYPE value")
+    general_tolerance: str | None = Field(default=None, description="GEN. TOL. value")
+    angular_tolerance: str | None = Field(default=None, description="ANG. TOL. value")
+    scale: str | None = Field(default=None, description="SCALE value")
+    unit: str | None = Field(default=None, description="UNIT value")
+    replace: str | None = Field(default=None, description="REPLACE value")
+    number: str | None = Field(default=None, description="No. value")
 
 
 class ClassificacaoENormasOutput(BaseModel):
-    """Estrutura de saída unificada: classificação da peça + extração de normas"""
+    """Unified multimodal drawing header, classification and standards output."""
+
+    header: HeaderOutput
+    drawing_block: DrawingBlockOutput
     classificacao: str = Field(description="Tipo da peça identificado")
     justificativa_classificacao: str = Field(description="Trecho ou evidência textual que identifica o tipo da peça")
-    lista_normas: List[str] = Field(description="Lista de normas encontradas")
-    justificativas_normas: List[str] = Field(description="Evidência textual de cada norma")
+    lista_normas: list[str] = Field(description="Lista de normas encontradas")
+    justificativas_normas: list[str] = Field(description="Evidência textual de cada norma")
 
 
 class NormasFaltantesOutput(BaseModel):
     """Estrutura de saída para inferência de normas faltantes"""
-    normas_sugeridas: List[str] = Field(description="Lista de normas recomendadas")
+    normas_sugeridas: list[str] = Field(description="Lista de normas recomendadas")
     reasoning: str = Field(description="Explicação técnica")
     confianca: float = Field(description="Nível de confiança (0.0 a 1.0)")
 
@@ -67,15 +104,23 @@ class AnalysisMetadata:
 # ==============================================================================
 # Cliente Gemini
 # ==============================================================================
-logger.info(f"Inicializando cliente Gemini...")
-logger.info(f"Projeto: {GCP_PROJECT}, Região: {GCP_LOCATION}, Modelo: {MODEL_ID}")
+client: genai.Client | None = None
 
-client = genai.Client(
-    vertexai=True,
-    project=GCP_PROJECT,
-    location=GCP_LOCATION,
-)
-logger.info("✅ Cliente Gemini inicializado")
+
+def _get_client() -> genai.Client:
+    """Initialize Gemini only when an analysis call is actually made."""
+
+    global client
+    if client is None:
+        logger.info("Inicializando cliente Gemini...")
+        logger.info(f"Projeto: {GCP_PROJECT}, Região: {GCP_LOCATION}, Modelo: {MODEL_ID}")
+        client = genai.Client(
+            vertexai=True,
+            project=GCP_PROJECT,
+            location=GCP_LOCATION,
+        )
+        logger.info("✅ Cliente Gemini inicializado")
+    return client
 
 
 # ==============================================================================
@@ -86,7 +131,7 @@ def classify_part_from_image(
     image_base64: str,
     system_prompt: str,
     model: str = MODEL_ID,
-) -> Tuple[ClassificacaoOutput, AnalysisMetadata]:
+) -> tuple[ClassificacaoOutput, AnalysisMetadata]:
     """Classifica peça com structured output garantido."""
     start_time = time.time()
     
@@ -94,7 +139,7 @@ def classify_part_from_image(
     
     image_data = base64.b64decode(image_base64)
     
-    response = client.models.generate_content(
+    response = _get_client().models.generate_content(
         model=model,
         contents=[
             types.Part.from_bytes(data=image_data, mime_type="image/png"),
@@ -118,7 +163,7 @@ def classify_part_from_image(
         completion_tokens=usage.candidates_token_count,
         latency_ms=latency_ms,
         model=model,
-        timestamp=datetime.now().isoformat()
+        timestamp=datetime.now(timezone.utc).isoformat()
     )
     
     logger.info(f"✅ Classificação: {parsed.classificacao}")
@@ -129,13 +174,13 @@ def extract_norms_from_text(
     texto_notas: str,
     system_prompt: str,
     model: str = MODEL_ID,
-) -> Tuple[NormasOutput, AnalysisMetadata]:
+) -> tuple[NormasOutput, AnalysisMetadata]:
     """Extrai normas com structured output garantido."""
     start_time = time.time()
     
     logger.info(f"Enviando extração de normas para {model}...")
     
-    response = client.models.generate_content(
+    response = _get_client().models.generate_content(
         model=model,
         contents=[
             types.Part.from_text(text=f"{system_prompt}\n\nTexto:\n{texto_notas}"),
@@ -158,7 +203,7 @@ def extract_norms_from_text(
         completion_tokens=usage.candidates_token_count,
         latency_ms=latency_ms,
         model=model,
-        timestamp=datetime.now().isoformat()
+        timestamp=datetime.now(timezone.utc).isoformat()
     )
     
     logger.info(f"✅ Normas: {len(parsed.lista_normas)} encontradas")
@@ -169,17 +214,21 @@ def classify_and_extract_norms(
     texto_notas: str,
     system_prompt: str,
     model: str = MODEL_ID,
-) -> Tuple[ClassificacaoENormasOutput, AnalysisMetadata]:
-    """Classifica peça e extrai normas em uma única chamada LLM (texto)."""
+    pdf_bytes: bytes | None = None,
+) -> tuple[ClassificacaoENormasOutput, AnalysisMetadata]:
+    """Extract drawing metadata, classify the part and find standards in one call."""
     start_time = time.time()
     
-    logger.info(f"Enviando classificação + normas (unificado) para {model}...")
+    logger.info(f"Enviando carimbo + classificação + normas (multimodal) para {model}...")
+
+    contents = []
+    if pdf_bytes:
+        contents.append(types.Part.from_bytes(data=pdf_bytes, mime_type="application/pdf"))
+    contents.append(types.Part.from_text(text=system_prompt))
     
-    response = client.models.generate_content(
+    response = _get_client().models.generate_content(
         model=model,
-        contents=[
-            types.Part.from_text(text=system_prompt),
-        ],
+        contents=contents,
         config=types.GenerateContentConfig(
             response_mime_type="application/json",
             response_schema=ClassificacaoENormasOutput,
@@ -198,7 +247,7 @@ def classify_and_extract_norms(
         completion_tokens=usage.candidates_token_count,
         latency_ms=latency_ms,
         model=model,
-        timestamp=datetime.now().isoformat()
+        timestamp=datetime.now(timezone.utc).isoformat()
     )
     
     logger.info(f"✅ Classificação: {parsed.classificacao} | Normas: {len(parsed.lista_normas)} encontradas")
@@ -207,10 +256,10 @@ def classify_and_extract_norms(
 
 def infer_missing_norms(
     classificacao: str,
-    lista_normas_atuais: List[str],
+    lista_normas_atuais: list[str],
     system_prompt: str,
     model: str = MODEL_ID,
-) -> Tuple[NormasFaltantesOutput, AnalysisMetadata]:
+) -> tuple[NormasFaltantesOutput, AnalysisMetadata]:
     """Infere normas faltantes com structured output garantido."""
     start_time = time.time()
     
@@ -219,7 +268,7 @@ def infer_missing_norms(
     normas_str = ", ".join(lista_normas_atuais) if lista_normas_atuais else "Nenhuma"
     prompt = f"{system_prompt}\n\nPeça: {classificacao}\nNormas atuais: {normas_str}"
     
-    response = client.models.generate_content(
+    response = _get_client().models.generate_content(
         model=model,
         contents=[
             types.Part.from_text(text=prompt),
@@ -242,7 +291,7 @@ def infer_missing_norms(
         completion_tokens=usage.candidates_token_count,
         latency_ms=latency_ms,
         model=model,
-        timestamp=datetime.now().isoformat()
+        timestamp=datetime.now(timezone.utc).isoformat()
     )
     
     logger.info(f"✅ Sugestões: {len(parsed.normas_sugeridas)} normas")
@@ -276,7 +325,7 @@ def compare_cad_pages(
     system_prompt: str,
     model: str = "gemini-3.5-flash",
     max_tokens: int = 32768,
-) -> Tuple[str, AnalysisMetadata]:
+) -> tuple[str, AnalysisMetadata]:
     """Compara duas páginas CAD (modo texto)."""
     start_time = time.time()
     
@@ -285,7 +334,7 @@ def compare_cad_pages(
     image1_data = base64.b64decode(image1_base64)
     image2_data = base64.b64decode(image2_base64)
     
-    response = client.models.generate_content(
+    response = _get_client().models.generate_content(
         model=model,
         contents=[
             types.Part.from_bytes(data=image1_data, mime_type="image/png"),
@@ -304,8 +353,8 @@ def compare_cad_pages(
         completion_tokens=usage.candidates_token_count,
         latency_ms=latency_ms,
         model=model,
-        timestamp=datetime.now().isoformat()
+        timestamp=datetime.now(timezone.utc).isoformat()
     )
     
-    logger.info(f"✅ Comparação recebida")
+    logger.info("✅ Comparação recebida")
     return response.text, metadata

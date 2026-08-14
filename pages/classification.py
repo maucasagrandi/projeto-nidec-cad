@@ -160,6 +160,7 @@ if st.button("🚀 Analisar Peça", disabled=not pdf_file, use_container_width=T
         classificacao_normas_result, classificacao_normas_metadata = classify_and_extract_norms(
             texto_notas=texto_notas,
             system_prompt=prompt_completo,
+            pdf_bytes=pdf_bytes,
         )
         cost_logger.log_analysis(classificacao_normas_metadata, page_number=1)
         

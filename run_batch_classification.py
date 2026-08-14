@@ -73,6 +73,7 @@ def process_single_pdf(pdf_path):
         resultado, metadata_classif = classify_and_extract_norms(
             texto_notas=texto_notas,
             system_prompt=prompt_completo,
+            pdf_bytes=pdf_bytes,
         )
         
         # ETAPA 2: Inferir normas faltantes

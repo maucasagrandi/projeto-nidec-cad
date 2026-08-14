@@ -1,0 +1,104 @@
+{
+  "schema_version": 3,
+  "source_root": "cotas",
+  "template_root": "assets/gdt/templates",
+  "notes": [
+    "As imagens em cotas/ sao templates com borda (simbolo + frame do FCF).",
+    "O sync copia diretamente para assets/gdt/templates/<classe>/.",
+    "Os templates sao usados para deteccao por template matching na pagina.",
+    "Roundness e normalizado para a classe canonica circularity.",
+    "Concentricity e Coaxiality compartilham uma classe visual canonica.",
+    "O detector varre a pagina em multiplas escalas e rotacoes (0, 90, -90, 45, -45)."
+  ],
+  "entries": [
+    {
+      "source": "straightness.png",
+      "class_name": "straightness",
+      "target_name": "straightness_01.png",
+      "status": "active"
+    },
+    {
+      "source": "flatness.png",
+      "class_name": "flatness",
+      "target_name": "flatness_01.png",
+      "status": "active"
+    },
+    {
+      "source": "Roundness.png",
+      "class_name": "circularity",
+      "target_name": "circularity_01.png",
+      "status": "active",
+      "source_term": "Roundness"
+    },
+    {
+      "source": "Cylindricity.png",
+      "class_name": "cylindricity",
+      "target_name": "cylindricity_01.png",
+      "status": "active"
+    },
+    {
+      "source": "parallelism.png",
+      "class_name": "parallelism",
+      "target_name": "parallelism_01.png",
+      "status": "active"
+    },
+    {
+      "source": "Perpendicularity.png",
+      "class_name": "perpendicularity",
+      "target_name": "perpendicularity_01.png",
+      "status": "active"
+    },
+    {
+      "source": "Angularity.png",
+      "class_name": "angularity",
+      "target_name": "angularity_01.png",
+      "status": "active"
+    },
+    {
+      "source": "Circular run-out.png",
+      "class_name": "circular_runout",
+      "target_name": "circular_runout_01.png",
+      "status": "active",
+      "source_term": "Circular run-out"
+    },
+    {
+      "source": "Total_runout.png",
+      "class_name": "total_runout",
+      "target_name": "total_runout_01.png",
+      "status": "active",
+      "source_term": "Total run-out"
+    },
+    {
+      "source": "Concentricity.png",
+      "class_name": "concentricity_coaxiality",
+      "target_name": "concentricity_coaxiality_01.png",
+      "status": "active",
+      "source_term": "Concentricity"
+    },
+    {
+      "source": "Coaxiality.png",
+      "class_name": "concentricity_coaxiality",
+      "target_name": "concentricity_coaxiality_02.png",
+      "status": "active",
+      "source_term": "Coaxiality"
+    },
+    {
+      "source": "Symmetry.png",
+      "class_name": "symmetry",
+      "target_name": "symmetry_01.png",
+      "status": "active"
+    },
+    {
+      "source": "Position.png",
+      "class_name": "position",
+      "target_name": "position_01.png",
+      "status": "active"
+    },
+    {
+      "source": "Profile.png",
+      "class_name": "profile",
+      "target_name": "profile_01.png",
+      "status": "active"
+    }
+  ]
+}
