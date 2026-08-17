@@ -10,4 +10,4 @@ COPY main.py .
 ENV PORT=8080
 EXPOSE 8080
 
-CMD ["functions-framework", "--target=orchestrator", "--port=8080"]
+CMD ["gunicorn", "--bind", "0.0.0.0:8080", "--workers", "1", "--threads", "2", "--timeout", "1200", "main:app"]

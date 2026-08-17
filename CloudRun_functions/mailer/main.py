@@ -32,7 +32,7 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
 import functions_framework
-from flask import Request, jsonify
+from flask import Flask, Request, jsonify, request as flask_request
 from google.cloud import secretmanager, storage
 
 logging.basicConfig(level=logging.INFO)
@@ -116,7 +116,6 @@ def _send_email(
     logger.info("Email sent to %d recipients", len(recipients))
 
 
-@functions_framework.http
 def mailer(request: Request):
     """HTTP Cloud Run function entry point for the mailer."""
     # Parse request
@@ -205,3 +204,17 @@ def mailer(request: Request):
             "process_id": process_id,
             "error": str(e),
         }), 500
+
+
+# Flask app for Cloud Run deployment
+app = Flask(__name__)
+
+
+@app.route("/", methods=["POST"])
+def handle_request():
+    return mailer(flask_request)
+
+
+@app.route("/health", methods=["GET"])
+def health():
+    return jsonify({"status": "ok"}), 200

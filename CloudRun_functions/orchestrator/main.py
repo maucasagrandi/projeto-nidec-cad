@@ -28,11 +28,10 @@ import logging
 import os
 from datetime import datetime, timezone
 
-import functions_framework
 import google.auth.transport.requests
 import google.oauth2.id_token
 import requests
-from flask import Request, jsonify
+from flask import Flask, Request, jsonify, request as flask_request
 from google.cloud import storage
 
 logging.basicConfig(level=logging.INFO)
@@ -92,7 +91,6 @@ def _call_function(url: str, payload: dict, timeout: int = 600) -> dict:
     return response.json()
 
 
-@functions_framework.http
 def orchestrator(request: Request):
     """HTTP Cloud Run function entry point for the orchestrator."""
     # Parse request
@@ -240,3 +238,17 @@ def orchestrator(request: Request):
         "duration_seconds": round(duration, 1),
         "report_gcs_path": report_gcs_path,
     }), 200
+
+
+# Flask app for Cloud Run deployment
+app = Flask(__name__)
+
+
+@app.route("/", methods=["POST"])
+def handle_request():
+    return orchestrator(flask_request)
+
+
+@app.route("/health", methods=["GET"])
+def health():
+    return jsonify({"status": "ok"}), 200

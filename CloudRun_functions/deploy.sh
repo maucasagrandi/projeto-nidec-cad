@@ -1,10 +1,15 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# Deploy all three Cloud Run functions for the CAD Review pipeline.
+# Deploy all three Cloud Run services for the CAD Review pipeline.
+#
+# Builds Docker images locally, pushes to Artifact Registry, and deploys
+# to Cloud Run. No Cloud Build permissions required.
 #
 # Prerequisites:
 #   - gcloud CLI authenticated and configured
+#   - Docker installed and accessible (via sudo)
 #   - GCP project set (or pass --project flag)
+#   - Artifact Registry repo exists in AR_REGION
 #   - Required secrets already created in Secret Manager
 #
 # Usage:
@@ -21,21 +26,40 @@ REGION="${2:?Usage: ./deploy.sh <GCP_PROJECT_ID> <GCP_REGION>}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-echo "=== Deploying CAD Review Cloud Run Functions ==="
-echo "Project: ${PROJECT_ID}"
-echo "Region:  ${REGION}"
+# Artifact Registry configuration
+AR_REGION="us-central1"
+AR_REPO="cloud-run-source-deploy"
+AR_BASE="${AR_REGION}-docker.pkg.dev/${PROJECT_ID}/${AR_REPO}"
+
+echo "=== Deploying CAD Review Cloud Run Services ==="
+echo "Project:  ${PROJECT_ID}"
+echo "Region:   ${REGION}"
+echo "Registry: ${AR_BASE}"
 echo ""
 
 # ------------------------------------------------------------------------------
-# Function 2: Pipeline (Docker-based Cloud Run service)
-# Deployed as a Cloud Run service because it bundles the full project source
-# (src/, prompts.py, assets/) which exceeds simple function source limits.
+# Authenticate Docker with Artifact Registry
 # ------------------------------------------------------------------------------
-echo "--- Deploying: pipeline (Cloud Run service with Dockerfile) ---"
+echo "--- Authenticating Docker with Artifact Registry ---"
+gcloud auth print-access-token | sudo docker login -u oauth2accesstoken --password-stdin "${AR_REGION}-docker.pkg.dev"
+echo ""
+
+# ------------------------------------------------------------------------------
+# Service 1: Pipeline
+# ------------------------------------------------------------------------------
+PIPELINE_IMAGE="${AR_BASE}/cad-review-pipeline:latest"
+
+echo "--- Building: pipeline ---"
+sudo docker build -t "${PIPELINE_IMAGE}" "${SCRIPT_DIR}/pipeline"
+
+echo "--- Pushing: pipeline ---"
+sudo docker push "${PIPELINE_IMAGE}"
+
+echo "--- Deploying: pipeline (Cloud Run service) ---"
 gcloud run deploy cad-review-pipeline \
     --region="${REGION}" \
     --project="${PROJECT_ID}" \
-    --source="${SCRIPT_DIR}/pipeline" \
+    --image="${PIPELINE_IMAGE}" \
     --no-allow-unauthenticated \
     --memory=4Gi \
     --timeout=900 \
@@ -53,49 +77,65 @@ echo "Pipeline URL: ${PIPELINE_URL}"
 echo ""
 
 # ------------------------------------------------------------------------------
-# Function 3: Mailer
+# Service 2: Mailer
 # ------------------------------------------------------------------------------
-echo "--- Deploying: mailer ---"
-gcloud functions deploy cad-review-mailer \
-    --gen2 \
+MAILER_IMAGE="${AR_BASE}/cad-review-mailer:latest"
+
+echo "--- Building: mailer ---"
+sudo docker build -t "${MAILER_IMAGE}" "${SCRIPT_DIR}/mailer"
+
+echo "--- Pushing: mailer ---"
+sudo docker push "${MAILER_IMAGE}"
+
+echo "--- Deploying: mailer (Cloud Run service) ---"
+gcloud run deploy cad-review-mailer \
     --region="${REGION}" \
     --project="${PROJECT_ID}" \
-    --runtime=python311 \
-    --source="${SCRIPT_DIR}/mailer" \
-    --entry-point=mailer \
-    --trigger-http \
+    --image="${MAILER_IMAGE}" \
     --no-allow-unauthenticated \
     --memory=512Mi \
-    --timeout=120s \
-    --set-env-vars="SMTP_HOST=<SMTP_HOST>,SMTP_PORT=587,SECRET_PROJECT_ID=${PROJECT_ID},SECRET_SMTP_USER=smtp-user,SECRET_SMTP_PASSWORD=smtp-password,MAIL_RECIPIENTS=<RECIPIENTS>,MAIL_SENDER=<SENDER>"
+    --timeout=120 \
+    --cpu=1 \
+    --min-instances=0 \
+    --max-instances=3 \
+    --set-env-vars="SMTP_HOST=<SMTP_HOST>,SMTP_PORT=587,SECRET_PROJECT_ID=${PROJECT_ID},SECRET_SMTP_USER=smtp-user,SECRET_SMTP_PASSWORD=smtp-password,MAIL_RECIPIENTS=<RECIPIENTS>,MAIL_SENDER=<SENDER>" \
+    --quiet
 
-MAILER_URL=$(gcloud functions describe cad-review-mailer \
-    --gen2 --region="${REGION}" --project="${PROJECT_ID}" \
-    --format="value(serviceConfig.uri)")
+MAILER_URL=$(gcloud run services describe cad-review-mailer \
+    --region="${REGION}" --project="${PROJECT_ID}" \
+    --format="value(status.url)")
 
 echo "Mailer URL: ${MAILER_URL}"
 echo ""
 
 # ------------------------------------------------------------------------------
-# Function 1: Orchestrator
+# Service 3: Orchestrator
 # ------------------------------------------------------------------------------
-echo "--- Deploying: orchestrator ---"
-gcloud functions deploy cad-review-orchestrator \
-    --gen2 \
+ORCHESTRATOR_IMAGE="${AR_BASE}/cad-review-orchestrator:latest"
+
+echo "--- Building: orchestrator ---"
+sudo docker build -t "${ORCHESTRATOR_IMAGE}" "${SCRIPT_DIR}/orchestrator"
+
+echo "--- Pushing: orchestrator ---"
+sudo docker push "${ORCHESTRATOR_IMAGE}"
+
+echo "--- Deploying: orchestrator (Cloud Run service) ---"
+gcloud run deploy cad-review-orchestrator \
     --region="${REGION}" \
     --project="${PROJECT_ID}" \
-    --runtime=python311 \
-    --source="${SCRIPT_DIR}/orchestrator" \
-    --entry-point=orchestrator \
-    --trigger-http \
+    --image="${ORCHESTRATOR_IMAGE}" \
     --no-allow-unauthenticated \
     --memory=512Mi \
-    --timeout=1200s \
-    --set-env-vars="PIPELINE_FUNCTION_URL=${PIPELINE_URL},MAILER_FUNCTION_URL=${MAILER_URL}"
+    --timeout=1200 \
+    --cpu=1 \
+    --min-instances=0 \
+    --max-instances=3 \
+    --set-env-vars="PIPELINE_FUNCTION_URL=${PIPELINE_URL},MAILER_FUNCTION_URL=${MAILER_URL}" \
+    --quiet
 
-ORCHESTRATOR_URL=$(gcloud functions describe cad-review-orchestrator \
-    --gen2 --region="${REGION}" --project="${PROJECT_ID}" \
-    --format="value(serviceConfig.uri)")
+ORCHESTRATOR_URL=$(gcloud run services describe cad-review-orchestrator \
+    --region="${REGION}" --project="${PROJECT_ID}" \
+    --format="value(status.url)")
 
 echo ""
 echo "=== Deployment Complete ==="
@@ -105,4 +145,4 @@ echo "Mailer URL:       ${MAILER_URL}"
 echo ""
 echo "NOTE: Update the mailer env vars (SMTP_HOST, MAIL_RECIPIENTS, MAIL_SENDER)"
 echo "      with actual values using:"
-echo "  gcloud functions deploy cad-review-mailer --gen2 --region=${REGION} --update-env-vars=..."
+echo "  gcloud run services update cad-review-mailer --region=${REGION} --update-env-vars=SMTP_HOST=...,MAIL_RECIPIENTS=...,MAIL_SENDER=..."
