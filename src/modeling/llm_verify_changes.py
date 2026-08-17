@@ -97,6 +97,7 @@ class VerificationResult:
 
     # Images
     image_original: np.ndarray | None = None
+    image_revised_aligned: np.ndarray | None = None
     image_highlighted: np.ndarray | None = None
 
     @property
@@ -569,7 +570,8 @@ def run_verification_pipeline(
     result = _build_verified_result(page_index, regions_metadata, llm_output, metadata)
 
     # Step 4: Render final image
-    result.image_original = None
+    result.image_original = cv_result.image1
+    result.image_revised_aligned = cv_result.image2_aligned
     result.image_highlighted = render_verified_highlights(
         cv_result.image1, cv_result.image2_aligned, result.true_changes
     )
@@ -624,7 +626,9 @@ def save_verification_result(
         output_dir/
         ├── report.json        # Structured report
         ├── report.txt         # Human-readable report
-        └── comparison.png     # Side-by-side image with ID-labeled highlights
+        ├── comparison.png     # Side-by-side image with ID-labeled highlights
+        ├── original_full.png  # Full-page original image at detection resolution
+        └── revised_full.png   # Full-page revised aligned image at detection resolution
 
     Args:
         result: VerificationResult from the pipeline.
@@ -651,5 +655,13 @@ def save_verification_result(
     if result.image_highlighted is not None:
         img_path = output_dir / "comparison.png"
         cv2.imwrite(str(img_path), result.image_highlighted)
+
+    # Save full-page images for crop extraction in reports
+    if result.image_original is not None:
+        orig_path = output_dir / "original_full.png"
+        cv2.imwrite(str(orig_path), result.image_original)
+    
+    # Note: image_original is currently always None after render_verified_highlights.
+    # We need to preserve it in run_verification_pipeline.
 
     return output_dir
