@@ -275,24 +275,55 @@ def build_unified_report(result: Any) -> bytes:
     # ── 2. Applied Standards ──────────────────────────────────────────────────
     story.append(Paragraph("2. Applied Standards", heading))
 
-    cited    = result.part_classification.get("lista_normas", []) or []
-    evidence = result.part_classification.get("justificativas_normas", []) or []
+    # 2a — Standards explicitly cited in the drawing
+    # Apply deterministic filter to remove generic entries (e.g. "ISO STANDARDS")
+    from src.standards.tss_mapper import filter_generic_standards
+
+    cited_raw = result.part_classification.get("lista_normas", []) or []
+    evidence  = result.part_classification.get("justificativas_normas", []) or []
+    cited, filtered_generic = filter_generic_standards(cited_raw)
+
     if cited:
+        story.append(Paragraph("Standards cited in the revised drawing", subheading))
         for idx, standard in enumerate(cited):
             suffix = f" - {evidence[idx]}" if idx < len(evidence) and evidence[idx] else ""
             story.append(_bullet(f"{standard}{suffix}", bullet_sty))
     else:
         story.append(_bullet("No explicit standard was extracted from the revised drawing.", bullet_sty))
 
-    suggested = result.inferred_standards.get("normas_sugeridas", []) or []
-    if suggested:
-        story.append(Spacer(1, 0.15 * cm))
+    # 2b — TSS mapping: standards suggested for human validation
+    tss_comp = getattr(result, "tss_comparison", {}) or {}
+    tss_map  = getattr(result, "tss_mapping", {}) or {}
+
+    only_in_suggested   = tss_comp.get("only_in_suggested", []) or []
+    suggested_reasoning = tss_comp.get("suggested_reasoning", {}) or {}
+    only_in_detected    = tss_comp.get("only_in_detected", []) or []
+    overall_reasoning   = tss_comp.get("overall_reasoning", "") or ""
+
+    if only_in_suggested:
+        story.append(Spacer(1, 0.2 * cm))
         story.append(Paragraph("Standards suggested for human validation", subheading))
-        for standard in suggested:
-            story.append(_bullet(str(standard), bullet_sty))
-        reasoning = result.inferred_standards.get("reasoning")
-        if reasoning:
-            story.append(Paragraph(f"Reasoning: {_escape(reasoning)}", body))
+        for standard in only_in_suggested:
+            reasoning = suggested_reasoning.get(standard, "")
+            if reasoning:
+                story.append(_bullet(f"{standard} - {reasoning}", bullet_sty))
+            else:
+                story.append(_bullet(standard, bullet_sty))
+        if overall_reasoning:
+            story.append(Spacer(1, 0.1 * cm))
+            story.append(Paragraph(f"Reasoning: {_escape(overall_reasoning)}", body))
+
+    # 2c — Standards detected in the drawing but not covered by TSS mapping
+    if only_in_detected:
+        story.append(Spacer(1, 0.2 * cm))
+        story.append(Paragraph("Detected standards not covered by TSS mapping", subheading))
+        story.append(Paragraph(
+            "The following standards were found in the drawing but were not matched "
+            "by the TSS mapping. Human review is recommended.",
+            body,
+        ))
+        for standard in only_in_detected:
+            story.append(_bullet(standard, bullet_sty))
 
     story.append(PageBreak())
 
@@ -458,6 +489,70 @@ def build_unified_report(result: Any) -> bytes:
                 Spacer(1, 0.25 * cm),
                 Paragraph(f"<b>Description:</b> {_escape(description)}", body),
             ])
+
+    # ── 6. References ──────────────────────────────────────────────────────────
+    # Only show the standards that were suggested/recommended (TSS mapping output)
+    tss_mapping_applied = tss_map.get("applied_standards", []) or []
+    
+    if tss_mapping_applied:
+        story.append(PageBreak())
+        story.append(Paragraph("6. References", heading))
+        
+        # Build table: header + only the suggested standards
+        ref_rows = [[
+            Paragraph("<b>Standard</b>", tbl_header),
+            Paragraph("<b>Content</b>", tbl_header),
+            Paragraph("<b>Category</b>", tbl_header),
+            Paragraph("<b>Applicability</b>", tbl_header),
+        ]]
+        
+        # tss_mapping_applied is a list of dicts with keys: standard, applicability_match, reasoning
+        # We need to load the full table to get Content and Category
+        from pathlib import Path
+        from src.standards.tss_mapper import load_standards_table
+        
+        try:
+            normas_path = Path("normas.xlsx")
+            all_standards = load_standards_table(normas_path)
+            
+            # Build a lookup map: standard code -> full record
+            standards_map = {std["standard"]: std for std in all_standards}
+            
+            # For each suggested standard, lookup full details
+            for applied in tss_mapping_applied:
+                std_code = applied.get("standard", "")
+                full_record = standards_map.get(std_code, {})
+                
+                ref_rows.append([
+                    Paragraph(_escape(std_code), cell),
+                    Paragraph(_escape(full_record.get("content", "")), cell),
+                    Paragraph(_escape(full_record.get("category", "")), cell),
+                    Paragraph(_escape(applied.get("applicability_match", "")), cell),
+                ])
+            
+            ref_table = Table(
+                ref_rows,
+                colWidths=[3.2 * cm, 8.0 * cm, 5.5 * cm, 8.8 * cm],
+                repeatRows=1,
+            )
+            ref_table.setStyle(TableStyle([
+                ("BACKGROUND",   (0, 0), (-1, 0), colors.HexColor("#00695C")),
+                ("GRID",         (0, 0), (-1, -1), 0.4, colors.grey),
+                ("VALIGN",       (0, 0), (-1, -1), "TOP"),
+                ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#E0F2F1")]),
+                ("LEFTPADDING",  (0, 0), (-1, -1), 4),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 4),
+                ("TOPPADDING",   (0, 0), (-1, -1), 4),
+                ("BOTTOMPADDING",(0, 0), (-1, -1), 4),
+            ]))
+            
+            story.append(ref_table)
+            
+        except Exception as e:
+            story.append(Paragraph(
+                f"<i>Error loading standards references: {_escape(str(e))}</i>",
+                body,
+            ))
 
     doc.build(story)
     return buffer.getvalue()

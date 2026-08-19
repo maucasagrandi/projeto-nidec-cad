@@ -1,0 +1,54 @@
+{
+  "pdf": "13358002_REV_7_draw_1.pdf",
+  "model": "gemini-2.5-flash",
+  "mode": "both",
+  "confidence_threshold": 0.7,
+  "text_result": {
+    "latency_s": 23.51,
+    "component_title": "GASKET - VALVE PLATE",
+    "component_inference": "A Gaxeta da Placa de Válvula é uma peça de vedação (componente individual) de natureza não metálica, feita de Poliéster ou Papelão, conforme indicado nas notas do desenho. Sua função é garantir a vedação da placa de válvula dentro do compressor.",
+    "applied_standards": [
+      {
+        "standard": "TSS 002470",
+        "applicability_match": "All",
+        "reasoning": "1. Natureza física: Componente de vedação (gaxeta) para um compressor. 2. Aplica-se a todos os desenhos e componentes, sendo uma norma geral.",
+        "confidence": 1.0
+      },
+      {
+        "standard": "TSS 002513",
+        "applicability_match": "All",
+        "reasoning": "1. Natureza física: Componente de vedação (gaxeta) para um compressor. 2. Aplica-se a todos os desenhos e componentes, sendo uma norma geral. O desenho também menciona explicitamente 'DRAWING ACCORDING TO ISO STANDARDS, SEE TSS 002513'.",
+        "confidence": 1.0
+      },
+      {
+        "standard": "TSS 002420",
+        "applicability_match": "All",
+        "reasoning": "1. Natureza física: Componente de vedação (gaxeta) para um compressor, feito de Poliéster ou Papelão. 2. Aplica-se a todos os materiais, produtos acabados e embalagens. O desenho também menciona explicitamente 'REQUIREMENTS ABOUT HAZARDOUS SUBSTANCES ACCORDING TO TSS 002420'.",
+        "confidence": 1.0
+      }
+    ],
+    "explicitly_excluded": [
+      "TSS 001602: Não é um componente metálico que requer acabamento de superfície (virabrequim, cárter, biela, pistão, pino do pistão).",
+      "TSS 002611: Não é um componente metálico que requer acabamento de superfície (virabrequim, cárter, biela, pistão, pino do pistão, bucha).",
+      "TSS 002621: Não é um virabrequim.",
+      "TSS 001559: Não é um componente metálico de 'matching' (virabrequim, cárter, pistão).",
+      "TSS 002596: Não é um componente metálico de 'matching' (virabrequim, cárter, pistão).",
+      "TSS 004093: Não é um componente metálico de 'matching' (virabrequim, cárter, pistão).",
+      "TSS 002369: É um componente não metálico (Poliéster/Papelão), portanto, esta norma de materiais metálicos (Aço, Alumínio, Cobre) não se aplica.",
+      "TSS 001266: É um componente individual (gaxeta), não uma montagem de compressor.",
+      "TSS 001267: É um componente individual (gaxeta), não uma montagem de compressor.",
+      "TSS 001269: É um componente individual (gaxeta), não uma montagem de compressor.",
+      "TSS 001270: É um componente individual (gaxeta), não uma montagem de compressor.",
+      "TSS 004053: É um componente individual (gaxeta), não uma montagem de compressor.",
+      "TSS 002089: É um componente individual (gaxeta), não uma montagem de compressor.",
+      "TSS 001565: Não é um virabrequim bruto nem cárter bruto.",
+      "TSS 002424: Não é uma biela bruta, bucha de bomba de óleo, pistão bruto ou placa de válvula bruta (é uma gaxeta para a placa de válvula, não a placa em si).",
+      "TSS 002558: Não é um conector de descarga, sucção ou processo.",
+      "TSS 001615: Não é uma carcaça, tampa, placa de base ou cerca.",
+      "TSS 002467: Não é uma cerca ou placa de base."
+    ],
+    "overall_confidence": 1.0,
+    "needs_visual_confirmation": false
+  },
+  "fallback_triggered": false
+}

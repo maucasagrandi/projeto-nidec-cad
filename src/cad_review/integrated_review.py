@@ -24,7 +24,6 @@ logger = logging.getLogger(__name__)
 
 def _format_elapsed(seconds: float) -> str:
     """Format a duration as HH:MM:SS.s for execution logs."""
-
     hours, remainder = divmod(max(0.0, seconds), 3600)
     minutes, seconds = divmod(remainder, 60)
     return f"{int(hours):02d}:{int(minutes):02d}:{seconds:04.1f}"
@@ -63,6 +62,9 @@ class IntegratedReviewResult:
     comparison_pages: list[Any]
     paper_format_changes: list[dict[str, Any]] = field(default_factory=list)
     metadata: dict[str, Any] = field(default_factory=dict)
+    # TSS mapping result — populated by run_tss_mapping + compare_detected_vs_suggested
+    tss_mapping: dict[str, Any] = field(default_factory=dict)
+    tss_comparison: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -76,6 +78,8 @@ class IntegratedReviewResult:
                 "cited": self.part_classification.get("lista_normas", []),
                 "suggested": self.inferred_standards.get("normas_sugeridas", []),
                 "inference": self.inferred_standards,
+                "tss_mapping": self.tss_mapping,
+                "tss_comparison": self.tss_comparison,
             },
             "gdt": [page.report for page in self.gdt_pages],
             "comparison": {
@@ -130,7 +134,6 @@ def _default_format_checker(original_pdf: bytes, revised_pdf: bytes) -> list[dic
 
 def extract_all_pdf_text(pdf_bytes: bytes) -> str:
     """Extract vector text from all revised drawing pages."""
-
     with fitz.open(stream=pdf_bytes, filetype="pdf") as document:
         return "\n\n".join(page.get_text() for page in document)
 
@@ -148,23 +151,6 @@ def _default_classifier(
         texto_notas=text,
         system_prompt=prompt,
         pdf_bytes=revised_pdf,
-        **kwargs,
-    )
-
-
-def _default_inferer(
-    classification: str,
-    cited_standards: list[str],
-    prompt: str,
-    model: str | None,
-) -> tuple[Any, Any]:
-    from src.modeling.llm_models import infer_missing_norms
-
-    kwargs = {"model": model} if model else {}
-    return infer_missing_norms(
-        classificacao=classification,
-        lista_normas_atuais=cited_standards,
-        system_prompt=prompt,
         **kwargs,
     )
 
@@ -233,8 +219,8 @@ def run_integrated_review(
     gdt_workers: int = 1,
     template_root: str | Path = "assets/gdt/templates",
     opencv_config: Any = None,
+    normas_path: str | Path = "normas.xlsx",
     classifier: Callable[[str, str, str | None], tuple[Any, Any]] | None = None,
-    standards_inferer: Callable[[str, list[str], str, str | None], tuple[Any, Any]] | None = None,
     gdt_analyzer: Callable[..., GdtPageResult] | None = None,
     comparator: Callable[..., list[Any]] | None = None,
     format_checker: Callable[[bytes, bytes], list[dict[str, Any]]] | None = None,
@@ -285,22 +271,28 @@ def run_integrated_review(
         pipeline_started,
     )
 
-    cited_standards = [str(value) for value in classification.get("lista_normas", [])]
-    inference_prompt = (
-        "Você é especialista em normas técnicas de engenharia. Com base na classificação "
-        "da peça e nas normas explicitamente citadas, indique somente normas adicionais que "
-        "merecem validação humana. Não apresente uma recomendação como obrigação normativa."
+    # --- TSS mapping: replaces the old LLM-based infer_missing_norms call ---
+    from src.standards.tss_mapper import compare_detected_vs_suggested, run_tss_mapping
+
+    cited_standards = [str(v) for v in classification.get("lista_normas", [])]
+
+    tss_mapping_result = run_tss_mapping(
+        revised_pdf,
+        revised_text,
+        normas_path=Path(normas_path),
+        model=classification_model or "gemini-2.5-flash",
     )
-    infer = standards_inferer or _default_inferer
-    inferred_value, inference_metadata = infer(
-        str(classification.get("classificacao", "Não encontrado")),
-        cited_standards,
-        inference_prompt,
-        classification_model,
-    )
-    inferred = _as_dict(inferred_value)
-    stage_started, timings["standards_inference"] = _log_timing(
-        "Inferência de normas concluída",
+    tss_comparison_result = compare_detected_vs_suggested(cited_standards, tss_mapping_result)
+
+    # Keep inferred_standards populated for backward-compatibility with any
+    # callers that still access result.inferred_standards directly.
+    inferred: dict[str, Any] = {
+        "normas_sugeridas": tss_comparison_result.only_in_suggested,
+        "reasoning": tss_mapping_result.mapping.component_inference,
+        "confianca": tss_mapping_result.mapping.overall_confidence,
+    }
+    stage_started, timings["tss_mapping"] = _log_timing(
+        "TSS mapping concluído",
         stage_started,
         pipeline_started,
     )
@@ -336,6 +328,7 @@ def run_integrated_review(
         stage_started,
         pipeline_started,
     )
+
     paper_format_changes = (format_checker or _default_format_checker)(original_pdf, revised_pdf)
     _, timings["paper_format_check"] = _log_timing(
         "Verificação do formato de papel concluída",
@@ -353,9 +346,16 @@ def run_integrated_review(
         gdt_pages=gdt_pages,
         comparison_pages=comparison_pages,
         paper_format_changes=paper_format_changes,
+        tss_mapping=tss_mapping_result.to_dict(),
+        tss_comparison=tss_comparison_result.to_dict(),
         metadata={
             "classification": _metadata_dict(classification_metadata),
-            "standards_inference": _metadata_dict(inference_metadata),
+            "tss_mapping": {
+                "mode_used": tss_mapping_result.mode_used,
+                "fallback_triggered": tss_mapping_result.fallback_triggered,
+                "latency_s": round(tss_mapping_result.latency_s, 2),
+                "overall_confidence": tss_mapping_result.mapping.overall_confidence,
+            },
             "revised_text_characters": len(revised_text),
             "revised_pages": revised_page_count,
             "compared_pages": len(comparison_pages),
