@@ -268,6 +268,17 @@ Podem ser consideradas referências normativas explícitas:
 
 Para cada norma encontrada, produza uma justificativa curta contendo o trecho ou contexto textual que confirma sua presença. Coloque a justificativa conforme o campo de saída.
 
+<Tarefa 4>
+Conte as seguintes métricas objetivas diretamente a partir do desenho:
+
+1. **quantidade_revisoes**: Conte o número de linhas preenchidas na tabela de revisões (cada linha preenchida = uma revisão). A tabela de revisões tipicamente possui colunas como REV, ECM, BY, DATE, DESCRIPTION. Conte apenas as linhas com dados, não a linha de cabeçalho.
+
+2. **quantidade_notas**: Conte o número de itens numerados na lista NOTES. As notas geralmente aparecem como "NOTES: 1- ... 2- ... 3- ...". Conte apenas os itens numerados presentes.
+
+3. **quantidade_codigos**: Conte o número de códigos de itens na tabela de materiais ou componentes (ex: linhas identificadas como A, B, C, D, I, L, # ou identificadores de caractere único similares). Conte apenas as linhas que possuem um código presente.
+
+Se alguma dessas tabelas/listas não existir no desenho, retorne null para esse campo.
+
 <Saída>
 Retorne somente um objeto JSON válido no seguinte formato:
 
@@ -304,7 +315,10 @@ Retorne somente um objeto JSON válido no seguinte formato:
   "justificativas_normas": [
     "evidência textual correspondente à norma 1",
     "evidência textual correspondente à norma 2"
-  ]
+  ],
+  "quantidade_revisoes": <número inteiro ou null>,
+  "quantidade_notas": <número inteiro ou null>,
+  "quantidade_codigos": <número inteiro ou null>
 }
 
 <Regras Saída>
@@ -325,6 +339,7 @@ Retorne somente um objeto JSON válido no seguinte formato:
 - Mantenha a ordem em que as normas aparecem no texto.
 - Caso nenhuma norma seja encontrada, retorne listas vazias.
 - Em caso de incerteza na classificação, deixe isso explícito na justificativa.
+- "quantidade_revisoes", "quantidade_notas" e "quantidade_codigos" devem ser inteiros quando o elemento existir no desenho, ou null se não existir.
 
 <texto fornecido>
 {{texto_extraido}}

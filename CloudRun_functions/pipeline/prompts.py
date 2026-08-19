@@ -235,6 +235,17 @@ Repita a classificação em "header.classification" e "classificacao".
 <Tarefa 3>
 Identifique somente normas, padrões ou especificações técnicas explicitamente mencionados no texto. As normas vem dentro de Notes, portanto verifique o texto que vem depois de "Notes" ou "Notas"
 
+<Tarefa 4>
+Conte as seguintes métricas objetivas diretamente do desenho:
+
+1. **quantidade_revisoes**: Conte o número de linhas preenchidas na tabela de revisões (cada linha preenchida = uma revisão). A tabela de revisões tipicamente tem colunas como REV, ECM, BY, DATE, DESCRIPTION. Conte apenas as linhas com dados, não a linha de cabeçalho.
+
+2. **quantidade_notas**: Conte o número de itens numerados na lista NOTES. As notas geralmente aparecem como "NOTES: 1- ... 2- ... 3- ...". Conte apenas os itens numerados presentes.
+
+3. **quantidade_codigos**: Conte o número de códigos de itens na tabela de materiais ou componentes (ex: linhas identificadas como A, B, C, D, I, L, # ou identificadores de caractere único similares). Conte apenas as linhas que possuem um código presente.
+
+Se alguma dessas tabelas/listas não existir no desenho, retorne null para esse campo.
+
 Podem ser consideradas referências normativas explícitas:
 - normas ISO;
 - normas ABNT ou NBR;
@@ -267,6 +278,17 @@ Podem ser consideradas referências normativas explícitas:
   - recomendações de raio ou chanfro.
 
 Para cada norma encontrada, produza uma justificativa curta contendo o trecho ou contexto textual que confirma sua presença. Coloque a justificativa conforme o campo de saída.
+
+<Tarefa 4>
+Count the following three objective metrics directly from the drawing:
+
+1. **quantidade_revisoes**: Count the number of rows in the revision table (each filled row = one revision). The revision table typically has columns like REV, ECM, BY, DATE, DESCRIPTION. Count only rows with data, not the header row.
+
+2. **quantidade_notas**: Count the number of numbered items in the NOTES list. Notes are typically listed as "NOTES: 1- ... 2- ... 3- ...". Count only numbered items present.
+
+3. **quantidade_codigos**: Count the number of item codes in the material or component table (e.g. rows labelled A, B, C, D, I, L, # or similar single-character identifiers). Count only rows with a code present.
+
+If any of these tables/lists is not present in the drawing, return null for that field.
 
 <Saída>
 Retorne somente um objeto JSON válido no seguinte formato:

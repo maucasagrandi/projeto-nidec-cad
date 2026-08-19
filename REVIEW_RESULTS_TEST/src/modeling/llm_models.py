@@ -73,6 +73,18 @@ class ClassificacaoENormasOutput(BaseModel):
     justificativa_classificacao: str = Field(description="Trecho ou evidência textual que identifica o tipo da peça")
     lista_normas: list[str] = Field(description="Lista de normas encontradas")
     justificativas_normas: list[str] = Field(description="Evidência textual de cada norma")
+    quantidade_revisoes: int | None = Field(
+        default=None,
+        description="Number of filled rows in the revision table (each row = one revision); null if table not present",
+    )
+    quantidade_notas: int | None = Field(
+        default=None,
+        description="Number of numbered items in the NOTES list (e.g. NOTES: 1- ... 2- ...); null if not present",
+    )
+    quantidade_codigos: int | None = Field(
+        default=None,
+        description="Number of item codes in the material/component table (rows labelled A, B, C, #, etc.); null if not present",
+    )
 
 
 class NormasFaltantesOutput(BaseModel):

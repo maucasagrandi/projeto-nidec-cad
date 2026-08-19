@@ -1,0 +1,140 @@
+{
+  "test": 41,
+  "score_total": 1.0,
+  "breakdown": {
+    "drawing_block": 1.0,
+    "metrics": null,
+    "changes": 1.0
+  },
+  "fields": {
+    "Last revision date": {
+      "score": 1.0,
+      "reason": "exact match (LLM disabled)",
+      "method": "exact",
+      "human": "2026.06.05",
+      "model": "2026.06.05",
+      "category": "textual"
+    },
+    "Materials": {
+      "score": 1.0,
+      "reason": "exact match (LLM disabled)",
+      "method": "exact",
+      "human": "NI-2085-G (ALTERNATIVE: GZL-2002)",
+      "model": "NI-2085-G (ALTERNATIVE: GZL-2002)",
+      "category": "textual"
+    },
+    "Code": {
+      "score": 1.0,
+      "reason": "exact match (LLM disabled)",
+      "method": "exact",
+      "human": "TSS 002259",
+      "model": "TSS 002259",
+      "category": "textual"
+    },
+    "Drawn by": {
+      "score": 1.0,
+      "reason": "exact match (LLM disabled)",
+      "method": "exact",
+      "human": "ALEXANDRE PEREIRA",
+      "model": "ALEXANDRE PEREIRA",
+      "category": "textual"
+    },
+    "Approved by": {
+      "score": 1.0,
+      "reason": "exact match (LLM disabled)",
+      "method": "exact",
+      "human": "EMILIO HULSE",
+      "model": "EMILIO HULSE",
+      "category": "textual"
+    },
+    "Drawing Code (ECM)": {
+      "score": 1.0,
+      "reason": "exact match (LLM disabled)",
+      "method": "exact",
+      "human": "26177.0",
+      "model": "26177.0",
+      "category": "textual"
+    },
+    "Date": {
+      "score": 1.0,
+      "reason": "exact match (LLM disabled)",
+      "method": "exact",
+      "human": "2012.NOV.13",
+      "model": "2012.NOV.13",
+      "category": "textual"
+    },
+    "Name and document type": {
+      "score": 1.0,
+      "reason": "exact match (LLM disabled)",
+      "method": "exact",
+      "human": "GASKET - VALVE PLATE",
+      "model": "GASKET - VALVE PLATE",
+      "category": "textual"
+    },
+    "General tolerance": {
+      "score": 1.0,
+      "reason": "exact match (LLM disabled)",
+      "method": "exact",
+      "human": "Empty",
+      "model": "Empty",
+      "category": "textual"
+    },
+    "Angular tolerance": {
+      "score": 1.0,
+      "reason": "exact match (LLM disabled)",
+      "method": "exact",
+      "human": "Empty",
+      "model": "Empty",
+      "category": "textual"
+    },
+    "Scale": {
+      "score": 1.0,
+      "reason": "exact match (LLM disabled)",
+      "method": "exact",
+      "human": "5:2",
+      "model": "5:2",
+      "category": "textual"
+    },
+    "Unit": {
+      "score": 1.0,
+      "reason": "exact match (LLM disabled)",
+      "method": "exact",
+      "human": "mm",
+      "model": "mm",
+      "category": "textual"
+    },
+    "Replace": {
+      "score": 1.0,
+      "reason": "exact match (LLM disabled)",
+      "method": "exact",
+      "human": "Empty",
+      "model": "Empty",
+      "category": "textual"
+    },
+    "Number": {
+      "score": 1.0,
+      "reason": "exact string match",
+      "method": "exact",
+      "human": "13358002.0",
+      "model": "13358002.0",
+      "category": "exact"
+    }
+  },
+  "changes": {
+    "score": 1.0,
+    "matched": 2,
+    "total_human": 2,
+    "reason": "count ratio (LLM disabled)",
+    "method": "count",
+    "human_count": 2,
+    "model_count": 2
+  },
+  "human_changes": [
+    "New row on revisions table.\nECM: CR30970\nREV: 08\nBY: LYF\nDate: 2026.06.05\nDescription: \"AJUST NOTE 9\"",
+    "Rewriting setence and removing word \"AND\", the meaning remained the same"
+  ],
+  "model_changes": [
+    "New row on revisions table.\nECM: CR30970\nREV: 08\nBY: LYF\nDate: 2026.06.05\nDescription: \"AJUST NOTE 9\"",
+    "Rewriting setence and removing word \"AND\", the meaning remained the same"
+  ]
+}
