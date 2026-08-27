@@ -1,0 +1,23 @@
+[
+  {"standard":"TSS 001602","content":"Geometric Requirements","category":"Surface finishing","compressor_series":"EM, EH, VEM, VEH, VES","applicability":"Crankshaft, Crankcase, Connecting Rod, Piston, Piston Pin"},
+  {"standard":"TSS 002611","content":"Geometric Requirements","category":"Surface finishing","compressor_series":"F, EG, FMF, VEG","applicability":"Crankshaft, Crankcase, Connecting Rod, Piston, Piston Pin, Bushing"},
+  {"standard":"TSS 002621","content":"Roundness Harmonics","category":"Surface finishing","compressor_series":"All","applicability":"Crankshaft"},
+  {"standard":"TSS 001559","content":"Assembly of Moving Parts","category":"Matching","compressor_series":"EM, EH, VEM, VEH, VES, FMX","applicability":"Crankshaft, Crankcase, Piston"},
+  {"standard":"TSS 002596","content":"Assembly of Moving Parts","category":"Matching","compressor_series":"F, EG, FMF, VEG","applicability":"Crankshaft, Crankcase, Piston"},
+  {"standard":"TSS 004093","content":"Assembly of Moving Parts","category":"Matching","compressor_series":"ES, FMS, VL","applicability":"Crankshaft, Crankcase, Piston"},
+  {"standard":"TSS 002470","content":"Characteristic classification (HIC, CTQ, CTQ-S)","category":"General","compressor_series":"All","applicability":"All"},
+  {"standard":"TSS 002513","content":"General principles of presentation in technical drawings","category":"General","compressor_series":"All","applicability":"All"},
+  {"standard":"TSS 002420","content":"Hazardous Materials on Raw Materials, Components, Finished Products, Accessories and Packaging","category":"Material","compressor_series":"All","applicability":"All"},
+  {"standard":"TSS 002369","content":"Compatibility Requirements for metallic Components Embraco","category":"Material","compressor_series":"All","applicability":"All metallic components (Steel, aluminum, copper)"},
+  {"standard":"TSS 001266","content":"Assembly instructions and requirements","category":"Assembly requirement","compressor_series":"EM, EH","applicability":"Compressor assembly"},
+  {"standard":"TSS 001267","content":"Assembly instructions and requirements","category":"Assembly requirement","compressor_series":"F, EG","applicability":"Compressor assembly"},
+  {"standard":"TSS 001269","content":"Assembly instructions and requirements","category":"Assembly requirement","compressor_series":"VEG, FMF","applicability":"Compressor assembly"},
+  {"standard":"TSS 001270","content":"Assembly instructions and requirements","category":"Assembly requirement","compressor_series":"VEM, VEH, VES, FMX","applicability":"Compressor assembly"},
+  {"standard":"TSS 004053","content":"Assembly instructions and requirements","category":"Assembly requirement","compressor_series":"ES, FMS, VL","applicability":"Compressor assembly"},
+  {"standard":"TSS 002089","content":"Label positions and compressor identification","category":"Assembly requirement","compressor_series":"All","applicability":"Compressor assembly"},
+  {"standard":"TSS 001565","content":"Gray cast iron material specification","category":"Material","compressor_series":"All","applicability":"Crankshaft raw, Crankcase raw"},
+  {"standard":"TSS 002424","content":"SINTERED COMPONENTS FOR COMPRESSORS","category":"Material","compressor_series":"All","applicability":"Connecting rod raw, connecting rod large eye, connecting rod small eye, oil pump bush, Piston raw, Valve plate raw"},
+  {"standard":"TSS 002558","content":"Copper Tube (HDP) for General Use","category":"Material","compressor_series":"All","applicability":"Discharge connector, Suction connector, Process connector"},
+  {"standard":"TSS 001615","content":"Cold rolled steel sheet","category":"Material","compressor_series":"All","applicability":"Shell Housing, Shell cover, Baseplates, Fence"},
+  {"standard":"TSS 002467","content":"Hot rolled steel sheet","category":"Material","compressor_series":"All","applicability":"Fence, Baseplates"}
+]

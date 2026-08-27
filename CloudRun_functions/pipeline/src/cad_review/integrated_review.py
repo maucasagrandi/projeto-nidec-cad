@@ -62,6 +62,7 @@ class IntegratedReviewResult:
     gdt_pages: list[GdtPageResult]
     comparison_pages: list[Any]
     paper_format_changes: list[dict[str, Any]] = field(default_factory=list)
+    objective_metrics: dict[str, Any] = field(default_factory=dict)
     metadata: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -78,6 +79,7 @@ class IntegratedReviewResult:
                 "inference": self.inferred_standards,
             },
             "gdt": [page.report for page in self.gdt_pages],
+            "objective_metrics": self.objective_metrics,
             "comparison": {
                 "paper_format_changes": self.paper_format_changes,
                 "pages": [_comparison_to_dict(page) for page in self.comparison_pages],
@@ -324,6 +326,11 @@ def run_integrated_review(
         pipeline_started,
     )
 
+    from src.metrics.counters import build_objective_metrics
+
+    objective_metrics = build_objective_metrics(revised_pdf, classification, gdt_pages)
+    logger.info("Objective Metrics: %s", objective_metrics)
+
     compare = comparator or _default_comparator
     comparison_pages = compare(
         original_pdf,
@@ -353,6 +360,7 @@ def run_integrated_review(
         gdt_pages=gdt_pages,
         comparison_pages=comparison_pages,
         paper_format_changes=paper_format_changes,
+        objective_metrics=objective_metrics,
         metadata={
             "classification": _metadata_dict(classification_metadata),
             "standards_inference": _metadata_dict(inference_metadata),

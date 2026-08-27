@@ -279,13 +279,21 @@ Para cada norma encontrada, produza uma justificativa curta contendo o trecho ou
 - Nunca associe a uma norma o texto de uma nota que cite outra norma. Coloque a justificativa conforme o campo de saída.
 
 <Tarefa 4>
-Conte as seguintes métricas objetivas diretamente a partir do desenho:
+Conte as seguintes seis métricas objetivas diretamente a partir do desenho:
 
 1. **quantidade_revisoes**: Conte o número de linhas preenchidas na tabela de revisões (cada linha preenchida = uma revisão). A tabela de revisões tipicamente possui colunas como REV, ECM, BY, DATE, DESCRIPTION. Conte apenas as linhas com dados, não a linha de cabeçalho.
 
 2. **quantidade_notas**: Conte o número de itens numerados na lista NOTES. As notas geralmente aparecem como "NOTES: 1- ... 2- ... 3- ...". Conte apenas os itens numerados presentes.
 
 3. **quantidade_codigos**: Conte o número de códigos de itens na tabela de materiais ou componentes (ex: linhas identificadas como A, B, C, D, I, L, # ou identificadores de caractere único similares). Conte apenas as linhas que possuem um código presente.
+
+4. **quantidade_cotas_hic**: Conte cotas marcadas com o símbolo HIC (triângulo invertido aberto, ▽).
+
+5. **quantidade_cotas_ctq**: Conte cotas marcadas com o símbolo CTQ (triângulo invertido preenchido, ▼).
+
+6. **quantidade_cotas_ctq_s**: Conte cotas marcadas com o símbolo CTQ-S (sinal de mais circulado, ⊕).
+
+Para HIC, CTQ e CTQ-S, conte somente símbolos ligados a cotas reais. Não conte símbolos exibidos em legendas, notas explicativas ou tabelas de referência. Retorne 0 quando o desenho estiver legível e nenhuma cota marcada for encontrada; retorne null somente quando não for possível ler o desenho com segurança.
 
 Se alguma dessas tabelas/listas não existir no desenho, retorne null para esse campo.
 
@@ -328,7 +336,10 @@ Retorne somente um objeto JSON válido no seguinte formato:
   ],
   "quantidade_revisoes": <número inteiro ou null>,
   "quantidade_notas": <número inteiro ou null>,
-  "quantidade_codigos": <número inteiro ou null>
+  "quantidade_codigos": <número inteiro ou null>,
+  "quantidade_cotas_hic": <número inteiro ou null>,
+  "quantidade_cotas_ctq": <número inteiro ou null>,
+  "quantidade_cotas_ctq_s": <número inteiro ou null>
 }
 
 <Regras Saída>
@@ -349,7 +360,7 @@ Retorne somente um objeto JSON válido no seguinte formato:
 - Mantenha a ordem em que as normas aparecem no texto.
 - Caso nenhuma norma seja encontrada, retorne listas vazias.
 - Em caso de incerteza na classificação, deixe isso explícito na justificativa.
-- "quantidade_revisoes", "quantidade_notas" e "quantidade_codigos" devem ser inteiros quando o elemento existir no desenho, ou null se não existir.
+- Os seis campos de contagem devem ser inteiros ou null conforme as regras da Tarefa 4.
 
 <texto fornecido>
 {{texto_extraido}}

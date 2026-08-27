@@ -240,17 +240,6 @@ Repita a classificação em "header.classification" e "classificacao".
 <Tarefa 3>
 Identifique somente normas, padrões ou especificações técnicas explicitamente mencionados no texto. As normas vem dentro de Notes, portanto verifique o texto que vem depois de "Notes" ou "Notas"
 
-<Tarefa 4>
-Conte as seguintes métricas objetivas diretamente do desenho:
-
-1. **quantidade_revisoes**: Conte o número de linhas preenchidas na tabela de revisões (cada linha preenchida = uma revisão). A tabela de revisões tipicamente tem colunas como REV, ECM, BY, DATE, DESCRIPTION. Conte apenas as linhas com dados, não a linha de cabeçalho.
-
-2. **quantidade_notas**: Conte o número de itens numerados na lista NOTES. As notas geralmente aparecem como "NOTES: 1- ... 2- ... 3- ...". Conte apenas os itens numerados presentes.
-
-3. **quantidade_codigos**: Conte o número de códigos de itens na tabela de materiais ou componentes (ex: linhas identificadas como A, B, C, D, I, L, # ou identificadores de caractere único similares). Conte apenas as linhas que possuem um código presente.
-
-Se alguma dessas tabelas/listas não existir no desenho, retorne null para esse campo.
-
 Podem ser consideradas referências normativas explícitas:
 - normas ISO;
 - normas ABNT ou NBR;
@@ -290,13 +279,21 @@ Para cada norma encontrada, produza uma justificativa curta contendo o trecho ou
 - Nunca associe a uma norma o texto de uma nota que cite outra norma. Coloque a justificativa conforme o campo de saída.
 
 <Tarefa 4>
-Count the following three objective metrics directly from the drawing:
+Count the following six objective metrics directly from the drawing:
 
 1. **quantidade_revisoes**: Count the number of rows in the revision table (each filled row = one revision). The revision table typically has columns like REV, ECM, BY, DATE, DESCRIPTION. Count only rows with data, not the header row.
 
 2. **quantidade_notas**: Count the number of numbered items in the NOTES list. Notes are typically listed as "NOTES: 1- ... 2- ... 3- ...". Count only numbered items present.
 
 3. **quantidade_codigos**: Count the number of item codes in the material or component table (e.g. rows labelled A, B, C, D, I, L, # or similar single-character identifiers). Count only rows with a code present.
+
+4. **quantidade_cotas_hic**: Count dimensions marked with the HIC symbol (open inverted triangle, ▽).
+
+5. **quantidade_cotas_ctq**: Count dimensions marked with the CTQ symbol (filled inverted triangle, ▼).
+
+6. **quantidade_cotas_ctq_s**: Count dimensions marked with the CTQ-S symbol (circled plus, ⊕).
+
+For HIC, CTQ and CTQ-S, count only symbols attached to actual dimensions. Do not count symbols shown in legends, explanatory notes or reference tables. Return 0 when the drawing is readable and no marked dimension is found; return null only when it cannot be read reliably.
 
 If any of these tables/lists is not present in the drawing, return null for that field.
 
@@ -336,7 +333,13 @@ Retorne somente um objeto JSON válido no seguinte formato:
   "justificativas_normas": [
     "evidência textual correspondente à norma 1",
     "evidência textual correspondente à norma 2"
-  ]
+  ],
+  "quantidade_revisoes": 0,
+  "quantidade_notas": 0,
+  "quantidade_codigos": 0,
+  "quantidade_cotas_hic": 0,
+  "quantidade_cotas_ctq": 0,
+  "quantidade_cotas_ctq_s": 0
 }
 
 <Regras Saída>
@@ -357,6 +360,7 @@ Retorne somente um objeto JSON válido no seguinte formato:
 - Mantenha a ordem em que as normas aparecem no texto.
 - Caso nenhuma norma seja encontrada, retorne listas vazias.
 - Em caso de incerteza na classificação, deixe isso explícito na justificativa.
+- Os seis campos de contagem devem ser inteiros ou null conforme as regras da Tarefa 4.
 
 <texto fornecido>
 {{texto_extraido}}

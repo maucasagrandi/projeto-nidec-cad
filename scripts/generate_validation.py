@@ -14,6 +14,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+from copy import copy
 import json
 import logging
 import shutil
@@ -34,6 +35,19 @@ logger = logging.getLogger(__name__)
 
 RESULTS_DIR    = Path("scripts/results")
 VALIDATION_DIR = Path("scripts/validation/41-50 Structured reviews")
+
+OBJECTIVE_METRICS = [
+    ("Quantidade de cotas", "Quantidade de cotas presentes no desenho inteiro"),
+    ("Quantidade de cotas HIC", "Quantidade de cotas classificadas como HIC (▽)"),
+    ("Quantidade de cotas CTQ", "Quantidade de cotas classificadas como CTQ (▼)"),
+    ("Quantidade de cotas CTQ-S", "Quantidade de cotas classificadas como CTQ-S (⊕)"),
+    ("Quantidade de GD&Ts", "Quantidade de GD&Ts presentes no desenho inteiro"),
+    ("Quantidade de Datums Reference", "Quantidade de datum feature indicators encontrados"),
+    ("Lista de datums reference", "Lista única dos datums encontrados"),
+    ("Quantidade de revisões", "Quantidade de revisões preenchidas na tabela de revisões"),
+    ("Quantidade de notas", "Quantidade de itens numerados na lista de notas"),
+    ("Quantidade de códigos", "Quantidade de códigos na tabela de materiais/componentes"),
+]
 
 # ---------------------------------------------------------------------------
 # Helpers: find template for each test number
@@ -76,6 +90,69 @@ def _set_value(ws, label_map: dict[str, int], label: str, value) -> bool:
     return True
 
 
+def _spreadsheet_value(value):
+    """Convert structured JSON values to an Excel-compatible scalar."""
+
+    if isinstance(value, (list, tuple, set)):
+        return ", ".join(str(item) for item in value) or None
+    if isinstance(value, dict):
+        return "; ".join(f"{key}: {item}" for key, item in value.items()) or None
+    return value
+
+
+def _ensure_objective_metric_rows(ws) -> None:
+    """Ensure the generated workbook contains every customer metric row."""
+
+    label_map = _build_label_row_map(ws)
+    objective_row = label_map.get("Objective Metrics")
+    references_row = label_map.get("References")
+    if objective_row is None or references_row is None:
+        logger.warning("Objective Metrics or References section not found in template.")
+        return
+
+    existing_values = {
+        label: ws.cell(row=row, column=2).value
+        for label, row in label_map.items()
+        if label in {item[0] for item in OBJECTIVE_METRICS}
+    }
+    current_slots = max(0, references_row - objective_row - 1)
+    rows_to_add = max(0, len(OBJECTIVE_METRICS) - current_slots)
+
+    if rows_to_add:
+        overlapping_merges = [
+            str(merged)
+            for merged in ws.merged_cells.ranges
+            if merged.min_row <= references_row <= merged.max_row
+        ]
+        for merged in overlapping_merges:
+            ws.unmerge_cells(merged)
+        ws.insert_rows(references_row, amount=rows_to_add)
+        references_row += rows_to_add
+        if overlapping_merges:
+            ws.merge_cells(
+                start_row=references_row,
+                start_column=1,
+                end_row=references_row,
+                end_column=2,
+            )
+
+    style_source_row = objective_row + 1
+    for offset, (label, description) in enumerate(OBJECTIVE_METRICS, start=1):
+        target_row = objective_row + offset
+        for column in range(1, 4):
+            source = ws.cell(row=style_source_row, column=column)
+            target = ws.cell(row=target_row, column=column)
+            target.font = copy(source.font)
+            target.fill = copy(source.fill)
+            target.border = copy(source.border)
+            target.alignment = copy(source.alignment)
+            target.number_format = source.number_format
+            target.protection = copy(source.protection)
+        ws.cell(row=target_row, column=1, value=label)
+        ws.cell(row=target_row, column=2, value=existing_values.get(label))
+        ws.cell(row=target_row, column=3, value=description)
+
+
 # ---------------------------------------------------------------------------
 # Data extraction from integrated_review.json
 # ---------------------------------------------------------------------------
@@ -89,6 +166,7 @@ def _extract_data(review: dict, cotas_result: dict, pdf_path: Path) -> dict:
     # GD&T and datums from review JSON
     from src.metrics.counters import count_gdt_and_datums
     gdt_counts = count_gdt_and_datums(review)
+    objective_metrics = review.get("objective_metrics", {}) or {}
 
     return {
         "Compressor Series Code": header.get("compressor_series_code"),
@@ -110,13 +188,38 @@ def _extract_data(review: dict, cotas_result: dict, pdf_path: Path) -> dict:
         "Unit":                    drawing_block.get("unit"),
         "Replace":                 drawing_block.get("replace"),
         "Number":                  drawing_block.get("number"),
-        "Quantidade de cotas":             cotas_result.get("total_cotas", 0),
-        "Quantidade de GD&Ts":            gdt_counts["total_gdts"],
-        "Quantidade de Datums Reference": gdt_counts["total_datums"],
-        "Lista de datums reference":      _extract_datum_list(review),
-        "Quantidade de revisões":         pc.get("quantidade_revisoes"),
-        "Quantidade de notas":            pc.get("quantidade_notas"),
-        "Quantidade de códigos":          pc.get("quantidade_codigos"),
+        "Quantidade de cotas": objective_metrics.get(
+            "Quantidade de cotas", cotas_result.get("total_cotas", 0)
+        ),
+        "Quantidade de cotas HIC": objective_metrics.get(
+            "Quantidade de cotas HIC", pc.get("quantidade_cotas_hic")
+        ),
+        "Quantidade de cotas CTQ": objective_metrics.get(
+            "Quantidade de cotas CTQ", pc.get("quantidade_cotas_ctq")
+        ),
+        "Quantidade de cotas CTQ-S": objective_metrics.get(
+            "Quantidade de cotas CTQ-S", pc.get("quantidade_cotas_ctq_s")
+        ),
+        "Quantidade de GD&Ts": objective_metrics.get(
+            "Quantidade de GD&Ts", gdt_counts["total_gdts"]
+        ),
+        "Quantidade de Datums Reference": objective_metrics.get(
+            "Quantidade de Datums Reference", gdt_counts["total_datums"]
+        ),
+        "Lista de datums reference": _spreadsheet_value(
+            objective_metrics.get(
+                "Lista de datums reference", _extract_datum_list(review)
+            )
+        ),
+        "Quantidade de revisões": objective_metrics.get(
+            "Quantidade de revisões", pc.get("quantidade_revisoes")
+        ),
+        "Quantidade de notas": objective_metrics.get(
+            "Quantidade de notas", pc.get("quantidade_notas")
+        ),
+        "Quantidade de códigos": objective_metrics.get(
+            "Quantidade de códigos", pc.get("quantidade_codigos")
+        ),
     }
 
 
@@ -246,6 +349,7 @@ def process_test(n: int) -> bool:
 
     # Fill Single Drawing Data Extraction
     if "Single Drawing Data Extraction" in wb.sheetnames:
+        _ensure_objective_metric_rows(wb["Single Drawing Data Extraction"])
         data = _extract_data(review, cotas_result, revised_pdf or Path())
         fill_single_drawing_sheet(wb["Single Drawing Data Extraction"], data)
     else:

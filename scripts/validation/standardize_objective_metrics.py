@@ -1,16 +1,8 @@
 """
 Standardize the Objective Metrics section in validation spreadsheets 41-50.
 
-Target structure (starting at the "Objective Metrics" header row):
-  Row obj+0: Objective Metrics | Human Answer | Description   <- header (bold, gray fill)
-  Row obj+1: Quantidade de cotas | (empty) | Quantidade de cotas presentes no desenho inteiro
-  Row obj+2: Quantidade de GD&Ts | (empty) | Quantidade de GD&Ts presentes no desenho inteiro
-  Row obj+3: Quantidade de revisões | (empty) | Quantidade de revisões já realizadas no desenho (pela tabela de revisões)
-  Row obj+4: Quantidade de notas | (empty) | Quantidade de notas na lista de notas (NOTES: 1 - ) no desenho inteiro
-  Row obj+5: Quantidade de códigos | (empty) | Quantidades de códigos na tabela (por exemplo A, B, C, D, I, L, #)
-  Row obj+6: References (A:B merged) | | Description    <- header (bold, gray fill)
-  Row obj+7: Norms table | Do not fill | Norms table used as reference to model (CAD Review - Standards)
-  Row obj+8: CAD Review model version | Do not fill | CAD Review model version, for the delivery of August 31st 2026, it will be v1
+Target structure: the Objective Metrics header, the ten rows from
+OBJECTIVE_METRICS_ROWS, then the References header and its two rows.
 """
 
 import os
@@ -34,7 +26,12 @@ FILES = [
 
 OBJECTIVE_METRICS_ROWS = [
     ('Quantidade de cotas',      None, 'Quantidade de cotas presentes no desenho inteiro'),
+    ('Quantidade de cotas HIC',  None, 'Quantidade de cotas classificadas como HIC (▽)'),
+    ('Quantidade de cotas CTQ',  None, 'Quantidade de cotas classificadas como CTQ (▼)'),
+    ('Quantidade de cotas CTQ-S', None, 'Quantidade de cotas classificadas como CTQ-S (⊕)'),
     ('Quantidade de GD&Ts',      None, 'Quantidade de GD&Ts presentes no desenho inteiro'),
+    ('Quantidade de Datums Reference', None, 'Quantidade de datum feature indicators encontrados'),
+    ('Lista de datums reference', None, 'Lista única dos datums encontrados'),
     ('Quantidade de revisões',   None, 'Quantidade de revisões já realizadas no desenho (pela tabela de revisões)'),
     ('Quantidade de notas',      None, 'Quantidade de notas na lista de notas (NOTES: 1 - ) no desenho inteiro'),
     ('Quantidade de códigos',    None, 'Quantidades de códigos na tabela (por exemplo A, B, C, D, I, L, #)'),
@@ -121,11 +118,9 @@ def standardize_file(fpath):
             if cell.value is not None:
                 max_data_row = max(max_data_row, cell.row)
 
-    # Target rows:
-    # obj_row_idx + 1..5 = 5 metric data rows
-    # obj_row_idx + 6    = References header
-    # obj_row_idx + 7..8 = 2 reference data rows
-    target_last_row = obj_row_idx + 8
+    metric_count = len(OBJECTIVE_METRICS_ROWS)
+    ref_header_row = obj_row_idx + metric_count + 1
+    target_last_row = ref_header_row + len(REFERENCES_ROWS)
 
     # 3. Unmerge any merged cells in rows obj_row_idx+1 onwards
     #    (the References header row merge will be re-applied at the correct row)
@@ -133,7 +128,7 @@ def standardize_file(fpath):
     if removed_merges:
         print(f'  Removed merged ranges: {removed_merges}')
 
-    # 4. Write the 5 Objective Metrics data rows
+    # 4. Write the Objective Metrics data rows
     for i, (a_val, b_val, c_val) in enumerate(OBJECTIVE_METRICS_ROWS):
         r = obj_row_idx + 1 + i
         set_cell(ws.cell(row=r, column=1), a_val,  font=NORMAL_FONT, fill=NO_FILL, alignment=LEFT_BOTTOM_ALIGN)
@@ -141,7 +136,6 @@ def standardize_file(fpath):
         set_cell(ws.cell(row=r, column=3), c_val,  font=NORMAL_FONT, fill=NO_FILL, alignment=LEFT_BOTTOM_ALIGN)
 
     # 5. Write References header row (A:B merged, bold, gray)
-    ref_header_row = obj_row_idx + 6
     # Write value in A (the master cell of the merge), then merge A:B
     set_cell(ws.cell(row=ref_header_row, column=1), 'References', font=BOLD_FONT, fill=GRAY_FILL, alignment=CENTER_ALIGN)
     set_cell(ws.cell(row=ref_header_row, column=2), None, font=NORMAL_FONT, fill=NO_FILL, alignment=Alignment())
@@ -152,7 +146,7 @@ def standardize_file(fpath):
 
     # 6. Write the 2 References data rows
     for i, (a_val, b_val, c_val) in enumerate(REFERENCES_ROWS):
-        r = obj_row_idx + 7 + i
+        r = ref_header_row + 1 + i
         set_cell(ws.cell(row=r, column=1), a_val,  font=NORMAL_FONT,  fill=NO_FILL, alignment=CENTER_ALIGN)
         set_cell(ws.cell(row=r, column=2), b_val,  font=RED_FONT,     fill=NO_FILL, alignment=CENTER_ALIGN)
         set_cell(ws.cell(row=r, column=3), c_val,  font=NORMAL_FONT,  fill=NO_FILL, alignment=Alignment())
@@ -186,7 +180,8 @@ def verify_file(fpath):
         print('    ERROR: Objective Metrics not found!')
         return
 
-    for row in ws.iter_rows(min_row=obj_row_idx, max_row=obj_row_idx + 9):
+    target_last_row = obj_row_idx + len(OBJECTIVE_METRICS_ROWS) + 1 + len(REFERENCES_ROWS)
+    for row in ws.iter_rows(min_row=obj_row_idx, max_row=target_last_row):
         vals = {cell.column_letter: cell.value for cell in row if cell.value is not None}
         all_none = all(cell.value is None for cell in row)
         if not all_none:
@@ -194,14 +189,14 @@ def verify_file(fpath):
 
     # Check for any extra data rows beyond target
     extra_rows = []
-    for row in ws.iter_rows(min_row=obj_row_idx + 9):
+    for row in ws.iter_rows(min_row=target_last_row + 1):
         for cell in row:
             if cell.value is not None:
                 extra_rows.append(f'row {cell.row} col {cell.column_letter}: {repr(cell.value)}')
     if extra_rows:
         print(f'    EXTRA DATA FOUND: {extra_rows}')
     else:
-        print(f'    No extra data beyond row {obj_row_idx + 8}. OK.')
+        print(f'    No extra data beyond row {target_last_row}. OK.')
 
     # Check merges
     print(f'    Merged ranges: {list(ws.merged_cells.ranges)}')

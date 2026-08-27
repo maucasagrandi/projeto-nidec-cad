@@ -82,6 +82,9 @@ EXACT_FIELDS = [
 # These fields use MAPE score (numeric, human is ground truth)
 METRIC_FIELDS = [
     "Quantidade de cotas",
+    "Quantidade de cotas HIC",
+    "Quantidade de cotas CTQ",
+    "Quantidade de cotas CTQ-S",
     "Quantidade de GD&Ts",
     "Quantidade de Datums Reference",
     "Quantidade de revisões",

@@ -73,6 +73,12 @@ def test_integrated_review_uses_revised_for_classification_and_gdt(caplog) -> No
             "justificativa_classificacao": "CONNECTING ROD",
             "lista_normas": ["ISO 1101"],
             "justificativas_normas": ["ISO 1101"],
+            "quantidade_revisoes": 3,
+            "quantidade_notas": 4,
+            "quantidade_codigos": 2,
+            "quantidade_cotas_hic": 1,
+            "quantidade_cotas_ctq": 2,
+            "quantidade_cotas_ctq_s": 0,
         }, _Metadata()
 
     def inferer(classification, cited, prompt, model):
@@ -93,6 +99,7 @@ def test_integrated_review_uses_revised_for_classification_and_gdt(caplog) -> No
                     "resolved_datum_refs": 1,
                     "datum_definitions_found": 1,
                 },
+                "datum_definitions": [{"label": "A"}],
             },
             annotated_image=np.full((80, 120, 3), 255, dtype=np.uint8),
         )
@@ -148,6 +155,18 @@ def test_integrated_review_uses_revised_for_classification_and_gdt(caplog) -> No
     assert result.to_dict()["inputs"] == {"original": "old.pdf", "revised": "new.pdf"}
     assert result.to_dict()["part_classification"]["header"]["drawing_number"] == "13358002"
     assert result.to_dict()["comparison"]["pages"][0]["num_true_changes"] == 1
+    assert result.objective_metrics == {
+        "Quantidade de cotas": 0,
+        "Quantidade de cotas HIC": 1,
+        "Quantidade de cotas CTQ": 2,
+        "Quantidade de cotas CTQ-S": 0,
+        "Quantidade de GD&Ts": 2,
+        "Quantidade de Datums Reference": 2,
+        "Lista de datums reference": ["A"],
+        "Quantidade de revisões": 3,
+        "Quantidade de notas": 4,
+        "Quantidade de códigos": 2,
+    }
     assert set(result.metadata["timings_seconds"]) == {
         "pdf_text_extraction",
         "part_classification",
@@ -162,6 +181,12 @@ def test_integrated_review_uses_revised_for_classification_and_gdt(caplog) -> No
     report = build_unified_report(result)
     assert report.startswith(b"%PDF")
     assert len(report) > 2_000
+    with fitz.open(stream=report, filetype="pdf") as document:
+        report_text = "\n".join(page.get_text() for page in document)
+    assert "6. References" in report_text
+    assert "Quantidade de cotas HIC" in report_text
+    assert "Complete Standards Catalog" in report_text
+    assert "TSS 002470" in report_text
 
 
 def test_elapsed_time_format_is_readable() -> None:
