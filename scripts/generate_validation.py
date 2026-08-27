@@ -38,9 +38,9 @@ VALIDATION_DIR = Path("scripts/validation/41-50 Structured reviews")
 
 OBJECTIVE_METRICS = [
     ("Quantidade de cotas", "Quantidade de cotas presentes no desenho inteiro"),
-    ("Quantidade de cotas HIC", "Quantidade de cotas classificadas como HIC (▽)"),
-    ("Quantidade de cotas CTQ", "Quantidade de cotas classificadas como CTQ (▼)"),
-    ("Quantidade de cotas CTQ-S", "Quantidade de cotas classificadas como CTQ-S (⊕)"),
+    ("Quantidade de cotas HIC", "Tipificação HIC não calculada nesta versão"),
+    ("Quantidade de cotas CTQ", "Tipificação CTQ não calculada nesta versão"),
+    ("Quantidade de cotas CTQ-S", "Tipificação CTQ-S não calculada nesta versão"),
     ("Quantidade de GD&Ts", "Quantidade de GD&Ts presentes no desenho inteiro"),
     ("Quantidade de Datums Reference", "Quantidade de datum feature indicators encontrados"),
     ("Lista de datums reference", "Lista única dos datums encontrados"),
@@ -191,15 +191,9 @@ def _extract_data(review: dict, cotas_result: dict, pdf_path: Path) -> dict:
         "Quantidade de cotas": objective_metrics.get(
             "Quantidade de cotas", cotas_result.get("total_cotas", 0)
         ),
-        "Quantidade de cotas HIC": objective_metrics.get(
-            "Quantidade de cotas HIC", pc.get("quantidade_cotas_hic")
-        ),
-        "Quantidade de cotas CTQ": objective_metrics.get(
-            "Quantidade de cotas CTQ", pc.get("quantidade_cotas_ctq")
-        ),
-        "Quantidade de cotas CTQ-S": objective_metrics.get(
-            "Quantidade de cotas CTQ-S", pc.get("quantidade_cotas_ctq_s")
-        ),
+        "Quantidade de cotas HIC": "-",
+        "Quantidade de cotas CTQ": "-",
+        "Quantidade de cotas CTQ-S": "-",
         "Quantidade de GD&Ts": objective_metrics.get(
             "Quantidade de GD&Ts", gdt_counts["total_gdts"]
         ),

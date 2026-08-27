@@ -82,9 +82,6 @@ EXACT_FIELDS = [
 # These fields use MAPE score (numeric, human is ground truth)
 METRIC_FIELDS = [
     "Quantidade de cotas",
-    "Quantidade de cotas HIC",
-    "Quantidade de cotas CTQ",
-    "Quantidade de cotas CTQ-S",
     "Quantidade de GD&Ts",
     "Quantidade de Datums Reference",
     "Quantidade de revisões",
@@ -99,6 +96,7 @@ SKIP_FIELDS = {
     "Header", "Drawing Block Data", "Objective Metrics", "References",
     "Compressor Series Code", "Applicable norms",
     "Lista de datums reference",
+    "Quantidade de cotas HIC", "Quantidade de cotas CTQ", "Quantidade de cotas CTQ-S",
 }
 
 # ---------------------------------------------------------------------------

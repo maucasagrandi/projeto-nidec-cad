@@ -26,9 +26,9 @@ FILES = [
 
 OBJECTIVE_METRICS_ROWS = [
     ('Quantidade de cotas',      None, 'Quantidade de cotas presentes no desenho inteiro'),
-    ('Quantidade de cotas HIC',  None, 'Quantidade de cotas classificadas como HIC (▽)'),
-    ('Quantidade de cotas CTQ',  None, 'Quantidade de cotas classificadas como CTQ (▼)'),
-    ('Quantidade de cotas CTQ-S', None, 'Quantidade de cotas classificadas como CTQ-S (⊕)'),
+    ('Quantidade de cotas HIC',  '-', 'Tipificação HIC não calculada nesta versão'),
+    ('Quantidade de cotas CTQ',  '-', 'Tipificação CTQ não calculada nesta versão'),
+    ('Quantidade de cotas CTQ-S', '-', 'Tipificação CTQ-S não calculada nesta versão'),
     ('Quantidade de GD&Ts',      None, 'Quantidade de GD&Ts presentes no desenho inteiro'),
     ('Quantidade de Datums Reference', None, 'Quantidade de datum feature indicators encontrados'),
     ('Lista de datums reference', None, 'Lista única dos datums encontrados'),

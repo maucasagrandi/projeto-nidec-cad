@@ -73,6 +73,11 @@ REFERENCE_IMAGES = [
     ("gdt_datum/datum_related_symbols.png", "Datum-related and size-tolerance-related symbols"),
     ("gdt_datum/toleranced_feature_identifiers.png", "Toleranced feature identifiers and tolerance indicators"),
 ]
+UNTYPED_DIMENSION_METRICS = {
+    "Quantidade de cotas HIC",
+    "Quantidade de cotas CTQ",
+    "Quantidade de cotas CTQ-S",
+}
 
 
 def _load_standards_catalog() -> list[dict[str, str]]:
@@ -506,9 +511,14 @@ def build_unified_report(result: Any) -> bytes:
         "Quantidade de códigos",
     ]
     for metric in metric_order:
+        metric_value = (
+            "-"
+            if metric in UNTYPED_DIMENSION_METRICS
+            else objective_metrics.get(metric)
+        )
         metric_rows.append([
             Paragraph(_escape(metric), label_cell),
-            Paragraph(_escape(_display(objective_metrics.get(metric))), cell),
+            Paragraph(_escape(_display(metric_value)), cell),
         ])
 
     metric_table = Table(metric_rows, colWidths=[12.0 * cm, 13.5 * cm], repeatRows=1)
@@ -524,6 +534,66 @@ def build_unified_report(result: Any) -> bytes:
     ]))
     story.append(metric_table)
 
+    standards_catalog = _load_standards_catalog()
+    standards_map = {
+        " ".join(str(row.get("standard", "")).upper().split()): row
+        for row in standards_catalog
+    }
+
+    story.append(Spacer(1, 0.35 * cm))
+    story.append(Paragraph("Applied Standards Table", subheading))
+    applied_rows = [[
+        Paragraph("Standard", tbl_header),
+        Paragraph("Content", tbl_header),
+        Paragraph("Category", tbl_header),
+        Paragraph("Applicability", tbl_header),
+    ]]
+
+    mapped_applied = result.inferred_standards.get("applied_standards", []) or []
+    applied_sources: list[Any] = list(mapped_applied) if mapped_applied else list(cited)
+    seen_applied: set[str] = set()
+    for applied in applied_sources:
+        if isinstance(applied, dict):
+            standard_code = str(applied.get("standard", "")).strip()
+            applicability_override = applied.get("applicability_match")
+        else:
+            standard_code = str(applied).strip()
+            applicability_override = None
+        standard_key = " ".join(standard_code.upper().split())
+        if not standard_code or standard_key in seen_applied:
+            continue
+        seen_applied.add(standard_key)
+        catalog_record = standards_map.get(standard_key, {})
+        applied_rows.append([
+            Paragraph(_escape(standard_code), cell),
+            Paragraph(_escape(catalog_record.get("content", "")), cell),
+            Paragraph(_escape(catalog_record.get("category", "")), cell),
+            Paragraph(
+                _escape(applicability_override or catalog_record.get("applicability", "")),
+                cell,
+            ),
+        ])
+
+    if len(applied_rows) > 1:
+        applied_table = Table(
+            applied_rows,
+            colWidths=[3.0 * cm, 6.7 * cm, 4.2 * cm, 11.6 * cm],
+            repeatRows=1,
+        )
+        applied_table.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1565C0")),
+            ("GRID", (0, 0), (-1, -1), 0.4, colors.grey),
+            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#EAF2FB")]),
+            ("LEFTPADDING", (0, 0), (-1, -1), 4),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 4),
+            ("TOPPADDING", (0, 0), (-1, -1), 4),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+        ]))
+        story.append(applied_table)
+    else:
+        story.append(_bullet("No applied standard was identified.", bullet_sty))
+
     story.append(PageBreak())
     story.append(Paragraph("Complete Standards Catalog", subheading))
     standards_rows = [[
@@ -533,7 +603,7 @@ def build_unified_report(result: Any) -> bytes:
         Paragraph("Compressor Series", tbl_header),
         Paragraph("Applicability", tbl_header),
     ]]
-    for standard in _load_standards_catalog():
+    for standard in standards_catalog:
         standards_rows.append([
             Paragraph(_escape(standard.get("standard", "")), cell),
             Paragraph(_escape(standard.get("content", "")), cell),

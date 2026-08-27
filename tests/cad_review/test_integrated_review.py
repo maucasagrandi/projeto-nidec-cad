@@ -76,9 +76,6 @@ def test_integrated_review_uses_revised_for_classification_and_gdt(caplog) -> No
             "quantidade_revisoes": 3,
             "quantidade_notas": 4,
             "quantidade_codigos": 2,
-            "quantidade_cotas_hic": 1,
-            "quantidade_cotas_ctq": 2,
-            "quantidade_cotas_ctq_s": 0,
         }, _Metadata()
 
     def inferer(classification, cited, prompt, model):
@@ -157,9 +154,9 @@ def test_integrated_review_uses_revised_for_classification_and_gdt(caplog) -> No
     assert result.to_dict()["comparison"]["pages"][0]["num_true_changes"] == 1
     assert result.objective_metrics == {
         "Quantidade de cotas": 0,
-        "Quantidade de cotas HIC": 1,
-        "Quantidade de cotas CTQ": 2,
-        "Quantidade de cotas CTQ-S": 0,
+        "Quantidade de cotas HIC": "-",
+        "Quantidade de cotas CTQ": "-",
+        "Quantidade de cotas CTQ-S": "-",
         "Quantidade de GD&Ts": 2,
         "Quantidade de Datums Reference": 2,
         "Lista de datums reference": ["A"],
@@ -185,6 +182,7 @@ def test_integrated_review_uses_revised_for_classification_and_gdt(caplog) -> No
         report_text = "\n".join(page.get_text() for page in document)
     assert "6. References" in report_text
     assert "Quantidade de cotas HIC" in report_text
+    assert "Applied Standards Table" in report_text
     assert "Complete Standards Catalog" in report_text
     assert "TSS 002470" in report_text
 

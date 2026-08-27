@@ -7,7 +7,6 @@ from typing import Any
 
 import fitz
 
-
 _DIMENSION_TOKEN = re.compile(
     r"^\(?\d+[.,]\d*(?:\s*[±+\-]\s*\d+[.,]\d+)?\)?$"
 )
@@ -68,9 +67,9 @@ def build_objective_metrics(
     datum_labels = _datum_labels(gdt_pages)
     return {
         "Quantidade de cotas": count_cotas(revised_pdf),
-        "Quantidade de cotas HIC": _as_int(classification.get("quantidade_cotas_hic")),
-        "Quantidade de cotas CTQ": _as_int(classification.get("quantidade_cotas_ctq")),
-        "Quantidade de cotas CTQ-S": _as_int(classification.get("quantidade_cotas_ctq_s")),
+        "Quantidade de cotas HIC": "-",
+        "Quantidade de cotas CTQ": "-",
+        "Quantidade de cotas CTQ-S": "-",
         "Quantidade de GD&Ts": total_gdts,
         "Quantidade de Datums Reference": total_datums,
         "Lista de datums reference": datum_labels,

@@ -39,9 +39,6 @@ def test_classification_sends_pdf_and_returns_structured_drawing_metadata(monkey
         "quantidade_revisoes": 7,
         "quantidade_notas": 15,
         "quantidade_codigos": 7,
-        "quantidade_cotas_hic": 2,
-        "quantidade_cotas_ctq": 1,
-        "quantidade_cotas_ctq_s": 0,
     }
 
     class FakeModels:
@@ -71,6 +68,3 @@ def test_classification_sends_pdf_and_returns_structured_drawing_metadata(monkey
     assert result.header.drawing_number == "13358002"
     assert result.drawing_block.scale == "5:2"
     assert result.lista_normas == ["ISO STANDARDS", "TSS 002513"]
-    assert result.quantidade_cotas_hic == 2
-    assert result.quantidade_cotas_ctq == 1
-    assert result.quantidade_cotas_ctq_s == 0

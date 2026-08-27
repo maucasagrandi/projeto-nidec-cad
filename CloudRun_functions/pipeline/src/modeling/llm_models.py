@@ -86,20 +86,6 @@ class ClassificacaoENormasOutput(BaseModel):
         default=None,
         description="Number of item codes in the material/component table (e.g. rows labelled A, B, C, I, L, # count as codes)",
     )
-    quantidade_cotas_hic: int | None = Field(
-        default=None,
-        description="Number of dimensions marked with the HIC inverted open triangle symbol (▽), excluding legends",
-    )
-    quantidade_cotas_ctq: int | None = Field(
-        default=None,
-        description="Number of dimensions marked with the CTQ filled inverted triangle symbol (▼), excluding legends",
-    )
-    quantidade_cotas_ctq_s: int | None = Field(
-        default=None,
-        description="Number of dimensions marked with the CTQ-S circled-plus symbol (⊕), excluding legends",
-    )
-
-
 class NormasFaltantesOutput(BaseModel):
     """Estrutura de saída para inferência de normas faltantes"""
     normas_sugeridas: list[str] = Field(description="Lista de normas recomendadas")
