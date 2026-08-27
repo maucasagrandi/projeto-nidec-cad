@@ -1,5 +1,6 @@
 import base64
 import logging
+import re
 import os
 import time
 from dataclasses import dataclass
@@ -92,6 +93,82 @@ class NormasFaltantesOutput(BaseModel):
     normas_sugeridas: list[str] = Field(description="Lista de normas recomendadas")
     reasoning: str = Field(description="Explicação técnica")
     confianca: float = Field(description="Nível de confiança (0.0 a 1.0)")
+
+
+def _compact_citation(value: str) -> str:
+    """Normalize a citation for reliable code matching."""
+    return re.sub(r"[^A-Z0-9]+", "", str(value).upper())
+
+
+def _standard_evidence_from_vector_text(
+    standards: list[str],
+    vector_text: str,
+    llm_evidence: list[str] | None = None,
+) -> list[str]:
+    """Build English evidence that is guaranteed to contain the cited standard.
+
+    Vector text is the source of truth. LLM evidence is used only when its
+    quoted text explicitly contains the same citation.
+    """
+    lines = [" ".join(line.split()) for line in vector_text.splitlines() if line.strip()]
+    fallback_evidence = [str(item) for item in (llm_evidence or [])]
+    results: list[str] = []
+
+    for standard in standards:
+        standard_text = str(standard).strip()
+        citation_key = _compact_citation(standard_text)
+        matched_line: str | None = None
+        matched_index: int | None = None
+        note_number: str | None = None
+
+        if citation_key:
+            for index, line in enumerate(lines):
+                if citation_key in _compact_citation(line):
+                    matched_line = line
+                    matched_index = index
+                    break
+
+        if matched_line is None and citation_key:
+            for evidence in fallback_evidence:
+                quoted_parts = re.findall(r"[\"']([^\"']+)[\"']", evidence)
+                quoted_match = next(
+                    (part for part in quoted_parts if citation_key in _compact_citation(part)),
+                    None,
+                )
+                if quoted_match is None:
+                    continue
+                matched_line = " ".join(quoted_match.split())
+                note_match = re.search(
+                    r"\b(?:NOTE|NOTA)\s*(\d+)\b",
+                    evidence,
+                    re.IGNORECASE,
+                )
+                if note_match:
+                    note_number = note_match.group(1)
+                break
+
+        if matched_line is not None and note_number is None:
+            search_indices = [matched_index] if matched_index is not None else []
+            if matched_index is not None:
+                search_indices.extend(
+                    index for index in (matched_index - 1, matched_index - 2) if index >= 0
+                )
+            for index in search_indices:
+                note_match = re.match(r"^\s*(\d{1,3})\s*[-.)]", lines[index])
+                if note_match:
+                    note_number = note_match.group(1)
+                    break
+
+        if matched_line is None:
+            results.append(
+                f"Explicitly cited in the revised drawing as '{standard_text}'."
+            )
+        elif note_number:
+            results.append(f"Cited in Note {note_number}: '{matched_line}'")
+        else:
+            results.append(f"Cited in the revised drawing text: '{matched_line}'")
+
+    return results
 
 
 # ==============================================================================
@@ -204,6 +281,11 @@ def extract_norms_from_text(
     )
     
     parsed = NormasOutput.model_validate_json(response.text)
+    parsed.justificativas = _standard_evidence_from_vector_text(
+        parsed.lista_normas,
+        texto_notas,
+        parsed.justificativas,
+    )
     
     end_time = time.time()
     latency_ms = (end_time - start_time) * 1000
@@ -248,6 +330,11 @@ def classify_and_extract_norms(
     )
     
     parsed = ClassificacaoENormasOutput.model_validate_json(response.text)
+    parsed.justificativas_normas = _standard_evidence_from_vector_text(
+        parsed.lista_normas,
+        texto_notas,
+        parsed.justificativas_normas,
+    )
     
     end_time = time.time()
     latency_ms = (end_time - start_time) * 1000

@@ -237,6 +237,9 @@ def build_unified_report(result: Any) -> bytes:
     subheading = ParagraphStyle("Subsection", parent=styles["Heading2"], fontSize=12, spaceAfter=7)
     body       = ParagraphStyle("Body",       parent=styles["BodyText"], fontSize=9,  leading=12, spaceAfter=5)
     bullet_sty = ParagraphStyle("Bullet",     parent=body, leftIndent=12, firstLineIndent=-8)
+    standards_bullet_sty = ParagraphStyle(
+        "StandardsBullet", parent=bullet_sty, spaceAfter=0, leading=11
+    )
     cell       = ParagraphStyle("Cell",       parent=body, fontSize=7.5, leading=8.5, spaceAfter=0)
     label_cell = ParagraphStyle("LabelCell",  parent=cell, fontName="Helvetica-Bold")
     tbl_header = ParagraphStyle("HeaderCell", parent=cell, textColor=colors.white, alignment=TA_CENTER)
@@ -274,13 +277,14 @@ def build_unified_report(result: Any) -> bytes:
 
     # ── 2. Applied Standards ──────────────────────────────────────────────────
     story.append(Paragraph("2. Applied Standards", heading))
+    story.append(Paragraph("Standards cited in the revised drawing", subheading))
 
     cited    = result.part_classification.get("lista_normas", []) or []
     evidence = result.part_classification.get("justificativas_normas", []) or []
     if cited:
         for idx, standard in enumerate(cited):
             suffix = f" - {evidence[idx]}" if idx < len(evidence) and evidence[idx] else ""
-            story.append(_bullet(f"{standard}{suffix}", bullet_sty))
+            story.append(_bullet(f"{standard}{suffix}", standards_bullet_sty))
     else:
         story.append(_bullet("No explicit standard was extracted from the revised drawing.", bullet_sty))
 

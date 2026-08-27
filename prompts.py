@@ -162,6 +162,11 @@ Podem ser consideradas referências normativas explícitas:
 <Saída>
 Para cada norma encontrada, produza uma justificativa curta contendo o trecho ou contexto textual que confirma sua presença.
 
+- Escreva todas as justificativas integralmente em inglês.
+- Use o formato "Cited in Note N: '<exact note text>'" quando o número da nota estiver disponível.
+- A evidência de cada norma deve conter explicitamente o mesmo código ou referência normativa.
+- Nunca associe a uma norma o texto de uma nota que cite outra norma.
+
 Retorne somente um objeto JSON válido no seguinte formato:
 
 {
@@ -266,7 +271,12 @@ Podem ser consideradas referências normativas explícitas:
   - quantidade de pinos;
   - recomendações de raio ou chanfro.
 
-Para cada norma encontrada, produza uma justificativa curta contendo o trecho ou contexto textual que confirma sua presença. Coloque a justificativa conforme o campo de saída.
+Para cada norma encontrada, produza uma justificativa curta contendo o trecho ou contexto textual que confirma sua presença.
+
+- Escreva todas as justificativas integralmente em inglês.
+- Use o formato "Cited in Note N: '<exact note text>'" quando o número da nota estiver disponível.
+- A evidência de cada norma deve conter explicitamente o mesmo código ou referência normativa.
+- Nunca associe a uma norma o texto de uma nota que cite outra norma. Coloque a justificativa conforme o campo de saída.
 
 <Tarefa 4>
 Conte as seguintes métricas objetivas diretamente a partir do desenho:
@@ -334,7 +344,7 @@ Retorne somente um objeto JSON válido no seguinte formato:
 - "lista_normas" deve ser uma lista de strings.
 - "justificativas_normas" deve ser uma lista de strings.
 - As listas "lista_normas" e "justificativas_normas" devem possuir exatamente o mesmo número de elementos.
-- O elemento de índice 0 de "justificativas_normas" deve corresponder ao elemento de índice 0 de "lista_normas", e assim sucessivamente.
+- O elemento de índice 0 de "justificativas_normas" deve corresponder ao elemento de índice 0 de "lista_normas", e assim sucessivamente. Cada justificativa deve estar em inglês e citar explicitamente a mesma norma.
 - Não repita normas duplicadas.
 - Mantenha a ordem em que as normas aparecem no texto.
 - Caso nenhuma norma seja encontrada, retorne listas vazias.
