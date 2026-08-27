@@ -8,10 +8,17 @@ from __future__ import annotations
 
 import argparse
 import logging
+import sys
 from pathlib import Path
 from time import perf_counter
 
 from dotenv import load_dotenv
+
+_PROJECT_ROOT = Path(__file__).resolve().parent
+_PIPELINE_ROOT = _PROJECT_ROOT / "CloudRun_functions" / "pipeline"
+if not (_PIPELINE_ROOT / "src" / "cad_review").is_dir():
+    raise RuntimeError(f"Pipeline package not found: {_PIPELINE_ROOT}")
+sys.path.insert(0, str(_PIPELINE_ROOT))
 
 from src.cad_review.integrated_review import (
     _format_elapsed,
@@ -67,6 +74,7 @@ def main() -> None:
             gdt_dpi=args.gdt_dpi,
             gdt_threshold=args.gdt_threshold,
             gdt_workers=args.gdt_workers,
+            template_root=_PIPELINE_ROOT / "assets" / "gdt" / "templates",
             opencv_config=CompareConfig(
                 dpi=args.opencv_dpi,
                 diff_threshold=args.opencv_threshold,
