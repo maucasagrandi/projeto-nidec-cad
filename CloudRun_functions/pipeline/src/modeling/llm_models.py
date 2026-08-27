@@ -1,7 +1,7 @@
 import base64
 import logging
-import re
 import os
+import re
 import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -89,7 +89,7 @@ class ClassificacaoENormasOutput(BaseModel):
 class NormasFaltantesOutput(BaseModel):
     """Estrutura de saída para inferência de normas faltantes"""
     normas_sugeridas: list[str] = Field(description="Lista de normas recomendadas")
-    reasoning: str = Field(description="Explicação técnica")
+    reasoning: str = Field(description="Complete technical explanation written exclusively in English")
     confianca: float = Field(description="Nível de confiança (0.0 a 1.0)")
 
 
@@ -362,8 +362,13 @@ def infer_missing_norms(
     
     logger.info(f"Enviando inferência para {model}...")
     
-    normas_str = ", ".join(lista_normas_atuais) if lista_normas_atuais else "Nenhuma"
-    prompt = f"{system_prompt}\n\nPeça: {classificacao}\nNormas atuais: {normas_str}"
+    normas_str = ", ".join(lista_normas_atuais) if lista_normas_atuais else "None"
+    prompt = (
+        f"{system_prompt}\n\n"
+        f"Component: {classificacao}\n"
+        f"Current standards: {normas_str}\n\n"
+        "LANGUAGE REQUIREMENT: Write the reasoning exclusively in English."
+    )
     
     response = _get_client().models.generate_content(
         model=model,

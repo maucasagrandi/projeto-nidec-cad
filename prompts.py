@@ -356,47 +356,48 @@ Retorne somente um objeto JSON válido no seguinte formato:
 """
 
 normas_faltantes_prompt = """
-Você é um especialista em normas técnicas de engenharia e design de peças mecânicas.
+You are an expert in engineering standards and mechanical component design.
 
-Com base nas informações fornecidas, identifique quais normas adicionais deveriam estar aplicadas à peça, mesmo que não estejam mencionadas no desenho atual.
+Based on the provided information, identify which additional standards should apply to the component, even when they are not cited in the current drawing.
 
-ENTRADA:
-- Tipo de peça: {classificacao}
-- Normas já aplicadas: {normas_atuais}
+INPUT:
+- Component type: {classificacao}
+- Standards already applied: {normas_atuais}
 
-TAREFA:
-Analise que outras normas são tecnicamente recomendadas para este tipo de peça, considerando:
-- Normas de material e tratamento térmico
-- Normas de dimensionamento e tolerâncias
-- Normas de acabamento e qualidade superficial
-- Normas de segurança e conformidade
-- Normas de teste e validação
+TASK:
+Determine which other standards are technically recommended for this component type, considering:
+- Material and heat-treatment standards
+- Dimensioning and tolerance standards
+- Surface finish and quality standards
+- Safety and compliance standards
+- Testing and validation standards
 
-RETORNE OBRIGATORIAMENTE um objeto JSON válido EXATAMENTE neste formato, sem variações:
+Return a valid JSON object in EXACTLY this format, without variations:
 
 {{
   "normas_sugeridas": [
-    "norma recomendada 1",
-    "norma recomendada 2",
-    "norma recomendada 3"
+    "recommended standard 1",
+    "recommended standard 2",
+    "recommended standard 3"
   ],
-  "reasoning": "explicação técnica detalhada de por que essas normas são recomendadas para este tipo de peça",
+  "reasoning": "detailed technical explanation of why these standards are recommended for this component type",
   "confianca": 0.85
 }}
 
-REGRAS RIGOROSAS DE SAÍDA:
+STRICT OUTPUT RULES:
 
-1. Os campos DEVEM ser EXATAMENTE: "normas_sugeridas", "reasoning", "confianca"
-2. "normas_sugeridas" DEVE ser uma lista de strings com códigos de normas (ex: ["ISO 13849-1", "DIN 65151"])
-3. "reasoning" DEVE ser uma string com a explicação técnica completa
-4. "confianca" DEVE ser um número decimal entre 0.0 e 1.0 (ex: 0.85, 0.92)
-5. Não retorne normas que já estão na lista de normas aplicadas
-6. Retorne APENAS JSON válido, sem Markdown, sem blocos de código, sem explicações adicionais
-7. Se não houver normas adicionais recomendadas, retorne lista vazia mas MANTENHA os 3 campos obrigatórios:
+1. The fields MUST be EXACTLY: "normas_sugeridas", "reasoning", "confianca".
+2. "normas_sugeridas" MUST be a list of standard-code strings (for example, ["ISO 13849-1", "DIN 65151"]).
+3. "reasoning" MUST be a complete technical explanation written exclusively in English.
+4. Every user-visible text value in the response MUST be written exclusively in English. Keep only standard codes unchanged.
+5. "confianca" MUST be a decimal number between 0.0 and 1.0 (for example, 0.85 or 0.92).
+6. Do not return standards already present in the applied-standards list.
+7. Return ONLY valid JSON, without Markdown, code fences, or additional explanations.
+8. If no additional standard is recommended, return an empty list while preserving all three required fields:
 
 {{
   "normas_sugeridas": [],
-  "reasoning": "Não há normas adicionais recomendadas para este tipo de peça",
+  "reasoning": "No additional standards are recommended for this component type.",
   "confianca": 0.9
 }}
 """
