@@ -35,7 +35,10 @@ def test_classification_sends_pdf_and_returns_structured_drawing_metadata(monkey
         "classificacao": "GASKET - VALVE PLATE",
         "justificativa_classificacao": "TITLE, DOCUMENT TYPE",
         "lista_normas": ["ISO STANDARDS", "TSS 002513"],
-        "justificativas_normas": ["Note 1", "Note 1"],
+        "justificativas_normas": [
+            "DRAWING ACCORDING TO ISO STANDARDS, SEE TSS 002513.",
+            "DRAWING ACCORDING TO ISO STANDARDS, SEE TSS 002513.",
+        ],
         "quantidade_revisoes": 7,
         "quantidade_notas": 15,
         "quantidade_codigos": 7,
@@ -67,7 +70,9 @@ def test_classification_sends_pdf_and_returns_structured_drawing_metadata(monkey
     assert captured["contents"][0].inline_data.data == b"%PDF-test"
     assert result.header.drawing_number == "13358002"
     assert result.drawing_block.scale == "5:2"
-    assert result.lista_normas == ["ISO STANDARDS", "TSS 002513"]
+    assert result.lista_normas == ["TSS 002513"]
+    assert len(result.justificativas_normas) == 1
+    assert "TSS 002513" in result.justificativas_normas[0]
 
 
 def test_missing_standards_requires_english_reasoning(monkeypatch) -> None:

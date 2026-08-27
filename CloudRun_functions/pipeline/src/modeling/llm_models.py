@@ -10,6 +10,8 @@ from google import genai
 from google.genai import types
 from pydantic import BaseModel, Field
 
+from src.utils.standards import filter_standard_entries
+
 # Configurar logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -284,6 +286,10 @@ def extract_norms_from_text(
         texto_notas,
         parsed.justificativas,
     )
+    parsed.lista_normas, parsed.justificativas = filter_standard_entries(
+        parsed.lista_normas,
+        parsed.justificativas,
+    )
     
     end_time = time.time()
     latency_ms = (end_time - start_time) * 1000
@@ -331,6 +337,10 @@ def classify_and_extract_norms(
     parsed.justificativas_normas = _standard_evidence_from_vector_text(
         parsed.lista_normas,
         texto_notas,
+        parsed.justificativas_normas,
+    )
+    parsed.lista_normas, parsed.justificativas_normas = filter_standard_entries(
+        parsed.lista_normas,
         parsed.justificativas_normas,
     )
     

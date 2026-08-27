@@ -25,6 +25,12 @@ from reportlab.platypus import (
     TableStyle,
 )
 
+from src.utils.standards import (
+    filter_standard_entries,
+    is_generic_standard,
+    standard_key,
+)
+
 
 def _escape(value: Any) -> str:
     return str(value).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
@@ -87,6 +93,31 @@ def _load_standards_catalog() -> list[dict[str, str]]:
     except (OSError, json.JSONDecodeError):
         return []
     return [row for row in payload if isinstance(row, dict)]
+
+
+def _category_from_standard_evidence(evidence: str) -> str:
+    """Classify an uncatalogued cited standard without inventing its contents."""
+    normalized = str(evidence or "").upper()
+    category_rules = [
+        (("HAZARDOUS", "MATERIAL", "HFC", "SUBSTANCE"), "Material and compliance"),
+        (("GEOMETRIC", "GD&T", "DATUM", "TOLERANCE", "DIMENSION"), "Dimensioning and tolerances"),
+        (("MEASUREMENT", "DENSITY", "TEST", "PROCEDURE", "VALIDATION"), "Test and validation"),
+        (("IDENTIFICATION", "LETTERING", "MARKING", "LABEL"), "Identification"),
+    ]
+    for keywords, category in category_rules:
+        if any(keyword in normalized for keyword in keywords):
+            return category
+    return "General"
+
+
+def _uncatalogued_standard_metadata(evidence: str) -> dict[str, str]:
+    """Build complete, evidence-based metadata for a standard absent from the catalog."""
+    evidence_text = str(evidence or "").strip()
+    return {
+        "content": evidence_text or "Explicit standard reference in the revised drawing",
+        "category": _category_from_standard_evidence(evidence_text),
+        "applicability": "Applicable as explicitly cited in the revised drawing",
+    }
 
 
 def _metadata_rows(
@@ -304,8 +335,10 @@ def build_unified_report(result: Any) -> bytes:
     story.append(Paragraph("2. Applied Standards", heading))
     story.append(Paragraph("Standards cited in the revised drawing", subheading))
 
-    cited    = result.part_classification.get("lista_normas", []) or []
-    evidence = result.part_classification.get("justificativas_normas", []) or []
+    cited, evidence = filter_standard_entries(
+        result.part_classification.get("lista_normas", []) or [],
+        result.part_classification.get("justificativas_normas", []) or [],
+    )
     if cited:
         for idx, standard in enumerate(cited):
             suffix = f" - {evidence[idx]}" if idx < len(evidence) and evidence[idx] else ""
@@ -536,8 +569,12 @@ def build_unified_report(result: Any) -> bytes:
 
     standards_catalog = _load_standards_catalog()
     standards_map = {
-        " ".join(str(row.get("standard", "")).upper().split()): row
+        standard_key(row.get("standard", "")): row
         for row in standards_catalog
+    }
+    evidence_map = {
+        standard_key(standard): evidence[index] if index < len(evidence) else ""
+        for index, standard in enumerate(cited)
     }
 
     story.append(Spacer(1, 0.35 * cm))
@@ -550,28 +587,42 @@ def build_unified_report(result: Any) -> bytes:
     ]]
 
     mapped_applied = result.inferred_standards.get("applied_standards", []) or []
-    applied_sources: list[Any] = list(mapped_applied) if mapped_applied else list(cited)
+    applied_sources: list[Any] = [*cited, *mapped_applied]
     seen_applied: set[str] = set()
     for applied in applied_sources:
         if isinstance(applied, dict):
             standard_code = str(applied.get("standard", "")).strip()
             applicability_override = applied.get("applicability_match")
+            content_override = applied.get("content")
+            category_override = applied.get("category")
         else:
             standard_code = str(applied).strip()
             applicability_override = None
-        standard_key = " ".join(standard_code.upper().split())
-        if not standard_code or standard_key in seen_applied:
+            content_override = None
+            category_override = None
+        code_key = standard_key(standard_code)
+        if (
+            not standard_code
+            or not code_key
+            or code_key in seen_applied
+            or is_generic_standard(standard_code)
+        ):
             continue
-        seen_applied.add(standard_key)
-        catalog_record = standards_map.get(standard_key, {})
+        seen_applied.add(code_key)
+        catalog_record = standards_map.get(code_key, {})
+        fallback = _uncatalogued_standard_metadata(evidence_map.get(code_key, ""))
+        content = content_override or catalog_record.get("content") or fallback["content"]
+        category = category_override or catalog_record.get("category") or fallback["category"]
+        applicability = (
+            applicability_override
+            or catalog_record.get("applicability")
+            or fallback["applicability"]
+        )
         applied_rows.append([
             Paragraph(_escape(standard_code), cell),
-            Paragraph(_escape(catalog_record.get("content", "")), cell),
-            Paragraph(_escape(catalog_record.get("category", "")), cell),
-            Paragraph(
-                _escape(applicability_override or catalog_record.get("applicability", "")),
-                cell,
-            ),
+            Paragraph(_escape(content), cell),
+            Paragraph(_escape(category), cell),
+            Paragraph(_escape(applicability), cell),
         ])
 
     if len(applied_rows) > 1:

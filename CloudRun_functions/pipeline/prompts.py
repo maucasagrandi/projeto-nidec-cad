@@ -146,7 +146,7 @@ Podem ser consideradas referências normativas explícitas:
 - Não deduza normas a partir de materiais, símbolos, tolerâncias, rugosidade, GD&T, datums ou descrições técnicas.
 - Não associe automaticamente uma designação de material a uma norma que não esteja escrita.
 - Por exemplo, a presença de "ADC12" não autoriza incluir "JIS H 5302" caso esse código não esteja explicitamente presente.
-- Uma expressão genérica como "ISO STANDARDS" deve ser registrada exatamente dessa forma, sem transformá-la em uma norma ISO específica.
+- Ignore expressões genéricas como "ISO STANDARDS". Extraia somente normas ISO que possuam um código específico, como "ISO 1101".
 - Não explique o conteúdo de uma norma interna caso esse conteúdo não esteja descrito no texto.
 - Não atribua fabricante, empresa ou proprietário a uma especificação interna sem evidência explícita.
 - Ignore requisitos técnicos que não sejam referências normativas, como:
@@ -258,7 +258,7 @@ Podem ser consideradas referências normativas explícitas:
 - Não deduza normas a partir de materiais, símbolos, tolerâncias, rugosidade, GD&T, datums ou descrições técnicas.
 - Não associe automaticamente uma designação de material a uma norma que não esteja escrita.
 - Por exemplo, a presença de "ADC12" não autoriza incluir "JIS H 5302" caso esse código não esteja explicitamente presente.
-- Uma expressão genérica como "ISO STANDARDS" deve ser registrada exatamente dessa forma, sem transformá-la em uma norma ISO específica.
+- Ignore expressões genéricas como "ISO STANDARDS". Extraia somente normas ISO que possuam um código específico, como "ISO 1101".
 - Não explique o conteúdo de uma norma interna caso esse conteúdo não esteja descrito no texto.
 - Não atribua fabricante, empresa ou proprietário a uma especificação interna sem evidência explícita.
 - Ignore requisitos técnicos que não sejam referências normativas, como:

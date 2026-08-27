@@ -4,7 +4,6 @@ from dataclasses import dataclass
 
 import fitz
 import numpy as np
-
 from src.cad_review.integrated_review import (
     GdtPageResult,
     _format_elapsed,
@@ -71,8 +70,11 @@ def test_integrated_review_uses_revised_for_classification_and_gdt(caplog) -> No
             },
             "classificacao": "Connecting Rod",
             "justificativa_classificacao": "CONNECTING ROD",
-            "lista_normas": ["ISO 1101"],
-            "justificativas_normas": ["ISO 1101"],
+            "lista_normas": ["ISO STANDARDS", "ISO 1101"],
+            "justificativas_normas": [
+                "DRAWING ACCORDING TO ISO STANDARDS",
+                "GEOMETRIC TOLERANCE ACCORDING TO ISO 1101",
+            ],
             "quantidade_revisoes": 3,
             "quantidade_notas": 4,
             "quantidade_codigos": 2,
@@ -183,6 +185,10 @@ def test_integrated_review_uses_revised_for_classification_and_gdt(caplog) -> No
     assert "6. References" in report_text
     assert "Quantidade de cotas HIC" in report_text
     assert "Applied Standards Table" in report_text
+    assert "ISO STANDARDS" not in report_text
+    assert "GEOMETRIC TOLERANCE ACCORDING TO ISO 1101" in report_text
+    assert "Dimensioning and tolerances" in report_text
+    assert "Applicable as explicitly cited in the revised drawing" in report_text
     assert "Complete Standards Catalog" in report_text
     assert "TSS 002470" in report_text
 

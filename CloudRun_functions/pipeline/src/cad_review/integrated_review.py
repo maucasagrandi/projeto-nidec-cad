@@ -19,6 +19,8 @@ import cv2
 import fitz
 import numpy as np
 
+from src.utils.standards import filter_standard_entries
+
 logger = logging.getLogger(__name__)
 
 
@@ -287,7 +289,12 @@ def run_integrated_review(
         pipeline_started,
     )
 
-    cited_standards = [str(value) for value in classification.get("lista_normas", [])]
+    cited_standards, cited_evidence = filter_standard_entries(
+        classification.get("lista_normas", []),
+        classification.get("justificativas_normas", []),
+    )
+    classification["lista_normas"] = cited_standards
+    classification["justificativas_normas"] = cited_evidence
     inference_prompt = (
         "Você é especialista em normas técnicas de engenharia. Com base na classificação "
         "da peça e nas normas explicitamente citadas, indique somente normas adicionais que "
