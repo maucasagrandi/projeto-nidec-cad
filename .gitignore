@@ -5,6 +5,7 @@ __pycache__
 
 # Generated outputs from the integrated review pipelines
 REVIEW_RESULTS/
+REVIEW_RESULTS_TEST/
 GDT_RESULTS/
 opencv_compare_results/
 

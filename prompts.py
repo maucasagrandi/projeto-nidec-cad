@@ -146,7 +146,7 @@ Podem ser consideradas referências normativas explícitas:
 - Não deduza normas a partir de materiais, símbolos, tolerâncias, rugosidade, GD&T, datums ou descrições técnicas.
 - Não associe automaticamente uma designação de material a uma norma que não esteja escrita.
 - Por exemplo, a presença de "ADC12" não autoriza incluir "JIS H 5302" caso esse código não esteja explicitamente presente.
-- Uma expressão genérica como "ISO STANDARDS" deve ser registrada exatamente dessa forma, sem transformá-la em uma norma ISO específica.
+- Ignore expressões genéricas como "ISO STANDARDS". Extraia somente normas ISO que possuam um código específico, como "ISO 1101".
 - Não explique o conteúdo de uma norma interna caso esse conteúdo não esteja descrito no texto.
 - Não atribua fabricante, empresa ou proprietário a uma especificação interna sem evidência explícita.
 - Ignore requisitos técnicos que não sejam referências normativas, como:
@@ -161,6 +161,11 @@ Podem ser consideradas referências normativas explícitas:
 
 <Saída>
 Para cada norma encontrada, produza uma justificativa curta contendo o trecho ou contexto textual que confirma sua presença.
+
+- Escreva todas as justificativas integralmente em inglês.
+- Use o formato "Cited in Note N: '<exact note text>'" quando o número da nota estiver disponível.
+- A evidência de cada norma deve conter explicitamente o mesmo código ou referência normativa.
+- Nunca associe a uma norma o texto de uma nota que cite outra norma.
 
 Retorne somente um objeto JSON válido no seguinte formato:
 
@@ -253,7 +258,7 @@ Podem ser consideradas referências normativas explícitas:
 - Não deduza normas a partir de materiais, símbolos, tolerâncias, rugosidade, GD&T, datums ou descrições técnicas.
 - Não associe automaticamente uma designação de material a uma norma que não esteja escrita.
 - Por exemplo, a presença de "ADC12" não autoriza incluir "JIS H 5302" caso esse código não esteja explicitamente presente.
-- Uma expressão genérica como "ISO STANDARDS" deve ser registrada exatamente dessa forma, sem transformá-la em uma norma ISO específica.
+- Ignore expressões genéricas como "ISO STANDARDS". Extraia somente normas ISO que possuam um código específico, como "ISO 1101".
 - Não explique o conteúdo de uma norma interna caso esse conteúdo não esteja descrito no texto.
 - Não atribua fabricante, empresa ou proprietário a uma especificação interna sem evidência explícita.
 - Ignore requisitos técnicos que não sejam referências normativas, como:
@@ -266,7 +271,23 @@ Podem ser consideradas referências normativas explícitas:
   - quantidade de pinos;
   - recomendações de raio ou chanfro.
 
-Para cada norma encontrada, produza uma justificativa curta contendo o trecho ou contexto textual que confirma sua presença. Coloque a justificativa conforme o campo de saída.
+Para cada norma encontrada, produza uma justificativa curta contendo o trecho ou contexto textual que confirma sua presença.
+
+- Escreva todas as justificativas integralmente em inglês.
+- Use o formato "Cited in Note N: '<exact note text>'" quando o número da nota estiver disponível.
+- A evidência de cada norma deve conter explicitamente o mesmo código ou referência normativa.
+- Nunca associe a uma norma o texto de uma nota que cite outra norma. Coloque a justificativa conforme o campo de saída.
+
+<Tarefa 4>
+Conte as seguintes três métricas objetivas diretamente a partir do desenho:
+
+1. **quantidade_revisoes**: Conte o número de linhas preenchidas na tabela de revisões (cada linha preenchida = uma revisão). A tabela de revisões tipicamente possui colunas como REV, ECM, BY, DATE, DESCRIPTION. Conte apenas as linhas com dados, não a linha de cabeçalho.
+
+2. **quantidade_notas**: Conte o número de itens numerados na lista NOTES. As notas geralmente aparecem como "NOTES: 1- ... 2- ... 3- ...". Conte apenas os itens numerados presentes.
+
+3. **quantidade_codigos**: Conte o número de códigos de itens na tabela de materiais ou componentes (ex: linhas identificadas como A, B, C, D, I, L, # ou identificadores de caractere único similares). Conte apenas as linhas que possuem um código presente.
+
+Se alguma dessas tabelas/listas não existir no desenho, retorne null para esse campo.
 
 <Saída>
 Retorne somente um objeto JSON válido no seguinte formato:
@@ -304,7 +325,10 @@ Retorne somente um objeto JSON válido no seguinte formato:
   "justificativas_normas": [
     "evidência textual correspondente à norma 1",
     "evidência textual correspondente à norma 2"
-  ]
+  ],
+  "quantidade_revisoes": <número inteiro ou null>,
+  "quantidade_notas": <número inteiro ou null>,
+  "quantidade_codigos": <número inteiro ou null>
 }
 
 <Regras Saída>
@@ -320,58 +344,60 @@ Retorne somente um objeto JSON válido no seguinte formato:
 - "lista_normas" deve ser uma lista de strings.
 - "justificativas_normas" deve ser uma lista de strings.
 - As listas "lista_normas" e "justificativas_normas" devem possuir exatamente o mesmo número de elementos.
-- O elemento de índice 0 de "justificativas_normas" deve corresponder ao elemento de índice 0 de "lista_normas", e assim sucessivamente.
+- O elemento de índice 0 de "justificativas_normas" deve corresponder ao elemento de índice 0 de "lista_normas", e assim sucessivamente. Cada justificativa deve estar em inglês e citar explicitamente a mesma norma.
 - Não repita normas duplicadas.
 - Mantenha a ordem em que as normas aparecem no texto.
 - Caso nenhuma norma seja encontrada, retorne listas vazias.
 - Em caso de incerteza na classificação, deixe isso explícito na justificativa.
+- Os três campos de contagem devem ser inteiros ou null conforme as regras da Tarefa 4.
 
 <texto fornecido>
 {{texto_extraido}}
 """
 
 normas_faltantes_prompt = """
-Você é um especialista em normas técnicas de engenharia e design de peças mecânicas.
+You are an expert in engineering standards and mechanical component design.
 
-Com base nas informações fornecidas, identifique quais normas adicionais deveriam estar aplicadas à peça, mesmo que não estejam mencionadas no desenho atual.
+Based on the provided information, identify which additional standards should apply to the component, even when they are not cited in the current drawing.
 
-ENTRADA:
-- Tipo de peça: {classificacao}
-- Normas já aplicadas: {normas_atuais}
+INPUT:
+- Component type: {classificacao}
+- Standards already applied: {normas_atuais}
 
-TAREFA:
-Analise que outras normas são tecnicamente recomendadas para este tipo de peça, considerando:
-- Normas de material e tratamento térmico
-- Normas de dimensionamento e tolerâncias
-- Normas de acabamento e qualidade superficial
-- Normas de segurança e conformidade
-- Normas de teste e validação
+TASK:
+Determine which other standards are technically recommended for this component type, considering:
+- Material and heat-treatment standards
+- Dimensioning and tolerance standards
+- Surface finish and quality standards
+- Safety and compliance standards
+- Testing and validation standards
 
-RETORNE OBRIGATORIAMENTE um objeto JSON válido EXATAMENTE neste formato, sem variações:
+Return a valid JSON object in EXACTLY this format, without variations:
 
 {{
   "normas_sugeridas": [
-    "norma recomendada 1",
-    "norma recomendada 2",
-    "norma recomendada 3"
+    "recommended standard 1",
+    "recommended standard 2",
+    "recommended standard 3"
   ],
-  "reasoning": "explicação técnica detalhada de por que essas normas são recomendadas para este tipo de peça",
+  "reasoning": "detailed technical explanation of why these standards are recommended for this component type",
   "confianca": 0.85
 }}
 
-REGRAS RIGOROSAS DE SAÍDA:
+STRICT OUTPUT RULES:
 
-1. Os campos DEVEM ser EXATAMENTE: "normas_sugeridas", "reasoning", "confianca"
-2. "normas_sugeridas" DEVE ser uma lista de strings com códigos de normas (ex: ["ISO 13849-1", "DIN 65151"])
-3. "reasoning" DEVE ser uma string com a explicação técnica completa
-4. "confianca" DEVE ser um número decimal entre 0.0 e 1.0 (ex: 0.85, 0.92)
-5. Não retorne normas que já estão na lista de normas aplicadas
-6. Retorne APENAS JSON válido, sem Markdown, sem blocos de código, sem explicações adicionais
-7. Se não houver normas adicionais recomendadas, retorne lista vazia mas MANTENHA os 3 campos obrigatórios:
+1. The fields MUST be EXACTLY: "normas_sugeridas", "reasoning", "confianca".
+2. "normas_sugeridas" MUST be a list of standard-code strings (for example, ["ISO 13849-1", "DIN 65151"]).
+3. "reasoning" MUST be a complete technical explanation written exclusively in English.
+4. Every user-visible text value in the response MUST be written exclusively in English. Keep only standard codes unchanged.
+5. "confianca" MUST be a decimal number between 0.0 and 1.0 (for example, 0.85 or 0.92).
+6. Do not return standards already present in the applied-standards list.
+7. Return ONLY valid JSON, without Markdown, code fences, or additional explanations.
+8. If no additional standard is recommended, return an empty list while preserving all three required fields:
 
 {{
   "normas_sugeridas": [],
-  "reasoning": "Não há normas adicionais recomendadas para este tipo de peça",
+  "reasoning": "No additional standards are recommended for this component type.",
   "confianca": 0.9
 }}
 """

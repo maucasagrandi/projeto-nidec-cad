@@ -19,6 +19,8 @@ import cv2
 import fitz
 import numpy as np
 
+from src.utils.standards import filter_standard_entries
+
 logger = logging.getLogger(__name__)
 
 
@@ -62,6 +64,7 @@ class IntegratedReviewResult:
     gdt_pages: list[GdtPageResult]
     comparison_pages: list[Any]
     paper_format_changes: list[dict[str, Any]] = field(default_factory=list)
+    objective_metrics: dict[str, Any] = field(default_factory=dict)
     metadata: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -78,6 +81,7 @@ class IntegratedReviewResult:
                 "inference": self.inferred_standards,
             },
             "gdt": [page.report for page in self.gdt_pages],
+            "objective_metrics": self.objective_metrics,
             "comparison": {
                 "paper_format_changes": self.paper_format_changes,
                 "pages": [_comparison_to_dict(page) for page in self.comparison_pages],
@@ -220,9 +224,9 @@ def _default_comparator(
 
 
 def run_integrated_review(
-    original_pdf: bytes,
     revised_pdf: bytes,
     *,
+    original_pdf: bytes | None = None,
     original_name: str = "original.pdf",
     revised_name: str = "revised.pdf",
     classification_prompt: str | None = None,
@@ -239,12 +243,18 @@ def run_integrated_review(
     comparator: Callable[..., list[Any]] | None = None,
     format_checker: Callable[[bytes, bytes], list[dict[str, Any]]] | None = None,
 ) -> IntegratedReviewResult:
-    """Run classification, GD&T/datum detection and comparison in one flow."""
+    """Run classification, GD&T/datum detection and (optionally) comparison.
 
-    if not original_pdf or not revised_pdf:
-        raise ValueError("Both original and revised PDF bytes are required")
+    If original_pdf is None, comparison and format-check steps are skipped
+    (single-PDF analysis mode).
+    """
+
+    if not revised_pdf:
+        raise ValueError("Revised PDF bytes are required")
     if gdt_workers < 1:
         raise ValueError("gdt_workers must be at least 1")
+
+    comparison_enabled = original_pdf is not None and len(original_pdf) > 0
 
     pipeline_started = perf_counter()
     stage_started = pipeline_started
@@ -285,7 +295,12 @@ def run_integrated_review(
         pipeline_started,
     )
 
-    cited_standards = [str(value) for value in classification.get("lista_normas", [])]
+    cited_standards, cited_evidence = filter_standard_entries(
+        classification.get("lista_normas", []),
+        classification.get("justificativas_normas", []),
+    )
+    classification["lista_normas"] = cited_standards
+    classification["justificativas_normas"] = cited_evidence
     inference_prompt = (
         "Você é especialista em normas técnicas de engenharia. Com base na classificação "
         "da peça e nas normas explicitamente citadas, indique somente normas adicionais que "
@@ -324,24 +339,38 @@ def run_integrated_review(
         pipeline_started,
     )
 
+    from src.metrics.counters import build_objective_metrics
+
+    objective_metrics = build_objective_metrics(revised_pdf, classification, gdt_pages)
+    logger.info("Objective Metrics: %s", objective_metrics)
+
     compare = comparator or _default_comparator
-    comparison_pages = compare(
-        original_pdf,
-        revised_pdf,
-        model=comparison_model,
-        opencv_config=opencv_config,
-    )
-    stage_started, timings["part_comparison"] = _log_timing(
-        "Part Comparison concluída",
-        stage_started,
-        pipeline_started,
-    )
-    paper_format_changes = (format_checker or _default_format_checker)(original_pdf, revised_pdf)
-    _, timings["paper_format_check"] = _log_timing(
-        "Verificação do formato de papel concluída",
-        stage_started,
-        pipeline_started,
-    )
+    comparison_pages: list[Any] = []
+    paper_format_changes: list[dict[str, Any]] = []
+
+    if comparison_enabled:
+        comparison_pages = compare(
+            original_pdf,
+            revised_pdf,
+            model=comparison_model,
+            opencv_config=opencv_config,
+        )
+        stage_started, timings["part_comparison"] = _log_timing(
+            "Part Comparison concluída",
+            stage_started,
+            pipeline_started,
+        )
+        paper_format_changes = (format_checker or _default_format_checker)(original_pdf, revised_pdf)
+        _, timings["paper_format_check"] = _log_timing(
+            "Verificação do formato de papel concluída",
+            stage_started,
+            pipeline_started,
+        )
+    else:
+        logger.info("TEMPO | Comparison skipped (single-PDF mode)")
+        timings["part_comparison"] = 0.0
+        timings["paper_format_check"] = 0.0
+
     timings["pipeline_total"] = perf_counter() - pipeline_started
     logger.info("TEMPO | Pipeline concluído | total=%s", _format_elapsed(timings["pipeline_total"]))
 
@@ -353,15 +382,17 @@ def run_integrated_review(
         gdt_pages=gdt_pages,
         comparison_pages=comparison_pages,
         paper_format_changes=paper_format_changes,
+        objective_metrics=objective_metrics,
         metadata={
             "classification": _metadata_dict(classification_metadata),
             "standards_inference": _metadata_dict(inference_metadata),
             "revised_text_characters": len(revised_text),
             "revised_pages": revised_page_count,
             "compared_pages": len(comparison_pages),
+            "mode": "comparison" if comparison_enabled else "single",
             "gdt_mode": "deterministic_template_and_geometry",
             "gdt_workers": gdt_workers,
-            "comparison_mode": "opencv_candidates_then_llm_verification",
+            "comparison_mode": "opencv_candidates_then_llm_verification" if comparison_enabled else "disabled",
             "timings_seconds": {key: round(value, 3) for key, value in timings.items()},
         },
     )

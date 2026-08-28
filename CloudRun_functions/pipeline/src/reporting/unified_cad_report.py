@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import json
 from io import BytesIO
+from pathlib import Path
 from typing import Any
 
 import cv2
@@ -23,6 +25,12 @@ from reportlab.platypus import (
     TableStyle,
 )
 
+from src.utils.standards import (
+    filter_standard_entries,
+    is_generic_standard,
+    standard_key,
+)
+
 
 def _escape(value: Any) -> str:
     return str(value).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
@@ -34,9 +42,9 @@ def _display(value: Any) -> str:
     if isinstance(value, bool):
         return "Sim" if value else "Não"
     if isinstance(value, (list, tuple, set)):
-        return "; ".join(_display(item) for item in value) or "—"
+        return "; ".join(_display(item) for item in value) or "-"
     if isinstance(value, dict):
-        return "; ".join(f"{key}: {_display(item)}" for key, item in value.items()) or "—"
+        return "; ".join(f"{key}: {_display(item)}" for key, item in value.items()) or "-"
     return str(value)
 
 
@@ -64,6 +72,52 @@ DRAWING_BLOCK_FIELDS = [
     ("replace", "Replace"),
     ("number", "Number"),
 ]
+
+REFERENCE_ASSETS = Path(__file__).resolve().parents[2] / "assets" / "references"
+REFERENCE_IMAGES = [
+    ("gdt_datum/geometrical_characteristics.png", "ISO 1101 geometrical characteristics and datum requirements"),
+    ("gdt_datum/datum_related_symbols.png", "Datum-related and size-tolerance-related symbols"),
+    ("gdt_datum/toleranced_feature_identifiers.png", "Toleranced feature identifiers and tolerance indicators"),
+]
+UNTYPED_DIMENSION_METRICS = {
+    "Quantidade de cotas HIC",
+    "Quantidade de cotas CTQ",
+    "Quantidade de cotas CTQ-S",
+}
+
+
+def _load_standards_catalog() -> list[dict[str, str]]:
+    catalog_path = REFERENCE_ASSETS / "standards_catalog.json"
+    try:
+        payload = json.loads(catalog_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return []
+    return [row for row in payload if isinstance(row, dict)]
+
+
+def _category_from_standard_evidence(evidence: str) -> str:
+    """Classify an uncatalogued cited standard without inventing its contents."""
+    normalized = str(evidence or "").upper()
+    category_rules = [
+        (("HAZARDOUS", "MATERIAL", "HFC", "SUBSTANCE"), "Material and compliance"),
+        (("GEOMETRIC", "GD&T", "DATUM", "TOLERANCE", "DIMENSION"), "Dimensioning and tolerances"),
+        (("MEASUREMENT", "DENSITY", "TEST", "PROCEDURE", "VALIDATION"), "Test and validation"),
+        (("IDENTIFICATION", "LETTERING", "MARKING", "LABEL"), "Identification"),
+    ]
+    for keywords, category in category_rules:
+        if any(keyword in normalized for keyword in keywords):
+            return category
+    return "General"
+
+
+def _uncatalogued_standard_metadata(evidence: str) -> dict[str, str]:
+    """Build complete, evidence-based metadata for a standard absent from the catalog."""
+    evidence_text = str(evidence or "").strip()
+    return {
+        "content": evidence_text or "Explicit standard reference in the revised drawing",
+        "category": _category_from_standard_evidence(evidence_text),
+        "applicability": "Applicable as explicitly cited in the revised drawing",
+    }
 
 
 def _metadata_rows(
@@ -100,12 +154,13 @@ def _image_flowable(
     *,
     max_width: float,
     max_height: float,
-    raster_dpi: int = 288,
+    raster_dpi: int = 144,
 ) -> Image:
     """Fit an image to the PDF at high resolution to avoid pixelation on zoom.
 
     raster_dpi controls how many raster pixels are embedded per display point.
-    288 DPI (4× the 72 pt/inch PDF baseline) gives sharp results at high zoom.
+    144 DPI (2x the 72 pt/inch PDF baseline) keeps drawings sharp while
+    limiting the memory and file-size cost of full-page CAD images.
     The image is only downsampled when the source is actually smaller than the
     raster budget, so large source images (300 DPI CAD pages) stay crisp.
     """
@@ -218,6 +273,7 @@ def build_unified_report(result: Any) -> bytes:
         3. GD&T and Datums
         4. Difference Map with IDs
         5. Differences by ID  (summary table + per-ID page with full-page images)
+        6. References (objective metrics, full standards catalog and symbol references)
     """
     buffer = BytesIO()
     page_size = landscape(A4)
@@ -237,6 +293,9 @@ def build_unified_report(result: Any) -> bytes:
     subheading = ParagraphStyle("Subsection", parent=styles["Heading2"], fontSize=12, spaceAfter=7)
     body       = ParagraphStyle("Body",       parent=styles["BodyText"], fontSize=9,  leading=12, spaceAfter=5)
     bullet_sty = ParagraphStyle("Bullet",     parent=body, leftIndent=12, firstLineIndent=-8)
+    standards_bullet_sty = ParagraphStyle(
+        "StandardsBullet", parent=bullet_sty, spaceAfter=0, leading=11
+    )
     cell       = ParagraphStyle("Cell",       parent=body, fontSize=7.5, leading=8.5, spaceAfter=0)
     label_cell = ParagraphStyle("LabelCell",  parent=cell, fontName="Helvetica-Bold")
     tbl_header = ParagraphStyle("HeaderCell", parent=cell, textColor=colors.white, alignment=TA_CENTER)
@@ -274,13 +333,16 @@ def build_unified_report(result: Any) -> bytes:
 
     # ── 2. Applied Standards ──────────────────────────────────────────────────
     story.append(Paragraph("2. Applied Standards", heading))
+    story.append(Paragraph("Standards cited in the revised drawing", subheading))
 
-    cited    = result.part_classification.get("lista_normas", []) or []
-    evidence = result.part_classification.get("justificativas_normas", []) or []
+    cited, evidence = filter_standard_entries(
+        result.part_classification.get("lista_normas", []) or [],
+        result.part_classification.get("justificativas_normas", []) or [],
+    )
     if cited:
         for idx, standard in enumerate(cited):
             suffix = f" - {evidence[idx]}" if idx < len(evidence) and evidence[idx] else ""
-            story.append(_bullet(f"{standard}{suffix}", bullet_sty))
+            story.append(_bullet(f"{standard}{suffix}", standards_bullet_sty))
     else:
         story.append(_bullet("No explicit standard was extracted from the revised drawing.", bullet_sty))
 
@@ -458,6 +520,198 @@ def build_unified_report(result: Any) -> bytes:
                 Spacer(1, 0.25 * cm),
                 Paragraph(f"<b>Description:</b> {_escape(description)}", body),
             ])
+
+    # ── 6. References ─────────────────────────────────────────────────────────
+    story.append(PageBreak())
+    story.append(Paragraph("6. References", heading))
+
+    story.append(Paragraph("Objective Metrics", subheading))
+    metric_rows = [[
+        Paragraph("Metric", tbl_header),
+        Paragraph("Result", tbl_header),
+    ]]
+    objective_metrics = dict(getattr(result, "objective_metrics", {}) or {})
+    metric_order = [
+        "Quantidade de cotas",
+        "Quantidade de cotas HIC",
+        "Quantidade de cotas CTQ",
+        "Quantidade de cotas CTQ-S",
+        "Quantidade de GD&Ts",
+        "Quantidade de Datums Reference",
+        "Lista de datums reference",
+        "Quantidade de revisões",
+        "Quantidade de notas",
+        "Quantidade de códigos",
+    ]
+    for metric in metric_order:
+        metric_value = (
+            "-"
+            if metric in UNTYPED_DIMENSION_METRICS
+            else objective_metrics.get(metric)
+        )
+        metric_rows.append([
+            Paragraph(_escape(metric), label_cell),
+            Paragraph(_escape(_display(metric_value)), cell),
+        ])
+
+    metric_table = Table(metric_rows, colWidths=[12.0 * cm, 13.5 * cm], repeatRows=1)
+    metric_table.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#455A64")),
+        ("GRID", (0, 0), (-1, -1), 0.4, colors.grey),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#F3F6F7")]),
+        ("LEFTPADDING", (0, 0), (-1, -1), 5),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 5),
+        ("TOPPADDING", (0, 0), (-1, -1), 4),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+    ]))
+    story.append(metric_table)
+
+    standards_catalog = _load_standards_catalog()
+    standards_map = {
+        standard_key(row.get("standard", "")): row
+        for row in standards_catalog
+    }
+    evidence_map = {
+        standard_key(standard): evidence[index] if index < len(evidence) else ""
+        for index, standard in enumerate(cited)
+    }
+
+    story.append(Spacer(1, 0.35 * cm))
+    story.append(Paragraph("Applied Standards Table", subheading))
+    applied_rows = [[
+        Paragraph("Standard", tbl_header),
+        Paragraph("Content", tbl_header),
+        Paragraph("Category", tbl_header),
+        Paragraph("Applicability", tbl_header),
+    ]]
+
+    mapped_applied = result.inferred_standards.get("applied_standards", []) or []
+    applied_sources: list[Any] = [*cited, *mapped_applied]
+    seen_applied: set[str] = set()
+    for applied in applied_sources:
+        if isinstance(applied, dict):
+            standard_code = str(applied.get("standard", "")).strip()
+            applicability_override = applied.get("applicability_match")
+            content_override = applied.get("content")
+            category_override = applied.get("category")
+        else:
+            standard_code = str(applied).strip()
+            applicability_override = None
+            content_override = None
+            category_override = None
+        code_key = standard_key(standard_code)
+        if (
+            not standard_code
+            or not code_key
+            or code_key in seen_applied
+            or is_generic_standard(standard_code)
+        ):
+            continue
+        seen_applied.add(code_key)
+        catalog_record = standards_map.get(code_key, {})
+        fallback = _uncatalogued_standard_metadata(evidence_map.get(code_key, ""))
+        content = content_override or catalog_record.get("content") or fallback["content"]
+        category = category_override or catalog_record.get("category") or fallback["category"]
+        applicability = (
+            applicability_override
+            or catalog_record.get("applicability")
+            or fallback["applicability"]
+        )
+        applied_rows.append([
+            Paragraph(_escape(standard_code), cell),
+            Paragraph(_escape(content), cell),
+            Paragraph(_escape(category), cell),
+            Paragraph(_escape(applicability), cell),
+        ])
+
+    if len(applied_rows) > 1:
+        applied_table = Table(
+            applied_rows,
+            colWidths=[3.0 * cm, 6.7 * cm, 4.2 * cm, 11.6 * cm],
+            repeatRows=1,
+        )
+        applied_table.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1565C0")),
+            ("GRID", (0, 0), (-1, -1), 0.4, colors.grey),
+            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#EAF2FB")]),
+            ("LEFTPADDING", (0, 0), (-1, -1), 4),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 4),
+            ("TOPPADDING", (0, 0), (-1, -1), 4),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+        ]))
+        story.append(applied_table)
+    else:
+        story.append(_bullet("No applied standard was identified.", bullet_sty))
+
+    story.append(PageBreak())
+    story.append(Paragraph("Complete Standards Catalog", subheading))
+    standards_rows = [[
+        Paragraph("Standard", tbl_header),
+        Paragraph("Content", tbl_header),
+        Paragraph("Category", tbl_header),
+        Paragraph("Compressor Series", tbl_header),
+        Paragraph("Applicability", tbl_header),
+    ]]
+    for standard in standards_catalog:
+        standards_rows.append([
+            Paragraph(_escape(standard.get("standard", "")), cell),
+            Paragraph(_escape(standard.get("content", "")), cell),
+            Paragraph(_escape(standard.get("category", "")), cell),
+            Paragraph(_escape(standard.get("compressor_series", "")), cell),
+            Paragraph(_escape(standard.get("applicability", "")), cell),
+        ])
+
+    if len(standards_rows) > 1:
+        standards_table = Table(
+            standards_rows,
+            colWidths=[2.7 * cm, 5.5 * cm, 3.5 * cm, 4.0 * cm, 9.8 * cm],
+            repeatRows=1,
+        )
+        standards_table.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#00695C")),
+            ("GRID", (0, 0), (-1, -1), 0.35, colors.grey),
+            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#EAF5F3")]),
+            ("LEFTPADDING", (0, 0), (-1, -1), 3),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 3),
+            ("TOPPADDING", (0, 0), (-1, -1), 3),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+        ]))
+        story.append(standards_table)
+    else:
+        story.append(_bullet("The standards catalog asset is unavailable.", bullet_sty))
+
+    for relative_path, image_caption in REFERENCE_IMAGES:
+        story.append(PageBreak())
+        image_path = REFERENCE_ASSETS / relative_path
+        reference_image = cv2.imread(str(image_path), cv2.IMREAD_COLOR)
+        if reference_image is None:
+            story.append(Paragraph("GD&T and Datum Symbol Reference", subheading))
+            story.append(_bullet(f"Reference image unavailable: {relative_path}", bullet_sty))
+            continue
+        reference_table = Table(
+            [
+                [Paragraph("GD&T and Datum Symbol Reference", subheading)],
+                [_image_flowable(
+                    reference_image,
+                    max_width=25.5 * cm,
+                    max_height=13.6 * cm,
+                )],
+                [Paragraph(f"<i>{_escape(image_caption)}</i>", caption)],
+            ],
+            colWidths=[25.5 * cm],
+        )
+        reference_table.setStyle(TableStyle([
+            ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ("LEFTPADDING", (0, 0), (-1, -1), 0),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+            ("TOPPADDING", (0, 0), (-1, -1), 2),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
+        ]))
+        story.append(reference_table)
 
     doc.build(story)
     return buffer.getvalue()

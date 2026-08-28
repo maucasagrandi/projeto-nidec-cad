@@ -5,12 +5,20 @@ from __future__ import annotations
 import hmac
 import json
 import os
+import sys
+from pathlib import Path
 
 import cv2
 import streamlit as st
 from dotenv import load_dotenv
 from PIL import Image
 from streamlit_image_zoom import image_zoom
+
+_PROJECT_ROOT = Path(__file__).resolve().parent
+_PIPELINE_ROOT = _PROJECT_ROOT / "CloudRun_functions" / "pipeline"
+if not (_PIPELINE_ROOT / "src" / "cad_review").is_dir():
+    raise RuntimeError(f"Pipeline package not found: {_PIPELINE_ROOT}")
+sys.path.insert(0, str(_PIPELINE_ROOT))
 
 from src.cad_review.integrated_review import run_integrated_review
 from src.reporting.unified_cad_report import (
@@ -122,6 +130,7 @@ if st.button(
                 revised_name=revised_file.name,
                 comparison_model="gemini-2.5-flash",
                 gdt_workers=1,
+                template_root=_PIPELINE_ROOT / "assets" / "gdt" / "templates",
                 opencv_config=CompareConfig(dpi=150),
             )
             report_bytes = build_unified_report(result)

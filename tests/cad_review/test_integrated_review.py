@@ -4,7 +4,6 @@ from dataclasses import dataclass
 
 import fitz
 import numpy as np
-
 from src.cad_review.integrated_review import (
     GdtPageResult,
     _format_elapsed,
@@ -71,8 +70,14 @@ def test_integrated_review_uses_revised_for_classification_and_gdt(caplog) -> No
             },
             "classificacao": "Connecting Rod",
             "justificativa_classificacao": "CONNECTING ROD",
-            "lista_normas": ["ISO 1101"],
-            "justificativas_normas": ["ISO 1101"],
+            "lista_normas": ["ISO STANDARDS", "ISO 1101"],
+            "justificativas_normas": [
+                "DRAWING ACCORDING TO ISO STANDARDS",
+                "GEOMETRIC TOLERANCE ACCORDING TO ISO 1101",
+            ],
+            "quantidade_revisoes": 3,
+            "quantidade_notas": 4,
+            "quantidade_codigos": 2,
         }, _Metadata()
 
     def inferer(classification, cited, prompt, model):
@@ -93,6 +98,7 @@ def test_integrated_review_uses_revised_for_classification_and_gdt(caplog) -> No
                     "resolved_datum_refs": 1,
                     "datum_definitions_found": 1,
                 },
+                "datum_definitions": [{"label": "A"}],
             },
             annotated_image=np.full((80, 120, 3), 255, dtype=np.uint8),
         )
@@ -127,8 +133,8 @@ def test_integrated_review_uses_revised_for_classification_and_gdt(caplog) -> No
         return []
 
     result = run_integrated_review(
-        original,
         revised,
+        original_pdf=original,
         original_name="old.pdf",
         revised_name="new.pdf",
         classification_model="classification-model",
@@ -148,6 +154,18 @@ def test_integrated_review_uses_revised_for_classification_and_gdt(caplog) -> No
     assert result.to_dict()["inputs"] == {"original": "old.pdf", "revised": "new.pdf"}
     assert result.to_dict()["part_classification"]["header"]["drawing_number"] == "13358002"
     assert result.to_dict()["comparison"]["pages"][0]["num_true_changes"] == 1
+    assert result.objective_metrics == {
+        "Quantidade de cotas": 0,
+        "Quantidade de cotas HIC": "-",
+        "Quantidade de cotas CTQ": "-",
+        "Quantidade de cotas CTQ-S": "-",
+        "Quantidade de GD&Ts": 2,
+        "Quantidade de Datums Reference": 2,
+        "Lista de datums reference": ["A"],
+        "Quantidade de revisões": 3,
+        "Quantidade de notas": 4,
+        "Quantidade de códigos": 2,
+    }
     assert set(result.metadata["timings_seconds"]) == {
         "pdf_text_extraction",
         "part_classification",
@@ -162,6 +180,17 @@ def test_integrated_review_uses_revised_for_classification_and_gdt(caplog) -> No
     report = build_unified_report(result)
     assert report.startswith(b"%PDF")
     assert len(report) > 2_000
+    with fitz.open(stream=report, filetype="pdf") as document:
+        report_text = "\n".join(page.get_text() for page in document)
+    assert "6. References" in report_text
+    assert "Quantidade de cotas HIC" in report_text
+    assert "Applied Standards Table" in report_text
+    assert "ISO STANDARDS" not in report_text
+    assert "GEOMETRIC TOLERANCE ACCORDING TO ISO 1101" in report_text
+    assert "Dimensioning and tolerances" in report_text
+    assert "Applicable as explicitly cited in the revised drawing" in report_text
+    assert "Complete Standards Catalog" in report_text
+    assert "TSS 002470" in report_text
 
 
 def test_elapsed_time_format_is_readable() -> None:
@@ -169,18 +198,18 @@ def test_elapsed_time_format_is_readable() -> None:
     assert _format_elapsed(3661.25) == "01:01:01.2"
 
 
-def test_integrated_review_requires_both_pdfs() -> None:
+def test_integrated_review_requires_revised_pdf() -> None:
     try:
-        run_integrated_review(b"", b"revised")
+        run_integrated_review(b"")
     except ValueError as exc:
-        assert "Both original and revised" in str(exc)
+        assert "Revised PDF" in str(exc)
     else:
         raise AssertionError("Expected ValueError")
 
 
 def test_integrated_review_rejects_invalid_gdt_workers() -> None:
     try:
-        run_integrated_review(b"original", b"revised", gdt_workers=0)
+        run_integrated_review(b"revised", original_pdf=b"original", gdt_workers=0)
     except ValueError as exc:
         assert "gdt_workers" in str(exc)
     else:
