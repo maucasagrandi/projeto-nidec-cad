@@ -34,6 +34,10 @@ logger = logging.getLogger(__name__)
 # GCS output subdirectory for pipeline results
 PROCESSING_OUTPUTS_DIR = "PROCESSING_OUTPUTS"
 
+# Number of GD&T template-matching workers (configurable per deploy).
+# Scale together with the container's CPU allocation to avoid OOM.
+GDT_WORKERS = int(os.environ.get("GDT_WORKERS", "1"))
+
 
 def _parse_gcs_path(gcs_path: str) -> tuple[str, str]:
     """Parse a gs://bucket/path string into (bucket_name, blob_path)."""
@@ -98,7 +102,7 @@ def run_pipeline(
         comparison_model="gemini-2.5-flash",
         gdt_dpi=150,
         gdt_threshold=0.74,
-        gdt_workers=1,
+        gdt_workers=GDT_WORKERS,
         opencv_config=CompareConfig(dpi=150, diff_threshold=40, merge_distance=50),
     )
 

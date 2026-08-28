@@ -84,12 +84,12 @@ gcloud run deploy cad-review-pipeline \
     --project="${PROJECT_ID}" \
     --image="${PIPELINE_IMAGE}" \
     --no-allow-unauthenticated \
-    --memory=4Gi \
+    --memory=8Gi \
     --timeout=900 \
-    --cpu=2 \
+    --cpu=4 \
     --min-instances=0 \
     --max-instances=5 \
-    --set-env-vars="GCP_PROJECT_ID=${PROJECT_ID},GCP_REGION=${REGION}" \
+    --set-env-vars="GCP_PROJECT_ID=${PROJECT_ID},GCP_REGION=global,GDT_WORKERS=4" \
     --quiet
 
 PIPELINE_URL=$(gcloud run services describe cad-review-pipeline \

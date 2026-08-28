@@ -27,7 +27,8 @@ Invocation modes:
 
 2. Direct JSON call (manual / testing):
    {
-       "base_gcs_path": "gs://bucket/.../CT_13358002"
+       "base_gcs_path": "gs://bucket/.../CT_13358002",
+       "recipients": ["a@x.com", "b@y.com"]   # optional, overrides MAIL_RECIPIENTS
    }
 
 Environment variables:
@@ -214,8 +215,11 @@ def _is_stale_in_progress(manifest: dict) -> bool:
     return age >= timedelta(minutes=STALE_IN_PROGRESS_MINUTES)
 
 
-def _run(base_gcs_path: str):
+def _run(base_gcs_path: str, recipients: list[str] | str | None = None):
     """Execute the CAD review workflow for a single CT folder.
+
+    If ``recipients`` is provided, it overrides the mailer's default recipient
+    list (MAIL_RECIPIENTS env var) for this run only.
 
     Returns a (flask_response, status_code) tuple.
     """
@@ -384,6 +388,8 @@ def _run(base_gcs_path: str):
             "process_id": process_id,
             "report_gcs_path": report_gcs_path,
         }
+        if recipients:
+            mailer_payload["recipients"] = recipients
 
         try:
             logger.info("Calling mailer | process_id=%s", process_id)
@@ -512,7 +518,7 @@ def _handle_direct_json(request: Request):
     if not payload or "base_gcs_path" not in payload:
         return jsonify({"error": "Missing required field: base_gcs_path"}), 400
 
-    return _run(payload["base_gcs_path"])
+    return _run(payload["base_gcs_path"], recipients=payload.get("recipients"))
 
 
 # Flask app for Cloud Run deployment

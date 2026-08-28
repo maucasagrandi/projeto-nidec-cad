@@ -211,11 +211,18 @@ def _annotate_page_with_bbox(
     *,
     box_color: tuple[int, int, int] = (0, 0, 220),
     alpha: float = 0.25,
+    sub_boxes: list[tuple[int, int, int, int]] | None = None,
+    subbox_color: tuple[int, int, int] = (219, 112, 147),
+    subbox_alpha: float = 0.30,
 ) -> np.ndarray:
-    """Draw a numbered semi-transparent box on a full-page image.
+    """Draw a numbered semi-transparent group box on a full-page image.
 
     Marks the change region so the reviewer sees it in the context of the
     entire drawing (same approach as relatorio_ia_pagina_N.pdf).
+
+    When ``sub_boxes`` holds more than one member, each individual difference is
+    drawn as a lilac (unnumbered) box first, and the red numbered group box is
+    drawn on top.
     """
     img = full_page.copy()
     h_img, w_img = img.shape[:2]
@@ -228,13 +235,36 @@ def _annotate_page_with_bbox(
     if x1 <= x0 or y1 <= y0:
         return img
 
-    # Semi-transparent fill
+    border_px = max(3, w_img // 600)
+
+    # Draw lilac sub-boxes first (only when the group has multiple members).
+    sub_boxes = sub_boxes or []
+    if len(sub_boxes) > 1:
+        sub_overlay = img.copy()
+        for (sbx, sby, sbw, sbh) in sub_boxes:
+            sx0 = max(0, sbx)
+            sy0 = max(0, sby)
+            sx1 = min(w_img, sbx + sbw)
+            sy1 = min(h_img, sby + sbh)
+            if sx1 <= sx0 or sy1 <= sy0:
+                continue
+            cv2.rectangle(sub_overlay, (sx0, sy0), (sx1, sy1), subbox_color, -1)
+        cv2.addWeighted(sub_overlay, subbox_alpha, img, 1 - subbox_alpha, 0, img)
+        for (sbx, sby, sbw, sbh) in sub_boxes:
+            sx0 = max(0, sbx)
+            sy0 = max(0, sby)
+            sx1 = min(w_img, sbx + sbw)
+            sy1 = min(h_img, sby + sbh)
+            if sx1 <= sx0 or sy1 <= sy0:
+                continue
+            cv2.rectangle(img, (sx0, sy0), (sx1, sy1), subbox_color, border_px)
+
+    # Semi-transparent fill for the red group box
     overlay = img.copy()
     cv2.rectangle(overlay, (x0, y0), (x1, y1), box_color, -1)
     cv2.addWeighted(overlay, alpha, img, 1 - alpha, 0, img)
 
     # Solid border
-    border_px = max(3, w_img // 600)
     cv2.rectangle(img, (x0, y0), (x1, y1), box_color, border_px)
 
     # ID label scaled to image width
@@ -435,10 +465,18 @@ def build_unified_report(result: Any) -> bytes:
             Paragraph("Recommended Action", tbl_header),
         ]]
         for change in true_changes:
-            desc = str(getattr(change, "description", "Change identified"))
+            details = list(getattr(change, "detail_descriptions", None) or [])
+            if len(details) > 1:
+                # One bullet line per individual sub-difference within the group.
+                diff_html = "<br/>".join(f"- {_escape(d)}" for d in details)
+            else:
+                diff_html = _escape(
+                    details[0] if details
+                    else str(getattr(change, "description", "Change identified"))
+                )
             change_rows.append([
                 Paragraph(str(getattr(change, "index", "-")), cell),
-                Paragraph(_escape(desc), cell),
+                Paragraph(diff_html, cell),
                 Paragraph("Validate the change against the applicable technical requirement.", cell),
             ])
         changes_table = Table(change_rows, colWidths=[1.4 * cm, 16.2 * cm, 8.0 * cm], repeatRows=1)
@@ -470,13 +508,15 @@ def build_unified_report(result: Any) -> bytes:
             y = int(getattr(change, "y", 0))
             w = int(getattr(change, "width", 0))
             h = int(getattr(change, "height", 0))
+            sub_boxes = [tuple(int(v) for v in b) for b in (getattr(change, "sub_boxes", None) or [])]
+            detail_descriptions = list(getattr(change, "detail_descriptions", None) or [])
 
             story.append(Paragraph(f"<b>Change #{change_id}</b>", subheading))
             story.append(Spacer(1, 0.15 * cm))
 
             if img_original is not None and img_revised is not None:
-                ann_orig = _annotate_page_with_bbox(img_original, x, y, w, h, change_id)
-                ann_rev  = _annotate_page_with_bbox(img_revised,  x, y, w, h, change_id)
+                ann_orig = _annotate_page_with_bbox(img_original, x, y, w, h, change_id, sub_boxes=sub_boxes)
+                ann_rev  = _annotate_page_with_bbox(img_revised,  x, y, w, h, change_id, sub_boxes=sub_boxes)
 
                 aspect = img_original.shape[0] / max(1, img_original.shape[1])
                 max_h  = col_w * aspect
@@ -516,10 +556,15 @@ def build_unified_report(result: Any) -> bytes:
                     Paragraph(f"<i>Change location: x={x}, y={y}, w={w}, h={h}</i>", body)
                 )
 
-            story.extend([
-                Spacer(1, 0.25 * cm),
-                Paragraph(f"<b>Description:</b> {_escape(description)}", body),
-            ])
+            story.append(Spacer(1, 0.25 * cm))
+            # Prefer per-sub-difference bullet topics; fall back to the summary.
+            if len(detail_descriptions) > 1:
+                story.append(Paragraph("<b>Differences in this group:</b>", body))
+                for detail in detail_descriptions:
+                    story.append(_bullet(_escape(detail), bullet_sty))
+            else:
+                single = detail_descriptions[0] if detail_descriptions else description
+                story.append(Paragraph(f"<b>Description:</b> {_escape(single)}", body))
 
     # ── 6. References ─────────────────────────────────────────────────────────
     story.append(PageBreak())

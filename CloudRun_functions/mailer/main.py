@@ -39,7 +39,13 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Defaults
-DEFAULT_SUBJECT = "[CAD Review] Relatório de revisão disponível"
+def _default_subject(process_id: str) -> str:
+    """Build the default subject, including the CT code when available."""
+    if process_id and process_id != "unknown":
+        return f"[CAD Review] {process_id}: Relatório de revisão disponível"
+    return "[CAD Review] Relatório de revisão disponível"
+
+
 DEFAULT_BODY = (
     "Prezado(a),\n\n"
     "O relatório de revisão de CAD foi gerado com sucesso.\n"
@@ -114,10 +120,15 @@ def _send_email(
                 logger.info("STARTTLS established")
             else:
                 logger.info("STARTTLS not available, continuing without encryption")
-            # Always attempt login if credentials are provided
-            if smtp_user and smtp_password:
-                logger.info("Logging in as %s", smtp_user)
+            # Log in only when the relay advertises AUTH. The Google SMTP relay
+            # alternates between IP-based auth (no AUTH offered) and credential
+            # auth depending on config; when AUTH is absent we rely on IP-based
+            # authorization and send without logging in.
+            if smtp_user and smtp_password and server.has_extn("AUTH"):
+                logger.info("AUTH available, logging in as %s", smtp_user)
                 server.login(smtp_user, smtp_password)
+            else:
+                logger.info("AUTH not offered, sending without login (IP-based auth)")
             server.sendmail(sender, recipients, msg.as_string())
 
     logger.info("Email sent to %d recipients", len(recipients))
@@ -136,8 +147,11 @@ def mailer(request: Request):
 
     process_id = payload.get("process_id", "unknown")
     report_gcs_path = payload["report_gcs_path"]
-    subject = payload.get("subject", DEFAULT_SUBJECT)
+    subject = payload.get("subject", _default_subject(process_id))
     body = payload.get("body", DEFAULT_BODY)
+    # Optional per-request recipient override (list or comma-separated string).
+    # Falls back to the MAIL_RECIPIENTS env var when absent.
+    recipients_override = payload.get("recipients")
 
     logger.info("Mailer started | process_id=%s", process_id)
 
@@ -149,7 +163,16 @@ def mailer(request: Request):
     mail_recipients_raw = os.environ.get("MAIL_RECIPIENTS", "")
     mail_sender = os.environ.get("MAIL_SENDER", "")
 
-    # Validate env vars
+    # Resolve recipients: payload override takes precedence over env var
+    if recipients_override:
+        if isinstance(recipients_override, str):
+            recipients = [r.strip() for r in recipients_override.split(",") if r.strip()]
+        else:
+            recipients = [str(r).strip() for r in recipients_override if str(r).strip()]
+    else:
+        recipients = [r.strip() for r in mail_recipients_raw.split(",") if r.strip()]
+
+    # Validate env vars (recipients validated separately below)
     missing_env = []
     if not smtp_host:
         missing_env.append("SMTP_HOST")
@@ -157,23 +180,29 @@ def mailer(request: Request):
         missing_env.append("SECRET_SMTP_USER")
     if not smtp_password:
         missing_env.append("SECRET_SMTP_PASSWORD")
-    if not mail_recipients_raw:
-        missing_env.append("MAIL_RECIPIENTS")
     if not mail_sender:
         missing_env.append("MAIL_SENDER")
 
     if missing_env:
         return jsonify({"error": f"Missing environment variables: {missing_env}"}), 500
 
-    recipients = [r.strip() for r in mail_recipients_raw.split(",") if r.strip()]
     if not recipients:
-        return jsonify({"error": "MAIL_RECIPIENTS is empty after parsing"}), 500
+        return jsonify({
+            "error": "No recipients: provide 'recipients' in payload or set MAIL_RECIPIENTS env var",
+        }), 500
+
+    logger.info("Recipients: %s (%s)", recipients, "override" if recipients_override else "env")
 
     try:
         # Download the report PDF from GCS
         logger.info("Downloading report PDF: %s", report_gcs_path)
         report_pdf_bytes = _download_blob(report_gcs_path)
-        attachment_filename = report_gcs_path.rsplit("/", 1)[-1]
+        base_filename = report_gcs_path.rsplit("/", 1)[-1]
+        # Prefix the attachment with the CT code so it is identifiable
+        if process_id and process_id != "unknown" and not base_filename.startswith(process_id):
+            attachment_filename = f"{process_id}_{base_filename}"
+        else:
+            attachment_filename = base_filename
 
         # Send the email
         _send_email(

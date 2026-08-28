@@ -15,7 +15,7 @@ from __future__ import annotations
 import json
 import logging
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 import cv2
@@ -42,17 +42,28 @@ class AnalysisMetadata:
 # ==============================================================================
 
 class RegionVerdict(BaseModel):
-    """LLM verdict for a single candidate region."""
+    """LLM verdict for a single candidate region (a grouped change)."""
 
     id: str = Field(description="The region ID (e.g., 'page_01_diff_003')")
     is_true_change: bool = Field(description="True if the region contains a real, meaningful difference")
     description: str = Field(
         description=(
-            "If is_true_change=true: concise description of what changed "
-            "(e.g., 'Dimension tolerance changed from ±0.1 to ±0.2'). "
+            "If is_true_change=true: concise overall summary of what changed in "
+            "this region (e.g., 'Two dimension tolerances tightened'). "
             "If is_true_change=false: brief reason why it's a false positive "
             "(e.g., 'Rendering artifact on dash-dot line')"
         )
+    )
+    detail_descriptions: list[str] = Field(
+        default_factory=list,
+        description=(
+            "If is_true_change=true: one concise description per INDIVIDUAL "
+            "difference found inside this region, each as a separate bullet "
+            "topic (e.g., ['Dimension changed from 10.0 to 12.0', "
+            "'Tolerance tightened from ±0.2 to ±0.1']). If the region contains a "
+            "single difference, return a one-element list. If is_true_change=false: "
+            "return an empty list."
+        ),
     )
 
 
@@ -70,7 +81,7 @@ class VerificationOutput(BaseModel):
 
 @dataclass
 class VerifiedChange:
-    """A single verified true change, with contiguous indexing."""
+    """A single verified true change (a grouped region), with contiguous indexing."""
 
     index: int
     """1-based contiguous index for display."""
@@ -84,6 +95,15 @@ class VerifiedChange:
     height: int
     divergence_pct: float
     description: str
+    """Overall summary of the grouped change."""
+
+    sub_boxes: list[tuple[int, int, int, int]] = field(default_factory=list)
+    """Individual member boxes (x, y, w, h) inside this group, in full-image
+    coordinates. Rendered as lilac sub-boxes; a single-member group has one."""
+
+    detail_descriptions: list[str] = field(default_factory=list)
+    """One concise description per individual sub-difference, used as bullet
+    topics in the report. Falls back to [description] when the LLM returns none."""
 
 
 @dataclass
@@ -123,6 +143,8 @@ class VerificationResult:
             lines.append("-" * 50)
             for change in self.true_changes:
                 lines.append(f"  [{change.index}] {change.description}")
+                for detail in (change.detail_descriptions or []):
+                    lines.append(f"        - {detail}")
                 lines.append(f"       Location: ({change.x}, {change.y}) "
                              f"Size: {change.width}x{change.height} "
                              f"Divergence: {change.divergence_pct:.1f}%")
@@ -144,11 +166,13 @@ class VerificationResult:
                     "index": c.index,
                     "original_id": c.original_id,
                     "description": c.description,
+                    "detail_descriptions": c.detail_descriptions,
                     "x": c.x,
                     "y": c.y,
                     "width": c.width,
                     "height": c.height,
                     "divergence_pct": c.divergence_pct,
+                    "sub_boxes": [list(b) for b in c.sub_boxes],
                 }
                 for c in self.true_changes
             ],
@@ -176,7 +200,16 @@ FALSE POSITIVES include: crops that look identical between original and revised,
 
 IMPORTANT: If a crop from the revised drawing shows content that is NOT present in the corresponding original crop (or vice versa), that IS a true change — content was added or removed.
 
-For each true change, provide a concise technical description of what actually changed.
+GROUPED REGIONS: Each region may be a GROUP of nearby differences merged into a
+single crop (see "detected_sub_regions" — the number of distinct sub-differences
+detected inside it). For each true-change region you must provide:
+  - "description": a short overall summary of the region as a whole.
+  - "detail_descriptions": a list with ONE concise technical description per
+    INDIVIDUAL difference you can identify inside the region. Treat each distinct
+    modification (each changed dimension, tolerance, note, symbol, etc.) as its
+    own bullet topic. If the region truly contains a single difference, return a
+    one-element list. Use "detected_sub_regions" as guidance for how many
+    distinct changes to look for, but rely on what you actually see.
 
 The regions to analyze are:
 {regions_json}
@@ -242,6 +275,7 @@ def verify_changes_with_llm(
             "location": f"({meta['x']}, {meta['y']})",
             "size": f"{meta['width']}x{meta['height']}",
             "divergence_pct": meta["divergence_pct"],
+            "detected_sub_regions": meta.get("num_sub_differences", 1),
         })
     regions_json = json.dumps(regions_desc, indent=2)
 
@@ -345,6 +379,11 @@ def _build_verified_result(
     for verdict in llm_output.verdicts:
         if verdict.is_true_change:
             meta = meta_by_id.get(verdict.id, {})
+            sub_boxes = meta.get("sub_boxes", []) or []
+            # Prefer per-sub-difference descriptions; fall back to the summary.
+            details = [d.strip() for d in (verdict.detail_descriptions or []) if d and d.strip()]
+            if not details:
+                details = [verdict.description]
             true_changes.append(VerifiedChange(
                 index=contiguous_idx,
                 original_id=verdict.id,
@@ -354,6 +393,8 @@ def _build_verified_result(
                 height=meta.get("height", 0),
                 divergence_pct=meta.get("divergence_pct", 0.0),
                 description=verdict.description,
+                sub_boxes=[tuple(b) for b in sub_boxes],
+                detail_descriptions=details,
             ))
             contiguous_idx += 1
         else:
@@ -414,19 +455,34 @@ def render_verified_highlights(
             interpolation=cv2.INTER_AREA,
         )
 
+    # Lilac (BGR) for the individual sub-difference boxes drawn inside a group.
+    subbox_color = (219, 112, 147)  # medium purple / lilac in BGR
+    subbox_alpha = 0.30
+
     # Reduce the panels before creating overlays or concatenating. A pair of
     # 300-DPI A3 pages can otherwise require a contiguous allocation >200 MB.
     original = resize_panel(image_original)
     revised = resize_panel(image_revised_aligned)
     overlay = revised.copy()
 
-    for change in true_changes:
-        x, y, w, h = (
-            round(change.x * output_scale),
-            round(change.y * output_scale),
-            max(1, round(change.width * output_scale)),
-            max(1, round(change.height * output_scale)),
+    def _scale_box(bx, by, bw, bh):
+        return (
+            round(bx * output_scale),
+            round(by * output_scale),
+            max(1, round(bw * output_scale)),
+            max(1, round(bh * output_scale)),
         )
+
+    # Fill: lilac sub-boxes first, then the red group box over them.
+    for change in true_changes:
+        sub_boxes = getattr(change, "sub_boxes", None) or []
+        if len(sub_boxes) > 1:
+            for (sbx, sby, sbw, sbh) in sub_boxes:
+                sx, sy, sw, sh = _scale_box(sbx, sby, sbw, sbh)
+                cv2.rectangle(overlay, (sx, sy), (sx + sw, sy + sh), subbox_color, -1)
+
+    for change in true_changes:
+        x, y, w, h = _scale_box(change.x, change.y, change.width, change.height)
         cv2.rectangle(overlay, (x, y), (x + w, y + h), highlight_color, -1)
 
     cv2.addWeighted(overlay, highlight_alpha, revised, 1 - highlight_alpha, 0, revised)
@@ -436,13 +492,16 @@ def render_verified_highlights(
     font_scale = max(0.5, min(img_h, img_w) / 2500.0)
     font_thickness = max(1, int(font_scale * 2.5))
 
+    # Lilac borders for sub-boxes (no numbers), only for multi-member groups.
     for change in true_changes:
-        x, y, w, h = (
-            round(change.x * output_scale),
-            round(change.y * output_scale),
-            max(1, round(change.width * output_scale)),
-            max(1, round(change.height * output_scale)),
-        )
+        sub_boxes = getattr(change, "sub_boxes", None) or []
+        if len(sub_boxes) > 1:
+            for (sbx, sby, sbw, sbh) in sub_boxes:
+                sx, sy, sw, sh = _scale_box(sbx, sby, sbw, sbh)
+                cv2.rectangle(revised, (sx, sy), (sx + sw, sy + sh), subbox_color, 2)
+
+    for change in true_changes:
+        x, y, w, h = _scale_box(change.x, change.y, change.width, change.height)
         cv2.rectangle(revised, (x, y), (x + w, y + h), highlight_color, 2)
 
         # ID label
@@ -543,8 +602,14 @@ def run_verification_pipeline(
     crops_original = []
     crops_revised = []
     regions_metadata = []
-    for idx, ((x, y, w, h), div_pct) in enumerate(
-        zip(cv_result.diff_bboxes, cv_result.diff_divergences), start=1
+    # diff_subboxes is parallel to diff_bboxes; fall back to a single-member
+    # group when it is absent (e.g. merging disabled).
+    subboxes_by_group = cv_result.diff_subboxes or [
+        [b] for b in cv_result.diff_bboxes
+    ]
+    for idx, ((x, y, w, h), div_pct, sub_boxes) in enumerate(
+        zip(cv_result.diff_bboxes, cv_result.diff_divergences, subboxes_by_group),
+        start=1,
     ):
         region_id = f"page_{page_index + 1:02d}_diff_{idx:03d}"
         crop_rev = cv_result.image2_aligned[y:y+h, x:x+w]
@@ -558,6 +623,8 @@ def run_verification_pipeline(
             "width": w,
             "height": h,
             "divergence_pct": round(div_pct, 2),
+            "sub_boxes": [list(b) for b in sub_boxes],
+            "num_sub_differences": len(sub_boxes),
         })
 
     # Step 2: LLM verification

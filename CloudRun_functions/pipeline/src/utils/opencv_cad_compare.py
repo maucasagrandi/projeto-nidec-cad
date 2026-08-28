@@ -178,6 +178,11 @@ class CompareResult:
     diff_divergences: list[float] = field(default_factory=list)
     """Divergence percentage (0-100) for each bbox — ratio of changed pixels within the box."""
 
+    diff_subboxes: list[list[tuple[int, int, int, int]]] = field(default_factory=list)
+    """For each merged group box in diff_bboxes, the list of individual member
+    boxes that were merged into it. A single-member group has a one-element list.
+    Used to render sub-differences and per-sub-difference descriptions."""
+
     # Alignment metadata
     homography_matrix: Optional[np.ndarray] = None
     """3x3 homography matrix used for alignment (None if alignment skipped)."""
@@ -632,12 +637,17 @@ def _merge_nearby_boxes(
     thresh_img: np.ndarray,
     max_gap: int,
     max_area_fraction: float = 1.0,
-) -> tuple[list[tuple[int, int, int, int]], list[float]]:
+) -> tuple[
+    list[tuple[int, int, int, int]],
+    list[float],
+    list[list[tuple[int, int, int, int]]],
+]:
     """Merge bounding boxes that are within max_gap pixels of each other.
 
     Greedily merges overlapping/close boxes, but refuses any merge that would
     grow the resulting box beyond max_area_fraction of the page. Recomputes
-    divergence for merged boxes.
+    divergence for merged boxes and preserves the individual member boxes that
+    formed each merged group.
 
     Args:
         bboxes: List of (x, y, w, h) bounding boxes.
@@ -650,7 +660,9 @@ def _merge_nearby_boxes(
             1.0 to disable the bound (legacy behavior).
 
     Returns:
-        (merged_bboxes, merged_divergences)
+        (merged_bboxes, merged_divergences, merged_subboxes) where merged_subboxes[i]
+        is the list of original member boxes that were merged into merged_bboxes[i].
+        A group with a single member has a one-element sub-box list.
     """
     h_img, w_img = thresh_img.shape[:2]
     page_area = h_img * w_img
@@ -668,7 +680,9 @@ def _merge_nearby_boxes(
     # Greedy iterative merging: repeatedly merge a close pair, but only if the
     # resulting box stays within the area cap. Because a rejected pair is left
     # untouched, an oversized cluster naturally splits into several bounded boxes.
+    # `members[i]` tracks the original boxes that were merged into `boxes[i]`.
     boxes = list(bboxes)
+    members: list[list[tuple[int, int, int, int]]] = [[b] for b in bboxes]
     changed = True
     while changed and len(boxes) > 1:
         changed = False
@@ -681,7 +695,9 @@ def _merge_nearby_boxes(
                     # Merging these would create an oversized box — keep separate.
                     continue
                 boxes[i] = candidate
+                members[i] = members[i] + members[j]
                 del boxes[j]
+                del members[j]
                 changed = True
                 break
             if changed:
@@ -690,7 +706,8 @@ def _merge_nearby_boxes(
     # Recompute divergence for each final box from the threshold mask.
     merged_bboxes = []
     merged_divergences = []
-    for (x, y, w, h) in boxes:
+    merged_subboxes = []
+    for (x, y, w, h), group_members in zip(boxes, members):
         x0, y0 = max(0, x), max(0, y)
         region = thresh_img[y0:y0 + h, x0:x0 + w]
         total_pixels = region.size
@@ -701,8 +718,9 @@ def _merge_nearby_boxes(
             div_pct = 0.0
         merged_bboxes.append((x, y, w, h))
         merged_divergences.append(div_pct)
+        merged_subboxes.append(group_members)
 
-    return merged_bboxes, merged_divergences
+    return merged_bboxes, merged_divergences, merged_subboxes
 
 
 def _boxes_from_mask(
@@ -837,8 +855,10 @@ def _split_oversized_boxes(
             continue
 
         # Merge the sub-boxes (bounded) and translate back to full-image coords.
+        # The final merge in _detect_differences will re-group these, so here we
+        # only need the flat post-split boxes (sub-box grouping happens later).
         if len(sub_boxes) > 1:
-            sub_boxes, sub_divs = _merge_nearby_boxes(
+            sub_boxes, sub_divs, _ = _merge_nearby_boxes(
                 sub_boxes, sub_divs, sub_th, config.merge_distance,
                 config.max_merge_area_fraction,
             )
@@ -853,7 +873,14 @@ def _detect_differences(
     img1: np.ndarray,
     img2_aligned: np.ndarray,
     config: CompareConfig,
-) -> tuple[list[tuple[int, int, int, int]], list[float], list[tuple[int, int, int, int]], list[float], np.ndarray]:
+) -> tuple[
+    list[tuple[int, int, int, int]],
+    list[float],
+    list[tuple[int, int, int, int]],
+    list[float],
+    np.ndarray,
+    list[list[tuple[int, int, int, int]]],
+]:
     """Detect regions of difference between aligned images.
 
     Pipeline:
@@ -872,12 +899,14 @@ def _detect_differences(
         config: Pipeline configuration.
 
     Returns:
-        (bboxes, divergences, excluded_bboxes, excluded_divergences, binary_mask):
-            - bboxes: List of (x, y, w, h) for accepted difference regions
+        (bboxes, divergences, excluded_bboxes, excluded_divergences, binary_mask, subboxes):
+            - bboxes: List of (x, y, w, h) for accepted difference regions (merged groups)
             - divergences: List of divergence percentages (0-100) per accepted bbox
             - excluded_bboxes: List of (x, y, w, h) for below-threshold regions
             - excluded_divergences: List of divergence percentages for excluded boxes
             - binary_mask: The cleaned binary mask of differences
+            - subboxes: For each accepted bbox, the list of individual member boxes
+              that were merged into it (one-element list when unmerged)
     """
     # Convert first and subtract in one channel. Subtracting BGR first creates a
     # full-size 3-channel temporary array, which can exceed available RAM for
@@ -921,14 +950,18 @@ def _detect_differences(
     )
 
     # Merge nearby accepted boxes that likely belong to the same modification,
-    # but never grow a merged box past the area bound.
+    # but never grow a merged box past the area bound. Preserve the individual
+    # member boxes of each group for sub-difference rendering/description.
     if config.merge_distance > 0 and len(bboxes) > 1:
-        bboxes, divergences = _merge_nearby_boxes(
+        bboxes, divergences, subboxes = _merge_nearby_boxes(
             bboxes, divergences, thresh, config.merge_distance,
             config.max_merge_area_fraction,
         )
+    else:
+        # No merging: each accepted box is its own single-member group.
+        subboxes = [[b] for b in bboxes]
 
-    return bboxes, divergences, excluded_bboxes, excluded_divergences, cleaned
+    return bboxes, divergences, excluded_bboxes, excluded_divergences, cleaned, subboxes
 
 
 # ==============================================================================
@@ -1100,7 +1133,7 @@ def compare_cad_pages_opencv(
     img2_aligned, _ecc_used = _refine_alignment_ecc(img1, img2_aligned, config)
 
     # --- Step 5: Detect differences ---
-    bboxes, divergences, excluded_bboxes, excluded_divergences, _ = _detect_differences(img1, img2_aligned, config)
+    bboxes, divergences, excluded_bboxes, excluded_divergences, _, subboxes = _detect_differences(img1, img2_aligned, config)
 
     # --- Step 6: Visualize ---
     diff_highlighted = (
@@ -1122,6 +1155,7 @@ def compare_cad_pages_opencv(
         diff_highlighted=diff_highlighted,
         diff_bboxes=bboxes,
         diff_divergences=divergences,
+        diff_subboxes=subboxes,
         homography_matrix=homography,
         title_block_bbox1=tb_bbox1,
         title_block_bbox2=tb_bbox2,
