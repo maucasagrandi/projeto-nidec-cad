@@ -121,7 +121,7 @@ gcloud run deploy cad-review-mailer \
     --cpu=1 \
     --min-instances=0 \
     --max-instances=3 \
-    --set-env-vars="SMTP_HOST=smtp-relay.gmail.com,SMTP_PORT=587,SECRET_SMTP_USER=it.apps@nidec-ga.com,MAIL_RECIPIENTS=elvis.cantelli@madeinweb.com.br,MAIL_SENDER=do-not-reply@nidec-ga.com" \
+    --set-env-vars="SMTP_HOST=smtp.gmail.com,SMTP_PORT=587,SECRET_SMTP_USER=it.apps@nidec-ga.com,MAIL_RECIPIENTS=elvis.cantelli@madeinweb.com.br,MAIL_SENDER=do-not-reply@nidec-ga.com" \
     --set-secrets="SECRET_SMTP_PASSWORD=airflow-config-smtp-password:latest" \
     --quiet
 

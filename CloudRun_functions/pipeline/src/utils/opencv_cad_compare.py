@@ -85,10 +85,13 @@ class CompareConfig:
     box_padding: int = 8
     """Padding around each detected difference bounding box."""
 
-    merge_distance: int = 50
+    merge_distance: int = 15
     """Maximum gap (in pixels) between two bounding boxes to merge them into one.
-    Nearby boxes often correspond to the same modification (e.g., a note with
-    multiple text lines). Set to 0 to disable merging."""
+    Kept small so the merge only coalesces near-touching FRAGMENTS of the same
+    physical mark (a broken contour, a dashed line, a glyph split into blobs by
+    rendering). Regional grouping of distinct changes is handled downstream by
+    centroid clustering, so this must not glue separate features together. Set to
+    0 to merge only overlapping boxes."""
 
     # --- Alignment refinement (opt4) ---
     ecc_refine: bool = False
@@ -144,6 +147,26 @@ class CompareConfig:
     split_morph_kernel_size: int = 3
     """Smaller morphological kernel used when splitting an oversized box, so the
     internal re-detection does not re-fuse everything into one blob again."""
+
+    # --- Grid-split of oversized candidate sub-boxes (opt5) ---
+    grid_split_area_fraction: float = 0.08
+    """A candidate sub-box larger than this fraction of the page area is a coarse
+    "lumped" region (e.g. a replaced table or a displaced detail view captured in
+    one big blob). Such a box is subdivided into a grid of fixed-size cells so
+    each localized change becomes its own LLM candidate crop, instead of one huge
+    crop where the model under-reports. Only affects OVERSIZED boxes; small
+    detections are untouched. Set to 1.0 to disable."""
+
+    grid_cell_size: int = 700
+    """Target cell edge length (px) for the grid-split. Oversized boxes are
+    divided into roughly this-sized cells; only cells that actually contain diff
+    pixels are kept as candidates."""
+
+    grid_cell_min_divergence_pct: float = 4.0
+    """A grid cell is kept only if at least this percentage of its pixels differ.
+    Lower than the top-level min_divergence_pct so genuine but sparse changes in
+    a cell (a moved detail view, a few new table rows) are not discarded, while
+    empty cells of the oversized box are dropped."""
 
     # --- Bounded merge (opt3) ---
     max_merge_area_fraction: float = 0.35
@@ -869,6 +892,103 @@ def _split_oversized_boxes(
     return out_boxes, out_divs
 
 
+def _grid_split_box(
+    box: tuple[int, int, int, int],
+    thresh_img: np.ndarray,
+    config: CompareConfig,
+) -> list[tuple[tuple[int, int, int, int], float]]:
+    """Subdivide one oversized box into a grid of diff-containing cells.
+
+    The box is split into a grid of roughly ``grid_cell_size`` cells. Each cell's
+    divergence is measured from the raw threshold mask; cells at or above
+    ``grid_cell_min_divergence_pct`` are kept (tightened to their actual diff
+    content), the rest dropped. Returns a list of (cell_box, divergence).
+
+    Args:
+        box: (x, y, w, h) oversized box in full-image coords.
+        thresh_img: Raw binary threshold mask (0/255) for divergence + tightening.
+        config: Pipeline configuration.
+
+    Returns:
+        List of (cell_box, divergence_pct). Empty if no cell qualifies.
+    """
+    x, y, w, h = box
+    cell = max(50, int(config.grid_cell_size))
+    n_cols = max(1, round(w / cell))
+    n_rows = max(1, round(h / cell))
+    cw = w / n_cols
+    ch = h / n_rows
+
+    kept: list[tuple[tuple[int, int, int, int], float]] = []
+    H, W = thresh_img.shape[:2]
+
+    for r in range(n_rows):
+        for c in range(n_cols):
+            cx0 = int(round(x + c * cw))
+            cy0 = int(round(y + r * ch))
+            cx1 = int(round(x + (c + 1) * cw)) if c < n_cols - 1 else x + w
+            cy1 = int(round(y + (r + 1) * ch)) if r < n_rows - 1 else y + h
+            cx0, cy0 = max(0, cx0), max(0, cy0)
+            cx1, cy1 = min(W, cx1), min(H, cy1)
+            if cx1 <= cx0 or cy1 <= cy0:
+                continue
+
+            region = thresh_img[cy0:cy1, cx0:cx1]
+            total = region.size
+            if total == 0:
+                continue
+            diff_pixels = int(np.count_nonzero(region))
+            div = (diff_pixels / total) * 100.0
+            if div < config.grid_cell_min_divergence_pct:
+                continue
+
+            # Tighten the cell to the bounding box of its diff pixels so the
+            # candidate crop is centered on the actual change, not the whole cell.
+            ys, xs = np.nonzero(region)
+            tx0 = cx0 + int(xs.min())
+            ty0 = cy0 + int(ys.min())
+            tx1 = cx0 + int(xs.max()) + 1
+            ty1 = cy0 + int(ys.max()) + 1
+            pad = config.box_padding
+            tx0 = max(0, tx0 - pad); ty0 = max(0, ty0 - pad)
+            tx1 = min(W, tx1 + pad); ty1 = min(H, ty1 + pad)
+            kept.append(((tx0, ty0, tx1 - tx0, ty1 - ty0), round(div, 2)))
+
+    return kept
+
+
+def _apply_grid_split(
+    subboxes: list[list[tuple[int, int, int, int]]],
+    thresh_img: np.ndarray,
+    config: CompareConfig,
+) -> list[list[tuple[int, int, int, int]]]:
+    """Replace oversized member sub-boxes with their grid-split cells.
+
+    Operates on the per-group member lists (the LLM candidates). A member larger
+    than ``grid_split_area_fraction`` of the page is replaced by its diff-cells;
+    all other members are left unchanged. Group membership is preserved.
+    """
+    if config.grid_split_area_fraction >= 1.0:
+        return subboxes
+    H, W = thresh_img.shape[:2]
+    area_cap = config.grid_split_area_fraction * H * W
+
+    out: list[list[tuple[int, int, int, int]]] = []
+    for members in subboxes:
+        new_members: list[tuple[int, int, int, int]] = []
+        for b in members:
+            if b[2] * b[3] > area_cap:
+                cells = _grid_split_box(b, thresh_img, config)
+                if cells:
+                    new_members.extend(cell for cell, _ in cells)
+                else:
+                    new_members.append(b)  # nothing qualified — keep original
+            else:
+                new_members.append(b)
+        out.append(new_members)
+    return out
+
+
 def _detect_differences(
     img1: np.ndarray,
     img2_aligned: np.ndarray,
@@ -960,6 +1080,11 @@ def _detect_differences(
     else:
         # No merging: each accepted box is its own single-member group.
         subboxes = [[b] for b in bboxes]
+
+    # Grid-split oversized member sub-boxes (lumped tables / displaced views)
+    # into localized cells so each becomes its own LLM candidate. Only touches
+    # boxes above grid_split_area_fraction; small detections are unchanged.
+    subboxes = _apply_grid_split(subboxes, thresh, config)
 
     return bboxes, divergences, excluded_bboxes, excluded_divergences, cleaned, subboxes
 

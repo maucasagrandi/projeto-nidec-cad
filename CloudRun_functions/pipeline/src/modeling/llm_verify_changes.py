@@ -38,32 +38,101 @@ class AnalysisMetadata:
 
 
 # ==============================================================================
+# Spatial clustering (dependency-free, numpy only)
+# ==============================================================================
+
+# Default COMPLETE-linkage distance threshold in NORMALIZED page units (0..1 on
+# each axis, Euclidean). Complete linkage bounds each cluster's DIAMETER by the
+# threshold, so a cluster only forms when ALL its members are mutually within
+# the threshold — this keeps groups spatially compact (a "region" of the sheet)
+# and prevents scattered changes from chaining into one page-spanning blob (as
+# single linkage would). ~0.38 gives a handful of compact, balanced regions on a
+# dense drawing (no single page-spanning blob). Lower -> more, tighter clusters;
+# higher -> fewer, broader clusters.
+CLUSTER_DISTANCE_THRESHOLD = 0.38
+
+
+def _agglomerative_cluster(
+    centroids: np.ndarray,
+    threshold: float,
+) -> list[int]:
+    """Complete-linkage agglomerative clustering with a distance threshold.
+
+    Repeatedly merges the two clusters whose COMPLETE-linkage distance (the
+    maximum pairwise distance between their members) is smallest, stopping once
+    that distance would exceed ``threshold``. Complete linkage bounds each
+    cluster's diameter, keeping clusters spatially compact and avoiding the
+    chaining that single linkage produces. No fixed number of clusters — the
+    count emerges from the layout; isolated points remain their own cluster.
+
+    Args:
+        centroids: (N, 2) array of normalized centroids (each coord in 0..1).
+        threshold: Max allowed cluster diameter in normalized units.
+
+    Returns:
+        List of N integer cluster labels (0-based, assigned in first-seen order).
+    """
+    n = len(centroids)
+    if n == 0:
+        return []
+    if n == 1:
+        return [0]
+
+    # Full pairwise distance matrix (small N; O(N^2) is fine).
+    diff = centroids[:, None, :] - centroids[None, :, :]
+    dist = np.sqrt(np.einsum("ijk,ijk->ij", diff, diff))
+
+    # Active clusters, each a list of member point indices.
+    clusters: list[list[int]] = [[i] for i in range(n)]
+
+    def complete_linkage(a: list[int], b: list[int]) -> float:
+        # Max pairwise distance between members of a and b.
+        return float(dist[np.ix_(a, b)].max())
+
+    while len(clusters) > 1:
+        best = None
+        best_pair = None
+        for i in range(len(clusters)):
+            for j in range(i + 1, len(clusters)):
+                d = complete_linkage(clusters[i], clusters[j])
+                if best is None or d < best:
+                    best = d
+                    best_pair = (i, j)
+        if best is None or best > threshold:
+            break  # closest merge would exceed the diameter bound — stop
+        i, j = best_pair
+        clusters[i].extend(clusters[j])
+        del clusters[j]
+
+    # Assign labels in order of each cluster's smallest member index (stable,
+    # roughly first-appearance order).
+    clusters.sort(key=min)
+    labels = [0] * n
+    for label, members in enumerate(clusters):
+        for idx in members:
+            labels[idx] = label
+    return labels
+
+
+# ==============================================================================
 # Pydantic Models — LLM Response Schema
 # ==============================================================================
 
 class RegionVerdict(BaseModel):
-    """LLM verdict for a single candidate region (a grouped change)."""
+    """LLM verdict for a single candidate sub-box (one localized difference)."""
 
-    id: str = Field(description="The region ID (e.g., 'page_01_diff_003')")
-    is_true_change: bool = Field(description="True if the region contains a real, meaningful difference")
+    id: str = Field(description="The sub-box ID (e.g., 'page_01_diff_003')")
+    is_true_change: bool = Field(
+        description="True if this sub-box contains a real, meaningful difference"
+    )
     description: str = Field(
         description=(
-            "If is_true_change=true: concise overall summary of what changed in "
-            "this region (e.g., 'Two dimension tolerances tightened'). "
+            "If is_true_change=true: concise technical description of what changed "
+            "in THIS sub-box, comparing the original crop against the revised crop "
+            "(e.g., 'Perpendicularity tolerance changed from 0.1 to 0.05'). "
             "If is_true_change=false: brief reason why it's a false positive "
-            "(e.g., 'Rendering artifact on dash-dot line')"
+            "(e.g., 'Rendering artifact on dash-dot line')."
         )
-    )
-    detail_descriptions: list[str] = Field(
-        default_factory=list,
-        description=(
-            "If is_true_change=true: one concise description per INDIVIDUAL "
-            "difference found inside this region, each as a separate bullet "
-            "topic (e.g., ['Dimension changed from 10.0 to 12.0', "
-            "'Tolerance tightened from ±0.2 to ±0.1']). If the region contains a "
-            "single difference, return a one-element list. If is_true_change=false: "
-            "return an empty list."
-        ),
     )
 
 
@@ -71,7 +140,7 @@ class VerificationOutput(BaseModel):
     """Structured output from the LLM verification call."""
 
     verdicts: list[RegionVerdict] = Field(
-        description="One verdict per candidate region, in the same order as provided"
+        description="One verdict per candidate sub-box, in the same order as provided"
     )
 
 
@@ -98,12 +167,17 @@ class VerifiedChange:
     """Overall summary of the grouped change."""
 
     sub_boxes: list[tuple[int, int, int, int]] = field(default_factory=list)
-    """Individual member boxes (x, y, w, h) inside this group, in full-image
-    coordinates. Rendered as lilac sub-boxes; a single-member group has one."""
+    """All detected member boxes (x, y, w, h) inside this group, in full-image
+    coordinates. A single-member group has one."""
 
-    detail_descriptions: list[str] = field(default_factory=list)
-    """One concise description per individual sub-difference, used as bullet
-    topics in the report. Falls back to [description] when the LLM returns none."""
+    sub_differences: list[dict] = field(default_factory=list)
+    """One entry per individual difference the LLM described, each a dict:
+        {
+            "sub_id": "1.2",                 # group_index.sub_ordinal
+            "description": "...",            # bullet topic text
+            "boxes": [(x, y, w, h), ...],    # the sub-boxes this difference covers
+        }
+    The sub_id is drawn on each covered box and used as the bullet prefix."""
 
 
 @dataclass
@@ -143,8 +217,8 @@ class VerificationResult:
             lines.append("-" * 50)
             for change in self.true_changes:
                 lines.append(f"  [{change.index}] {change.description}")
-                for detail in (change.detail_descriptions or []):
-                    lines.append(f"        - {detail}")
+                for sub in (change.sub_differences or []):
+                    lines.append(f"        [{sub['sub_id']}] {sub['description']}")
                 lines.append(f"       Location: ({change.x}, {change.y}) "
                              f"Size: {change.width}x{change.height} "
                              f"Divergence: {change.divergence_pct:.1f}%")
@@ -166,13 +240,20 @@ class VerificationResult:
                     "index": c.index,
                     "original_id": c.original_id,
                     "description": c.description,
-                    "detail_descriptions": c.detail_descriptions,
                     "x": c.x,
                     "y": c.y,
                     "width": c.width,
                     "height": c.height,
                     "divergence_pct": c.divergence_pct,
                     "sub_boxes": [list(b) for b in c.sub_boxes],
+                    "sub_differences": [
+                        {
+                            "sub_id": s["sub_id"],
+                            "description": s["description"],
+                            "boxes": [list(b) for b in s.get("boxes", [])],
+                        }
+                        for s in c.sub_differences
+                    ],
                 }
                 for c in self.true_changes
             ],
@@ -187,34 +268,53 @@ class VerificationResult:
 VERIFICATION_PROMPT = """\
 You are an expert CAD drawing analyst. You are given:
 
-1. A full-page image of the ORIGINAL CAD drawing (for overall context)
-2. For each detected region: a crop from the ORIGINAL and a crop from the REVISED drawing at the exact same location
+1. A full-page image of the ORIGINAL CAD drawing (for overall context).
+2. For each candidate: a crop from the ORIGINAL and a crop from the REVISED
+   drawing covering the SAME area. An ORANGE rectangle marks the TARGET region.
+   The crop includes a margin around the target so you can see surrounding
+   context (the dimension line, tolerance frame, note, table cell, etc.), but
+   the change you must judge and describe is the one INSIDE the orange rectangle.
+   Any difference visible only OUTSIDE the orange rectangle belongs to a
+   neighboring candidate — treat it as context and ignore it.
 
-For each region pair, compare the ORIGINAL crop directly against the REVISED crop and determine:
-- Is this a TRUE CHANGE (text, dimensions, geometry, symbols, notes, table content actually differ between the two crops)?
-- Or is it a FALSE POSITIVE (the crops are visually identical or differ only by rendering artifacts like anti-aliasing, slight line weight variation, or sub-pixel shifts)?
+Each candidate is identified by an "id" and its bounding box location on the full
+page. Analyze each candidate INDEPENDENTLY: compare the ORIGINAL crop against the
+REVISED crop, focusing on the orange-marked region, and decide:
+- TRUE CHANGE: the content INSIDE the orange rectangle actually differs. This
+  includes BOTH annotation changes AND geometry/shape changes:
+    * Annotations: text, dimensions, tolerances, GD&T symbols, notes, table
+      content, revision block, datum labels.
+    * GEOMETRY / SHAPE: the drawn part itself changing — an altered profile or
+      contour, a moved/resized/added/removed feature (hole, boss, fillet,
+      chamfer, rib, slot, cut), a changed edge or outline, hatching/section
+      changes, a line that appears, disappears, or shifts.
+    * Any content present in one crop but absent in the other.
+- FALSE POSITIVE: inside the orange rectangle the crops are effectively identical
+  or differ only by rendering artifacts (anti-aliasing, slight line-weight
+  variation, sub-pixel shifts). If the ONLY visible difference is outside the
+  orange rectangle, this candidate is a FALSE POSITIVE (that change belongs to a
+  neighboring candidate).
 
-TRUE CHANGES include: modified dimensions/tolerances, added/removed text or notes, changed GD&T symbols, altered geometry, new or deleted features, table content changes, revision block updates, any content that is present in one crop but absent in the other.
+For each candidate provide:
+  - "id": the candidate id, exactly as given.
+  - "is_true_change": true or false.
+  - "description": if true, a concise technical description of what changed
+    INSIDE the orange rectangle (e.g., 'Dimension changed from 26 to 22',
+    'Perpendicularity tolerance tightened from 0.1 to 0.05', 'Fillet added at the
+    lower-left corner of the flange', 'Boss profile widened / contour reshaped').
+    Use the surrounding context to identify WHAT the changed element is, but the
+    change itself must be inside the marked region. Describe ONLY what you can
+    visually confirm — do NOT invent changes. If false, a brief reason for the
+    false positive.
 
-FALSE POSITIVES include: crops that look identical between original and revised, slight rendering differences in line thickness, minor positional shifts of identical content, anti-aliasing artifacts.
+Accuracy is critical: the description of each candidate MUST correspond to the
+change inside that candidate's orange rectangle. Do not describe changes that are
+only visible outside it (those belong to other candidates).
 
-IMPORTANT: If a crop from the revised drawing shows content that is NOT present in the corresponding original crop (or vice versa), that IS a true change — content was added or removed.
-
-GROUPED REGIONS: Each region may be a GROUP of nearby differences merged into a
-single crop (see "detected_sub_regions" — the number of distinct sub-differences
-detected inside it). For each true-change region you must provide:
-  - "description": a short overall summary of the region as a whole.
-  - "detail_descriptions": a list with ONE concise technical description per
-    INDIVIDUAL difference you can identify inside the region. Treat each distinct
-    modification (each changed dimension, tolerance, note, symbol, etc.) as its
-    own bullet topic. If the region truly contains a single difference, return a
-    one-element list. Use "detected_sub_regions" as guidance for how many
-    distinct changes to look for, but rely on what you actually see.
-
-The regions to analyze are:
+The candidates to analyze are:
 {regions_json}
 
-Respond with a verdict for each region in the same order.
+Respond with exactly one verdict per candidate, in the same order as provided.
 """
 
 
@@ -228,6 +328,131 @@ def _encode_image_to_base64(img: np.ndarray) -> bytes:
     return buffer.tobytes()
 
 
+def _draw_roi_marker(
+    crop: np.ndarray,
+    target_local: tuple[int, int, int, int],
+    *,
+    color: tuple[int, int, int] = (0, 165, 255),  # orange (BGR)
+) -> np.ndarray:
+    """Outline the target sub-box inside a padded crop (region-of-interest).
+
+    The crop includes padding so the model has local context, but that padding
+    may also contain neighboring changes. Drawing a marker around the exact
+    target region tells the model which element to describe, so a neighbor's
+    change seen in the margin is treated as context, not as this box's change.
+
+    Args:
+        crop: The padded crop (BGR).
+        target_local: (x, y, w, h) of the target sub-box in CROP-LOCAL coords.
+        color: BGR outline color.
+
+    Returns:
+        A copy of the crop with the target region outlined.
+    """
+    img = crop.copy()
+    ch, cw = img.shape[:2]
+    tx, ty, tw, th = target_local
+    x0 = max(0, tx)
+    y0 = max(0, ty)
+    x1 = min(cw, tx + tw)
+    y1 = min(ch, ty + th)
+    if x1 <= x0 or y1 <= y0:
+        return img
+    thickness = max(2, cw // 300)
+    cv2.rectangle(img, (x0, y0), (x1, y1), color, thickness)
+    return img
+
+
+# Maximum sub-box candidates per LLM call. A page above this splits into a few
+# calls (each still carrying the full-page context) to bound the image count.
+MAX_CANDIDATES_PER_CALL = 40
+
+
+def _verify_batch(
+    client,
+    types,
+    original_image: np.ndarray,
+    crops_original: list[tuple[str, np.ndarray]],
+    crops_revised: list[tuple[str, np.ndarray]],
+    regions_metadata: list[dict],
+    model: str,
+) -> tuple[VerificationOutput, object]:
+    """Run a single LLM verification call over a batch of sub-box candidates."""
+    # Per-candidate manifest (id + location/size on the full page).
+    regions_desc = [
+        {
+            "id": meta["id"],
+            "location": f"({meta['x']}, {meta['y']})",
+            "size": f"{meta['width']}x{meta['height']}",
+            "divergence_pct": meta.get("divergence_pct", 0.0),
+        }
+        for meta in regions_metadata
+    ]
+    regions_json = json.dumps(regions_desc, indent=2)
+
+    content_parts = []
+
+    # 1. Full original image for overall context (once per call).
+    content_parts.append(
+        types.Part.from_bytes(
+            data=_encode_image_to_base64(original_image), mime_type="image/png"
+        )
+    )
+    content_parts.append(
+        types.Part.from_text(
+            text=(
+                "Above: the full ORIGINAL drawing (for overall context).\n\n"
+                "Below: for each candidate, a padded ORIGINAL crop and REVISED crop "
+                "of the SAME area. An ORANGE rectangle marks the TARGET region for "
+                "that candidate. Describe ONLY the change inside the orange rectangle; "
+                "anything outside it is context from neighboring candidates and must "
+                "be ignored. Compare each candidate's pair independently.\n"
+            )
+        )
+    )
+
+    # 2. One original+revised crop pair per candidate, each with the target
+    #    region-of-interest outlined so the model ignores neighboring changes
+    #    that fall inside the padding margin.
+    meta_by_id = {m["id"]: m for m in regions_metadata}
+    for (cand_id, crop_orig), (_, crop_rev) in zip(crops_original, crops_revised):
+        target_local = tuple(
+            meta_by_id.get(cand_id, {}).get(
+                "target_local", (0, 0, crop_rev.shape[1], crop_rev.shape[0])
+            )
+        )
+        marked_orig = _draw_roi_marker(crop_orig, target_local)
+        marked_rev = _draw_roi_marker(crop_rev, target_local)
+        content_parts.append(
+            types.Part.from_text(text=f"\n--- Candidate {cand_id} — ORIGINAL crop (target in orange): ---")
+        )
+        content_parts.append(
+            types.Part.from_bytes(data=_encode_image_to_base64(marked_orig), mime_type="image/png")
+        )
+        content_parts.append(
+            types.Part.from_text(text=f"--- Candidate {cand_id} — REVISED crop (target in orange): ---")
+        )
+        content_parts.append(
+            types.Part.from_bytes(data=_encode_image_to_base64(marked_rev), mime_type="image/png")
+        )
+
+    # 3. The prompt.
+    content_parts.append(
+        types.Part.from_text(text=VERIFICATION_PROMPT.format(regions_json=regions_json))
+    )
+
+    response = client.models.generate_content(
+        model=model,
+        contents=content_parts,
+        config=types.GenerateContentConfig(
+            response_mime_type="application/json",
+            response_schema=VerificationOutput,
+        ),
+    )
+    parsed = VerificationOutput.model_validate_json(response.text)
+    return parsed, response.usage_metadata
+
+
 def verify_changes_with_llm(
     original_image: np.ndarray,
     crops_original: list[tuple[str, np.ndarray]],
@@ -235,13 +460,18 @@ def verify_changes_with_llm(
     regions_metadata: list[dict],
     model: str = "gemini-2.5-flash",
 ) -> tuple[VerificationOutput, AnalysisMetadata]:
-    """Send original and revised crops to Gemini for verification.
+    """Verify each sub-box candidate: one padded crop pair per candidate.
+
+    All candidates are sent in a single batched call per page (full-page image +
+    all crop pairs). If a page has more than MAX_CANDIDATES_PER_CALL candidates,
+    it is split into a few calls (still far fewer than one-per-change), and the
+    verdicts + token usage are merged.
 
     Args:
-        original_image: Full-page BGR image of the original drawing (for overall context).
-        crops_original: List of (region_id, crop_from_original) pairs.
-        crops_revised: List of (region_id, crop_from_revised) pairs.
-        regions_metadata: List of region dicts from the manifest (id, x, y, width, height, divergence_pct).
+        original_image: Full-page BGR image of the original drawing (context).
+        crops_original: List of (candidate_id, padded_original_crop) pairs.
+        crops_revised: List of (candidate_id, padded_revised_crop) pairs.
+        regions_metadata: Per-candidate dicts (id, x, y, width, height, ...).
         model: Gemini model to use.
 
     Returns:
@@ -255,97 +485,57 @@ def verify_changes_with_llm(
 
     load_dotenv()
 
-    # Initialize client (same pattern as llm_models.py)
     project = os.getenv("GCP_PROJECT_ID", "acim-global-data-lake-sandbox")
     location = os.getenv("GCP_REGION", "global")
-
-    client = genai.Client(
-        vertexai=True,
-        project=project,
-        location=location,
-    )
+    client = genai.Client(vertexai=True, project=project, location=location)
 
     start_time = time.time()
 
-    # Build the regions description for the prompt
-    regions_desc = []
-    for meta in regions_metadata:
-        regions_desc.append({
-            "id": meta["id"],
-            "location": f"({meta['x']}, {meta['y']})",
-            "size": f"{meta['width']}x{meta['height']}",
-            "divergence_pct": meta["divergence_pct"],
-            "detected_sub_regions": meta.get("num_sub_differences", 1),
-        })
-    regions_json = json.dumps(regions_desc, indent=2)
+    n = len(crops_revised)
+    # Split into batches only when needed.
+    batch_size = MAX_CANDIDATES_PER_CALL
+    num_batches = max(1, (n + batch_size - 1) // batch_size)
 
-    # Build content parts
-    content_parts = []
+    all_verdicts = []
+    total_tokens = prompt_tokens = completion_tokens = 0
 
-    # 1. The full original image for overall context
-    original_bytes = _encode_image_to_base64(original_image)
-    content_parts.append(
-        types.Part.from_bytes(data=original_bytes, mime_type="image/png")
-    )
-    content_parts.append(
-        types.Part.from_text(text="Above: the full ORIGINAL drawing (for overall context).\n\nBelow: pairs of cropped regions showing the SAME AREA from both ORIGINAL and REVISED drawings. Compare each pair to determine if there is a real difference:\n")
-    )
-
-    # 2. Each region: original crop + revised crop side by side
-    for (region_id, crop_orig), (_, crop_rev) in zip(crops_original, crops_revised):
-        content_parts.append(
-            types.Part.from_text(text=f"\n--- Region {region_id} — ORIGINAL crop: ---")
+    for b in range(num_batches):
+        lo = b * batch_size
+        hi = min(n, lo + batch_size)
+        logger.info(
+            "Verifying candidates %d-%d of %d (batch %d/%d) with %s...",
+            lo + 1, hi, n, b + 1, num_batches, model,
         )
-        orig_bytes = _encode_image_to_base64(crop_orig)
-        content_parts.append(
-            types.Part.from_bytes(data=orig_bytes, mime_type="image/png")
+        parsed, usage = _verify_batch(
+            client, types, original_image,
+            crops_original[lo:hi], crops_revised[lo:hi], regions_metadata[lo:hi],
+            model,
         )
-        content_parts.append(
-            types.Part.from_text(text=f"--- Region {region_id} — REVISED crop: ---")
-        )
-        rev_bytes = _encode_image_to_base64(crop_rev)
-        content_parts.append(
-            types.Part.from_bytes(data=rev_bytes, mime_type="image/png")
-        )
+        all_verdicts.extend(parsed.verdicts)
+        if usage is not None:
+            total_tokens += usage.total_token_count or 0
+            prompt_tokens += usage.prompt_token_count or 0
+            completion_tokens += usage.candidates_token_count or 0
 
-    # 3. The prompt
-    prompt_text = VERIFICATION_PROMPT.format(regions_json=regions_json)
-    content_parts.append(types.Part.from_text(text=prompt_text))
+    combined = VerificationOutput(verdicts=all_verdicts)
 
-    # Make the call with structured output
-    logger.info(f"Sending {len(crops_revised)} regions to {model} for verification...")
-
-    response = client.models.generate_content(
-        model=model,
-        contents=content_parts,
-        config=types.GenerateContentConfig(
-            response_mime_type="application/json",
-            response_schema=VerificationOutput,
-        ),
-    )
-
-    parsed = VerificationOutput.model_validate_json(response.text)
-
-    end_time = time.time()
-    latency_ms = (end_time - start_time) * 1000
-
-    usage = response.usage_metadata
+    latency_ms = (time.time() - start_time) * 1000
     metadata = AnalysisMetadata(
-        total_tokens=usage.total_token_count,
-        prompt_tokens=usage.prompt_token_count,
-        completion_tokens=usage.candidates_token_count,
+        total_tokens=total_tokens,
+        prompt_tokens=prompt_tokens,
+        completion_tokens=completion_tokens,
         latency_ms=latency_ms,
         model=model,
         timestamp=time.strftime("%Y-%m-%dT%H:%M:%S"),
     )
 
     logger.info(
-        f"Verification complete: "
-        f"{sum(1 for v in parsed.verdicts if v.is_true_change)} true changes, "
-        f"{sum(1 for v in parsed.verdicts if not v.is_true_change)} false positives"
+        "Verification complete: %d true changes, %d false positives",
+        sum(1 for v in combined.verdicts if v.is_true_change),
+        sum(1 for v in combined.verdicts if not v.is_true_change),
     )
 
-    return parsed, metadata
+    return combined, metadata
 
 
 # ==============================================================================
@@ -357,48 +547,134 @@ def _build_verified_result(
     regions_metadata: list[dict],
     llm_output: VerificationOutput,
     metadata: AnalysisMetadata,
+    page_width: int = 0,
+    page_height: int = 0,
+    cluster_threshold: float = CLUSTER_DISTANCE_THRESHOLD,
 ) -> VerificationResult:
-    """Process LLM verdicts into a VerificationResult with contiguous indexing.
+    """Process LLM verdicts into a VerificationResult.
+
+    Grouping (which changes share a report page) is decided by AGGLOMERATIVE
+    CLUSTERING of the surviving true-change boxes' centroids in normalized page
+    coordinates — NOT by the OpenCV proximity-merge. This keeps spatially close
+    changes on one page while avoiding a lonely tiny box occupying a whole page
+    only because the OpenCV merge happened to isolate it.
 
     Args:
         page_index: Page number.
-        regions_metadata: Region dicts from the OpenCV manifest.
-        llm_output: Parsed LLM structured output.
+        regions_metadata: Per-sub-box dicts from the manifest.
+        llm_output: Parsed LLM structured output (one verdict per sub-box).
         metadata: LLM call metadata.
+        page_width: Full-page width in px (for centroid normalization).
+        page_height: Full-page height in px (for centroid normalization).
+        cluster_threshold: Single-linkage distance threshold in normalized units.
 
     Returns:
-        VerificationResult with contiguous 1..N indexing on true changes.
+        VerificationResult with clustered, contiguously-indexed true changes.
     """
-    # Build a lookup from ID -> metadata
     meta_by_id = {r["id"]: r for r in regions_metadata}
 
-    true_changes = []
-    false_positive_ids = []
-    contiguous_idx = 1
+    def _union(boxes: list[tuple[int, int, int, int]]) -> tuple[int, int, int, int]:
+        xs0 = min(b[0] for b in boxes)
+        ys0 = min(b[1] for b in boxes)
+        xs1 = max(b[0] + b[2] for b in boxes)
+        ys1 = max(b[1] + b[3] for b in boxes)
+        return (xs0, ys0, xs1 - xs0, ys1 - ys0)
+
+    # 1. Collect surviving true-change boxes (each with box, description, div).
+    #    Global dedup by (rounded centroid + normalized description) removes
+    #    duplicate reports caused by padding capturing a neighbor's change.
+    false_positive_ids: list[str] = []
+    kept: list[dict] = []  # each: {box, desc, div}
+    seen_keys: set[tuple] = set()
 
     for verdict in llm_output.verdicts:
-        if verdict.is_true_change:
-            meta = meta_by_id.get(verdict.id, {})
-            sub_boxes = meta.get("sub_boxes", []) or []
-            # Prefer per-sub-difference descriptions; fall back to the summary.
-            details = [d.strip() for d in (verdict.detail_descriptions or []) if d and d.strip()]
-            if not details:
-                details = [verdict.description]
-            true_changes.append(VerifiedChange(
-                index=contiguous_idx,
-                original_id=verdict.id,
-                x=meta.get("x", 0),
-                y=meta.get("y", 0),
-                width=meta.get("width", 0),
-                height=meta.get("height", 0),
-                divergence_pct=meta.get("divergence_pct", 0.0),
-                description=verdict.description,
-                sub_boxes=[tuple(b) for b in sub_boxes],
-                detail_descriptions=details,
-            ))
-            contiguous_idx += 1
-        else:
+        if not verdict.is_true_change:
             false_positive_ids.append(verdict.id)
+            continue
+        desc = (verdict.description or "").strip()
+        if not desc:
+            continue
+        meta = meta_by_id.get(verdict.id, {})
+        box = (int(meta.get("x", 0)), int(meta.get("y", 0)),
+               int(meta.get("width", 0)), int(meta.get("height", 0)))
+        cx = box[0] + box[2] / 2.0
+        cy = box[1] + box[3] / 2.0
+        desc_key = " ".join(desc.lower().split())
+        # Round centroid to ~10px grid so near-identical duplicates collapse.
+        dedup_key = (round(cx / 10.0), round(cy / 10.0), desc_key)
+        if dedup_key in seen_keys:
+            continue
+        seen_keys.add(dedup_key)
+        kept.append({
+            "box": box,
+            "desc": desc,
+            "div": float(meta.get("divergence_pct", 0.0)),
+            "centroid": (cx, cy),
+        })
+
+    if not kept:
+        return VerificationResult(
+            page_index=page_index,
+            true_changes=[],
+            false_positive_ids=false_positive_ids,
+            metadata=metadata,
+        )
+
+    # 2. Cluster surviving boxes by normalized centroid.
+    pw = float(page_width) if page_width else 1.0
+    ph = float(page_height) if page_height else 1.0
+    centroids = np.array(
+        [[k["centroid"][0] / pw, k["centroid"][1] / ph] for k in kept],
+        dtype=np.float64,
+    )
+    labels = _agglomerative_cluster(centroids, cluster_threshold)
+
+    # 3. Assemble one VerifiedChange per cluster, ordered by first appearance.
+    clusters: dict[int, list[dict]] = {}
+    cluster_order: list[int] = []
+    for item, label in zip(kept, labels):
+        if label not in clusters:
+            clusters[label] = []
+            cluster_order.append(label)
+        clusters[label].append(item)
+
+    true_changes: list[VerifiedChange] = []
+    contiguous_idx = 1
+    for label in cluster_order:
+        members = clusters[label]
+        member_boxes = [m["box"] for m in members]
+        group_box = _union(member_boxes)
+
+        sub_differences = [
+            {
+                "sub_id": f"{contiguous_idx}.{ordinal}",
+                "description": m["desc"],
+                "boxes": [m["box"]],
+            }
+            for ordinal, m in enumerate(members, start=1)
+        ]
+
+        if len(sub_differences) == 1:
+            summary = sub_differences[0]["description"]
+        else:
+            summary = f"{len(sub_differences)} differences in this region"
+
+        divs = [m["div"] for m in members]
+        avg_div = sum(divs) / len(divs) if divs else 0.0
+
+        true_changes.append(VerifiedChange(
+            index=contiguous_idx,
+            original_id=f"page_{page_index + 1:02d}_cluster_{label:03d}",
+            x=group_box[0],
+            y=group_box[1],
+            width=group_box[2],
+            height=group_box[3],
+            divergence_pct=round(avg_div, 2),
+            description=summary,
+            sub_boxes=member_boxes,
+            sub_differences=sub_differences,
+        ))
+        contiguous_idx += 1
 
     return VerificationResult(
         page_index=page_index,
@@ -473,11 +749,18 @@ def render_verified_highlights(
             max(1, round(bh * output_scale)),
         )
 
-    # Fill: lilac sub-boxes first, then the red group box over them.
+    def _has_multiple_subs(change) -> bool:
+        # Only draw lilac sub-boxes when the group holds more than one distinct
+        # difference (a single-difference group's box == the red group box).
+        subs = getattr(change, "sub_differences", None) or []
+        return len(subs) > 1
+
+    # Fill: lilac sub-difference boxes first, then the red group box over them.
     for change in true_changes:
-        sub_boxes = getattr(change, "sub_boxes", None) or []
-        if len(sub_boxes) > 1:
-            for (sbx, sby, sbw, sbh) in sub_boxes:
+        if not _has_multiple_subs(change):
+            continue
+        for sub in change.sub_differences:
+            for (sbx, sby, sbw, sbh) in sub.get("boxes", []):
                 sx, sy, sw, sh = _scale_box(sbx, sby, sbw, sbh)
                 cv2.rectangle(overlay, (sx, sy), (sx + sw, sy + sh), subbox_color, -1)
 
@@ -491,31 +774,16 @@ def render_verified_highlights(
     img_h, img_w = revised.shape[:2]
     font_scale = max(0.5, min(img_h, img_w) / 2500.0)
     font_thickness = max(1, int(font_scale * 2.5))
+    sub_font_scale = max(0.4, font_scale * 0.8)
+    sub_font_thickness = max(1, int(sub_font_scale * 2.0))
 
-    # Lilac borders for sub-boxes (no numbers), only for multi-member groups.
-    for change in true_changes:
-        sub_boxes = getattr(change, "sub_boxes", None) or []
-        if len(sub_boxes) > 1:
-            for (sbx, sby, sbw, sbh) in sub_boxes:
-                sx, sy, sw, sh = _scale_box(sbx, sby, sbw, sbh)
-                cv2.rectangle(revised, (sx, sy), (sx + sw, sy + sh), subbox_color, 2)
-
-    for change in true_changes:
-        x, y, w, h = _scale_box(change.x, change.y, change.width, change.height)
-        cv2.rectangle(revised, (x, y), (x + w, y + h), highlight_color, 2)
-
-        # ID label
-        label = str(change.index)
-        label_size, baseline = cv2.getTextSize(
-            label, cv2.FONT_HERSHEY_SIMPLEX, font_scale, font_thickness
+    def _draw_label(text: str, bx: int, by: int, color: tuple[int, int, int],
+                    fscale: float, fthick: float) -> None:
+        (lw, lh), baseline = cv2.getTextSize(
+            text, cv2.FONT_HERSHEY_SIMPLEX, fscale, fthick
         )
-        lw, lh = label_size
-
-        # Position: top-left, slightly above the box
-        label_x = x + 3
-        label_y = y - 6 if y - 6 > lh else y + lh + 6
-
-        # White background for readability
+        label_x = bx + 3
+        label_y = by - 6 if by - 6 > lh else by + lh + 6
         cv2.rectangle(
             revised,
             (label_x - 2, label_y - lh - 3),
@@ -524,10 +792,27 @@ def render_verified_highlights(
             -1,
         )
         cv2.putText(
-            revised, label, (label_x, label_y),
-            cv2.FONT_HERSHEY_SIMPLEX, font_scale,
-            highlight_color, font_thickness, cv2.LINE_AA,
+            revised, text, (label_x, label_y),
+            cv2.FONT_HERSHEY_SIMPLEX, fscale, color, fthick, cv2.LINE_AA,
         )
+
+    # Lilac borders + sub_id labels for each sub-difference (multi-diff groups).
+    for change in true_changes:
+        if not _has_multiple_subs(change):
+            continue
+        for sub in change.sub_differences:
+            sub_id = sub.get("sub_id", "")
+            for (sbx, sby, sbw, sbh) in sub.get("boxes", []):
+                sx, sy, sw, sh = _scale_box(sbx, sby, sbw, sbh)
+                cv2.rectangle(revised, (sx, sy), (sx + sw, sy + sh), subbox_color, 2)
+                if sub_id:
+                    _draw_label(sub_id, sx, sy, subbox_color, sub_font_scale, sub_font_thickness)
+
+    # Red group box + numeric group label.
+    for change in true_changes:
+        x, y, w, h = _scale_box(change.x, change.y, change.width, change.height)
+        cv2.rectangle(revised, (x, y), (x + w, y + h), highlight_color, 2)
+        _draw_label(str(change.index), x, y, highlight_color, font_scale, font_thickness)
 
     # Combine side by side: [Original] | [Revised highlighted]
     panels = [original, revised]
@@ -598,43 +883,84 @@ def run_verification_pipeline(
             ),
         )
 
-    # Build crops from BOTH images and metadata for LLM
-    crops_original = []
-    crops_revised = []
-    regions_metadata = []
+    # Build ONE padded crop pair per SUB-BOX (not per group). Each sub-box is an
+    # independent candidate so the LLM's description maps 1:1 to a box. Padding
+    # restores local context (dimension line, tolerance frame, note) and is
+    # clipped within the parent group's bounds to avoid bleeding into neighbors.
+    img_h, img_w = cv_result.image1.shape[:2]
+
     # diff_subboxes is parallel to diff_bboxes; fall back to a single-member
     # group when it is absent (e.g. merging disabled).
     subboxes_by_group = cv_result.diff_subboxes or [
         [b] for b in cv_result.diff_bboxes
     ]
-    for idx, ((x, y, w, h), div_pct, sub_boxes) in enumerate(
+
+    crops_original = []
+    crops_revised = []
+    regions_metadata = []
+
+    for gi, ((gx, gy, gw, gh), div_pct, sub_boxes) in enumerate(
         zip(cv_result.diff_bboxes, cv_result.diff_divergences, subboxes_by_group),
         start=1,
     ):
-        region_id = f"page_{page_index + 1:02d}_diff_{idx:03d}"
-        crop_rev = cv_result.image2_aligned[y:y+h, x:x+w]
-        crop_orig = cv_result.image1[y:y+h, x:x+w]
-        crops_original.append((region_id, crop_orig))
-        crops_revised.append((region_id, crop_rev))
-        regions_metadata.append({
-            "id": region_id,
-            "x": x,
-            "y": y,
-            "width": w,
-            "height": h,
-            "divergence_pct": round(div_pct, 2),
-            "sub_boxes": [list(b) for b in sub_boxes],
-            "num_sub_differences": len(sub_boxes),
-        })
+        # Group bounds (clip window for padding). Fall back to the group box
+        # itself if no sub-boxes were recorded.
+        members = sub_boxes or [(gx, gy, gw, gh)]
+        gx0, gy0, gx1, gy1 = gx, gy, gx + gw, gy + gh
 
-    # Step 2: LLM verification
-    logger.info(f"Sending {len(crops_revised)} candidates to LLM for verification...")
+        for si, (sbx, sby, sbw, sbh) in enumerate(members, start=1):
+            # Pad the sub-box by a fraction of its size (min 12px), clipped to
+            # the parent group window so context stays local to the group. The
+            # ROI marker (drawn later) disambiguates the target from neighbors
+            # captured in the margin, so modest padding is enough.
+            pad = max(12, int(0.3 * max(sbw, sbh)))
+            px0 = max(gx0, sbx - pad)
+            py0 = max(gy0, sby - pad)
+            px1 = min(gx1, sbx + sbw + pad)
+            py1 = min(gy1, sby + sbh + pad)
+            # Guard against degenerate windows.
+            if px1 <= px0 or py1 <= py0:
+                px0, py0, px1, py1 = sbx, sby, sbx + sbw, sby + sbh
+            px0 = max(0, px0); py0 = max(0, py0)
+            px1 = min(img_w, px1); py1 = min(img_h, py1)
+
+            sub_id = f"page_{page_index + 1:02d}_grp_{gi:03d}_sub_{si:03d}"
+            crop_orig = cv_result.image1[py0:py1, px0:px1]
+            crop_rev = cv_result.image2_aligned[py0:py1, px0:px1]
+            crops_original.append((sub_id, crop_orig))
+            crops_revised.append((sub_id, crop_rev))
+            regions_metadata.append({
+                "id": sub_id,
+                "group_index": gi,
+                # The sub-box itself (used for drawing lilac boxes in the report).
+                "x": int(sbx),
+                "y": int(sby),
+                "width": int(sbw),
+                "height": int(sbh),
+                # The padded crop window (context shown to the LLM).
+                "crop_x": int(px0),
+                "crop_y": int(py0),
+                "crop_width": int(px1 - px0),
+                "crop_height": int(py1 - py0),
+                # Target sub-box in CROP-LOCAL coords, for the ROI marker.
+                "target_local": [int(sbx - px0), int(sby - py0), int(sbw), int(sbh)],
+                "divergence_pct": round(div_pct, 2),
+                # Parent group box, carried so we can draw the red group box.
+                "group_box": [int(gx), int(gy), int(gw), int(gh)],
+            })
+
+    # Step 2: LLM verification (single batched call per page, size-capped).
+    logger.info(f"Sending {len(crops_revised)} sub-box candidates to LLM for verification...")
     llm_output, metadata = verify_changes_with_llm(
         cv_result.image1, crops_original, crops_revised, regions_metadata, model=model
     )
 
-    # Step 3: Post-process into contiguously-indexed result
-    result = _build_verified_result(page_index, regions_metadata, llm_output, metadata)
+    # Step 3: Post-process — cluster surviving changes into report groups.
+    page_h, page_w = cv_result.image1.shape[:2]
+    result = _build_verified_result(
+        page_index, regions_metadata, llm_output, metadata,
+        page_width=page_w, page_height=page_h,
+    )
 
     # Step 4: Render final image
     result.image_original = cv_result.image1

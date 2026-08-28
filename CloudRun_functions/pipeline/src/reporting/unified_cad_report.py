@@ -154,13 +154,15 @@ def _image_flowable(
     *,
     max_width: float,
     max_height: float,
-    raster_dpi: int = 144,
+    raster_dpi: int = 450,
 ) -> Image:
     """Fit an image to the PDF at high resolution to avoid pixelation on zoom.
 
     raster_dpi controls how many raster pixels are embedded per display point.
-    144 DPI (2x the 72 pt/inch PDF baseline) keeps drawings sharp while
-    limiting the memory and file-size cost of full-page CAD images.
+    450 DPI (6.25x the 72 pt/inch PDF baseline) keeps full-page CAD drawings
+    legible when zoomed in the report while keeping the file small enough to
+    email as an attachment. The image is only downsampled when the source is
+    actually larger than the raster budget, so smaller sources stay untouched.
     The image is only downsampled when the source is actually smaller than the
     raster budget, so large source images (300 DPI CAD pages) stay crisp.
     """
@@ -211,7 +213,7 @@ def _annotate_page_with_bbox(
     *,
     box_color: tuple[int, int, int] = (0, 0, 220),
     alpha: float = 0.25,
-    sub_boxes: list[tuple[int, int, int, int]] | None = None,
+    sub_differences: list[dict] | None = None,
     subbox_color: tuple[int, int, int] = (219, 112, 147),
     subbox_alpha: float = 0.30,
 ) -> np.ndarray:
@@ -220,9 +222,9 @@ def _annotate_page_with_bbox(
     Marks the change region so the reviewer sees it in the context of the
     entire drawing (same approach as relatorio_ia_pagina_N.pdf).
 
-    When ``sub_boxes`` holds more than one member, each individual difference is
-    drawn as a lilac (unnumbered) box first, and the red numbered group box is
-    drawn on top.
+    When ``sub_differences`` holds more than one entry, each individual
+    difference's box(es) are drawn as lilac boxes labeled with its ``sub_id``
+    (e.g. "1.2"), and the red numbered group box is drawn on top.
     """
     img = full_page.copy()
     h_img, w_img = img.shape[:2]
@@ -236,60 +238,66 @@ def _annotate_page_with_bbox(
         return img
 
     border_px = max(3, w_img // 600)
+    font_scale = max(0.7, w_img / 2800.0)
+    thickness = max(2, int(font_scale * 2.5))
+    sub_font_scale = max(0.5, font_scale * 0.8)
+    sub_thickness = max(2, int(sub_font_scale * 2.2))
 
-    # Draw lilac sub-boxes first (only when the group has multiple members).
-    sub_boxes = sub_boxes or []
-    if len(sub_boxes) > 1:
+    def _clip(bx, by, bw, bh):
+        cx0 = max(0, bx)
+        cy0 = max(0, by)
+        cx1 = min(w_img, bx + bw)
+        cy1 = min(h_img, by + bh)
+        return cx0, cy0, cx1, cy1
+
+    def _label(text, bx0, by0, color, fscale, fthick):
+        (lw, lh), baseline = cv2.getTextSize(
+            text, cv2.FONT_HERSHEY_SIMPLEX, fscale, fthick
+        )
+        pad = 5
+        lx = bx0 + pad
+        ly = by0 - pad if by0 - pad > lh + pad else by0 + lh + pad * 2
+        cv2.rectangle(
+            img,
+            (lx - pad, ly - lh - pad),
+            (lx + lw + pad, ly + baseline + pad),
+            (255, 255, 255),
+            -1,
+        )
+        cv2.putText(
+            img, text, (lx, ly),
+            cv2.FONT_HERSHEY_SIMPLEX, fscale, color, fthick, cv2.LINE_AA,
+        )
+
+    # Draw lilac sub-difference boxes first (only for multi-difference groups).
+    sub_differences = sub_differences or []
+    if len(sub_differences) > 1:
         sub_overlay = img.copy()
-        for (sbx, sby, sbw, sbh) in sub_boxes:
-            sx0 = max(0, sbx)
-            sy0 = max(0, sby)
-            sx1 = min(w_img, sbx + sbw)
-            sy1 = min(h_img, sby + sbh)
-            if sx1 <= sx0 or sy1 <= sy0:
-                continue
-            cv2.rectangle(sub_overlay, (sx0, sy0), (sx1, sy1), subbox_color, -1)
+        for sub in sub_differences:
+            for (sbx, sby, sbw, sbh) in sub.get("boxes", []):
+                sx0, sy0, sx1, sy1 = _clip(sbx, sby, sbw, sbh)
+                if sx1 <= sx0 or sy1 <= sy0:
+                    continue
+                cv2.rectangle(sub_overlay, (sx0, sy0), (sx1, sy1), subbox_color, -1)
         cv2.addWeighted(sub_overlay, subbox_alpha, img, 1 - subbox_alpha, 0, img)
-        for (sbx, sby, sbw, sbh) in sub_boxes:
-            sx0 = max(0, sbx)
-            sy0 = max(0, sby)
-            sx1 = min(w_img, sbx + sbw)
-            sy1 = min(h_img, sby + sbh)
-            if sx1 <= sx0 or sy1 <= sy0:
-                continue
-            cv2.rectangle(img, (sx0, sy0), (sx1, sy1), subbox_color, border_px)
+        for sub in sub_differences:
+            sub_id = str(sub.get("sub_id", ""))
+            for (sbx, sby, sbw, sbh) in sub.get("boxes", []):
+                sx0, sy0, sx1, sy1 = _clip(sbx, sby, sbw, sbh)
+                if sx1 <= sx0 or sy1 <= sy0:
+                    continue
+                cv2.rectangle(img, (sx0, sy0), (sx1, sy1), subbox_color, border_px)
+                if sub_id:
+                    _label(sub_id, sx0, sy0, subbox_color, sub_font_scale, sub_thickness)
 
     # Semi-transparent fill for the red group box
     overlay = img.copy()
     cv2.rectangle(overlay, (x0, y0), (x1, y1), box_color, -1)
     cv2.addWeighted(overlay, alpha, img, 1 - alpha, 0, img)
 
-    # Solid border
+    # Solid border + numeric group label
     cv2.rectangle(img, (x0, y0), (x1, y1), box_color, border_px)
-
-    # ID label scaled to image width
-    label = str(change_id)
-    font_scale = max(0.7, w_img / 2800.0)
-    thickness = max(2, int(font_scale * 2.5))
-    (lw, lh), baseline = cv2.getTextSize(
-        label, cv2.FONT_HERSHEY_SIMPLEX, font_scale, thickness
-    )
-    pad = 5
-    lx = x0 + pad
-    ly = y0 - pad if y0 - pad > lh + pad else y0 + lh + pad * 2
-
-    cv2.rectangle(
-        img,
-        (lx - pad, ly - lh - pad),
-        (lx + lw + pad, ly + baseline + pad),
-        (255, 255, 255),
-        -1,
-    )
-    cv2.putText(
-        img, label, (lx, ly),
-        cv2.FONT_HERSHEY_SIMPLEX, font_scale,
-        box_color, thickness, cv2.LINE_AA,
-    )
+    _label(str(change_id), x0, y0, box_color, font_scale, thickness)
 
     return img
 
@@ -465,15 +473,17 @@ def build_unified_report(result: Any) -> bytes:
             Paragraph("Recommended Action", tbl_header),
         ]]
         for change in true_changes:
-            details = list(getattr(change, "detail_descriptions", None) or [])
-            if len(details) > 1:
-                # One bullet line per individual sub-difference within the group.
-                diff_html = "<br/>".join(f"- {_escape(d)}" for d in details)
-            else:
-                diff_html = _escape(
-                    details[0] if details
-                    else str(getattr(change, "description", "Change identified"))
+            subs = list(getattr(change, "sub_differences", None) or [])
+            if len(subs) > 1:
+                # One line per sub-difference, prefixed with its sub_id.
+                diff_html = "<br/>".join(
+                    f"[{s.get('sub_id', '')}] {_escape(s.get('description', ''))}"
+                    for s in subs
                 )
+            elif subs:
+                diff_html = _escape(subs[0].get("description", ""))
+            else:
+                diff_html = _escape(str(getattr(change, "description", "Change identified")))
             change_rows.append([
                 Paragraph(str(getattr(change, "index", "-")), cell),
                 Paragraph(diff_html, cell),
@@ -508,15 +518,21 @@ def build_unified_report(result: Any) -> bytes:
             y = int(getattr(change, "y", 0))
             w = int(getattr(change, "width", 0))
             h = int(getattr(change, "height", 0))
-            sub_boxes = [tuple(int(v) for v in b) for b in (getattr(change, "sub_boxes", None) or [])]
-            detail_descriptions = list(getattr(change, "detail_descriptions", None) or [])
+            # Normalize sub_differences: coerce box coords to int tuples.
+            sub_differences = []
+            for sub in (getattr(change, "sub_differences", None) or []):
+                sub_differences.append({
+                    "sub_id": str(sub.get("sub_id", "")),
+                    "description": sub.get("description", ""),
+                    "boxes": [tuple(int(v) for v in b) for b in sub.get("boxes", [])],
+                })
 
             story.append(Paragraph(f"<b>Change #{change_id}</b>", subheading))
             story.append(Spacer(1, 0.15 * cm))
 
             if img_original is not None and img_revised is not None:
-                ann_orig = _annotate_page_with_bbox(img_original, x, y, w, h, change_id, sub_boxes=sub_boxes)
-                ann_rev  = _annotate_page_with_bbox(img_revised,  x, y, w, h, change_id, sub_boxes=sub_boxes)
+                ann_orig = _annotate_page_with_bbox(img_original, x, y, w, h, change_id, sub_differences=sub_differences)
+                ann_rev  = _annotate_page_with_bbox(img_revised,  x, y, w, h, change_id, sub_differences=sub_differences)
 
                 aspect = img_original.shape[0] / max(1, img_original.shape[1])
                 max_h  = col_w * aspect
@@ -557,13 +573,15 @@ def build_unified_report(result: Any) -> bytes:
                 )
 
             story.append(Spacer(1, 0.25 * cm))
-            # Prefer per-sub-difference bullet topics; fall back to the summary.
-            if len(detail_descriptions) > 1:
+            # Bullet topics prefixed with the sub_id shown on each lilac box.
+            if len(sub_differences) > 1:
                 story.append(Paragraph("<b>Differences in this group:</b>", body))
-                for detail in detail_descriptions:
-                    story.append(_bullet(_escape(detail), bullet_sty))
+                for sub in sub_differences:
+                    story.append(
+                        _bullet(f"[{sub['sub_id']}] {_escape(sub['description'])}", bullet_sty)
+                    )
             else:
-                single = detail_descriptions[0] if detail_descriptions else description
+                single = sub_differences[0]["description"] if sub_differences else description
                 story.append(Paragraph(f"<b>Description:</b> {_escape(single)}", body))
 
     # ── 6. References ─────────────────────────────────────────────────────────

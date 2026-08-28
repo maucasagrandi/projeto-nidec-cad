@@ -241,13 +241,17 @@ def test_comparison_artifacts_are_written_as_utf8(tmp_path) -> None:
 
 
 def test_large_report_image_is_downsampled_before_reportlab_decodes_it() -> None:
-    source = np.full((2500, 5000, 3), 255, dtype=np.uint8)
+    # A very large source (well beyond the 450-DPI raster budget) must still be
+    # downsampled before ReportLab decodes it. Budget for a 720x360 pt display
+    # at 450 DPI is 4500x2250 px, so use a source larger than that.
+    source = np.full((6000, 12000, 3), 255, dtype=np.uint8)
 
     flowable = _image_flowable(source, max_width=720, max_height=360)
     flowable._setup_inner()
 
-    assert flowable.imageWidth <= 1440
-    assert flowable.imageHeight <= 720
+    # 450 DPI = 6.25x the 72 pt/inch baseline -> raster capped at 4500x2250.
+    assert flowable.imageWidth <= 4500
+    assert flowable.imageHeight <= 2250
     assert flowable.drawWidth == 720
     assert flowable.drawHeight == 360
 

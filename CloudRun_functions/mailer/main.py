@@ -14,7 +14,7 @@ Expected JSON payload:
 }
 
 Environment variables:
-    SMTP_HOST               - SMTP server address (e.g. smtp-relay.gmail.com)
+    SMTP_HOST               - SMTP server address (e.g. smtp.gmail.com)
     SMTP_PORT               - SMTP server port (default: 587)
     SECRET_SMTP_USER        - SMTP username (plain value, e.g. it.apps@nidec-ga.com)
     SECRET_SMTP_PASSWORD    - SMTP password (injected from Secret Manager via secretKeyRef)
@@ -26,7 +26,10 @@ from __future__ import annotations
 
 import logging
 import os
+import shutil
 import smtplib
+import subprocess
+import tempfile
 from email import encoders
 from email.mime.base import MIMEBase
 from email.mime.multipart import MIMEMultipart
@@ -37,6 +40,12 @@ from google.cloud import storage
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# Maximum attachment size (bytes) we will inline into the email. Gmail rejects
+# messages larger than ~25 MB and base64 encoding inflates the payload ~33%, so
+# we cap the raw PDF well below that. Reports above this size are recompressed
+# with Ghostscript before attaching.
+MAX_ATTACHMENT_BYTES = int(os.environ.get("MAX_ATTACHMENT_BYTES", str(18 * 1024 * 1024)))
 
 # Defaults
 def _default_subject(process_id: str) -> str:
@@ -74,6 +83,44 @@ def _download_blob(gcs_path: str) -> bytes:
     return blob.download_as_bytes()
 
 
+def _compress_pdf(pdf_bytes: bytes) -> bytes | None:
+    """Recompress a PDF with Ghostscript to shrink it for email attachment.
+
+    Downsamples embedded images to ~300 DPI (Ghostscript ``/printer`` preset),
+    which reduces the size of high-DPI CAD report images while keeping text and
+    line work crisp. Returns the compressed bytes, or None if Ghostscript is
+    unavailable or the run fails (caller keeps the original).
+    """
+    gs_bin = shutil.which("gs")
+    if not gs_bin:
+        logger.warning("Ghostscript (gs) not found on PATH — cannot compress PDF")
+        return None
+    try:
+        with tempfile.TemporaryDirectory() as tmp:
+            src = os.path.join(tmp, "in.pdf")
+            dst = os.path.join(tmp, "out.pdf")
+            with open(src, "wb") as f:
+                f.write(pdf_bytes)
+            cmd = [
+                gs_bin,
+                "-sDEVICE=pdfwrite",
+                "-dCompatibilityLevel=1.5",
+                "-dPDFSETTINGS=/printer",  # ~300 DPI image downsampling
+                "-dNOPAUSE",
+                "-dBATCH",
+                "-dQUIET",
+                "-dDetectDuplicateImages=true",
+                f"-sOutputFile={dst}",
+                src,
+            ]
+            subprocess.run(cmd, check=True, timeout=90, capture_output=True)
+            with open(dst, "rb") as f:
+                return f.read()
+    except Exception as e:  # noqa: BLE001 - best-effort; caller keeps original
+        logger.warning("PDF compression failed: %s", e)
+        return None
+
+
 def _send_email(
     smtp_host: str,
     smtp_port: int,
@@ -83,10 +130,15 @@ def _send_email(
     recipients: list[str],
     subject: str,
     body: str,
-    attachment_bytes: bytes,
+    attachment_bytes: bytes | None,
     attachment_filename: str,
 ) -> None:
-    """Compose and send an email with a PDF attachment via SMTP."""
+    """Compose and send an email via SMTP.
+
+    When ``attachment_bytes`` is provided the PDF is attached; otherwise the
+    message is sent body-only (used when the report is too large to attach and
+    a download link is embedded in the body instead).
+    """
     msg = MIMEMultipart()
     msg["From"] = sender
     msg["To"] = ", ".join(recipients)
@@ -95,12 +147,13 @@ def _send_email(
     # Body
     msg.attach(MIMEText(body, "plain", "utf-8"))
 
-    # PDF attachment
-    part = MIMEBase("application", "pdf")
-    part.set_payload(attachment_bytes)
-    encoders.encode_base64(part)
-    part.add_header("Content-Disposition", f'attachment; filename="{attachment_filename}"')
-    msg.attach(part)
+    # PDF attachment (optional)
+    if attachment_bytes is not None:
+        part = MIMEBase("application", "pdf")
+        part.set_payload(attachment_bytes)
+        encoders.encode_base64(part)
+        part.add_header("Content-Disposition", f'attachment; filename="{attachment_filename}"')
+        msg.attach(part)
 
     # Send via SMTP — use SSL for port 465, STARTTLS for port 587
     logger.info("Connecting to SMTP %s:%d", smtp_host, smtp_port)
@@ -197,12 +250,30 @@ def mailer(request: Request):
         # Download the report PDF from GCS
         logger.info("Downloading report PDF: %s", report_gcs_path)
         report_pdf_bytes = _download_blob(report_gcs_path)
+        report_size = len(report_pdf_bytes)
         base_filename = report_gcs_path.rsplit("/", 1)[-1]
         # Prefix the attachment with the CT code so it is identifiable
         if process_id and process_id != "unknown" and not base_filename.startswith(process_id):
             attachment_filename = f"{process_id}_{base_filename}"
         else:
             attachment_filename = base_filename
+
+        # If the report is too large to attach (Gmail ~25 MB cap, base64 inflates
+        # the payload), recompress it with Ghostscript before attaching.
+        delivery = "attachment"
+        send_bytes = report_pdf_bytes
+        if report_size > MAX_ATTACHMENT_BYTES:
+            logger.info(
+                "Report %d bytes exceeds attachment cap %d — compressing",
+                report_size, MAX_ATTACHMENT_BYTES,
+            )
+            compressed = _compress_pdf(report_pdf_bytes)
+            if compressed and len(compressed) < report_size:
+                logger.info(
+                    "Compressed report %d -> %d bytes", report_size, len(compressed)
+                )
+                send_bytes = compressed
+                delivery = "attachment_compressed"
 
         # Send the email
         _send_email(
@@ -214,15 +285,17 @@ def mailer(request: Request):
             recipients=recipients,
             subject=subject,
             body=body,
-            attachment_bytes=report_pdf_bytes,
+            attachment_bytes=send_bytes,
             attachment_filename=attachment_filename,
         )
 
-        logger.info("Mailer completed | process_id=%s", process_id)
+        logger.info("Mailer completed | process_id=%s | delivery=%s", process_id, delivery)
         return jsonify({
             "status": "success",
             "process_id": process_id,
             "recipients": recipients,
+            "delivery": delivery,
+            "attachment_bytes": len(send_bytes),
         }), 200
 
     except Exception as e:
