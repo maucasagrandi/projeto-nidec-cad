@@ -90,6 +90,67 @@ class CompareConfig:
     Nearby boxes often correspond to the same modification (e.g., a note with
     multiple text lines). Set to 0 to disable merging."""
 
+    # --- Alignment refinement (opt4) ---
+    ecc_refine: bool = False
+    """Refine the title-block homography with an ECC (Enhanced Correlation
+    Coefficient) pass over the whole page, correcting a residual *global*
+    translation/affine shift. It is validated and only kept if it measurably
+    reduces the diff (see ecc_min_improvement); otherwise the original alignment
+    is preserved, so enabling it is always safe.
+
+    Disabled by default: on the representative CAD set the residual is per-glyph
+    rendering noise (different PDF anti-aliasing), not a global transform, so ECC
+    converges to near-identity and is rejected while roughly doubling runtime.
+    Enable it for inputs known to have a genuine global misregistration."""
+
+    ecc_max_iterations: int = 50
+    """Maximum iterations for the ECC solver."""
+
+    ecc_epsilon: float = 1e-4
+    """Convergence threshold for the ECC solver."""
+
+    ecc_downscale_max_dim: int = 1200
+    """ECC is estimated on a downscaled copy (longest side capped here) for speed
+    and robustness, then the translation/affine is rescaled to full resolution."""
+
+    ecc_min_improvement: float = 0.03
+    """Minimum relative reduction in changed-pixel count required to accept the
+    ECC-refined alignment over the original. Guards against mis-convergence."""
+
+    # --- Frame-border handling ---
+    ignore_frame_border: bool = True
+    """Suppress difference pixels on the drawing's outer frame/border. The frame
+    is a continuous rectangle that, when slightly misregistered, produces one
+    page-spanning connected contour. It is almost never a real change."""
+
+    frame_border_fraction: float = 0.02
+    """Thickness of the ignored border band, as a fraction of the smaller page
+    dimension. Only the diff mask is suppressed here; the imagery is untouched."""
+
+    # --- Box-size cap + split (opt1) ---
+    max_box_area_fraction: float = 0.35
+    """A single accepted box may not exceed this fraction of the page area. Boxes
+    larger than this are re-detected internally with stricter settings (split),
+    not silently discarded, so a real change hidden inside is preserved."""
+
+    max_box_dim_fraction: float = 0.85
+    """A single accepted box may not span more than this fraction of the page
+    width or height. Complements max_box_area_fraction for long, thin boxes."""
+
+    split_diff_threshold_boost: int = 25
+    """When splitting an oversized box, raise diff_threshold by this amount to
+    isolate the strongest (most likely real) changes within the region."""
+
+    split_morph_kernel_size: int = 3
+    """Smaller morphological kernel used when splitting an oversized box, so the
+    internal re-detection does not re-fuse everything into one blob again."""
+
+    # --- Bounded merge (opt3) ---
+    max_merge_area_fraction: float = 0.35
+    """Union-find merging may not grow a merged box beyond this fraction of the
+    page area. Prevents a chain of nearby boxes from collapsing into a giant one.
+    Set to 1.0 to disable the bound (legacy behavior)."""
+
 
 # ==============================================================================
 # Result dataclass
@@ -421,6 +482,136 @@ def _align_image(
     return aligned
 
 
+def _changed_pixel_count(
+    img1: np.ndarray, img2_aligned: np.ndarray, threshold: int
+) -> int:
+    """Count thresholded difference pixels between two BGR images.
+
+    Used as a scalar quality metric to decide whether an alignment refinement
+    actually improved registration.
+    """
+    gray1 = cv2.cvtColor(img1, cv2.COLOR_BGR2GRAY)
+    gray2 = cv2.cvtColor(img2_aligned, cv2.COLOR_BGR2GRAY)
+    diff = cv2.absdiff(gray1, gray2)
+    diff = cv2.GaussianBlur(diff, (5, 5), 0)
+    _, th = cv2.threshold(diff, threshold, 255, cv2.THRESH_BINARY)
+    return int(np.count_nonzero(th))
+
+
+def _refine_alignment_ecc(
+    img1: np.ndarray,
+    img2_aligned: np.ndarray,
+    config: CompareConfig,
+) -> tuple[np.ndarray, bool]:
+    """Refine registration of an already-aligned revised image using ECC.
+
+    Title-block homography leaves a small (often sub-pixel) global residual that
+    lights up every line/character edge across the page. ECC estimates a
+    correcting affine warp on a downscaled grayscale copy, which is then applied
+    at full resolution. The refinement is validated: it is only kept if it
+    reduces the thresholded difference by at least ecc_min_improvement (relative).
+
+    Args:
+        img1: Reference image (BGR).
+        img2_aligned: Revised image already coarsely aligned to img1 (BGR).
+        config: Pipeline configuration.
+
+    Returns:
+        (image, refined) where `image` is the refined (or original) aligned image
+        and `refined` indicates whether the ECC result was accepted.
+    """
+    if not config.ecc_refine:
+        return img2_aligned, False
+
+    h, w = img1.shape[:2]
+
+    # Downscale for a robust, fast ECC estimate.
+    longest = max(h, w)
+    scale = min(1.0, config.ecc_downscale_max_dim / longest)
+    small_size = (max(1, round(w * scale)), max(1, round(h * scale)))
+
+    g1 = cv2.cvtColor(img1, cv2.COLOR_BGR2GRAY)
+    g2 = cv2.cvtColor(img2_aligned, cv2.COLOR_BGR2GRAY)
+    if scale < 1.0:
+        g1s = cv2.resize(g1, small_size, interpolation=cv2.INTER_AREA)
+        g2s = cv2.resize(g2, small_size, interpolation=cv2.INTER_AREA)
+    else:
+        g1s, g2s = g1, g2
+
+    # Normalize to float32 for ECC.
+    g1f = g1s.astype(np.float32) / 255.0
+    g2f = g2s.astype(np.float32) / 255.0
+
+    warp_matrix = np.eye(2, 3, dtype=np.float32)
+    criteria = (
+        cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT,
+        config.ecc_max_iterations,
+        config.ecc_epsilon,
+    )
+
+    try:
+        _cc, warp_matrix = cv2.findTransformECC(
+            g1f, g2f, warp_matrix, cv2.MOTION_AFFINE, criteria, None, 5
+        )
+    except cv2.error:
+        # ECC failed to converge — keep the original alignment.
+        return img2_aligned, False
+
+    # Rescale the translation components from the downscaled estimate to full res.
+    if scale < 1.0:
+        warp_matrix[0, 2] /= scale
+        warp_matrix[1, 2] /= scale
+
+    refined = cv2.warpAffine(
+        img2_aligned,
+        warp_matrix,
+        (w, h),
+        flags=cv2.INTER_LINEAR,
+        borderMode=cv2.BORDER_CONSTANT,
+        borderValue=(255, 255, 255),
+    )
+
+    # Validate: only accept if it reduces the difference meaningfully.
+    before = _changed_pixel_count(img1, img2_aligned, config.diff_threshold)
+    after = _changed_pixel_count(img1, refined, config.diff_threshold)
+    if before <= 0:
+        return img2_aligned, False
+    improvement = (before - after) / before
+    if improvement >= config.ecc_min_improvement:
+        return refined, True
+    return img2_aligned, False
+
+
+def _suppress_frame_border(mask: np.ndarray, config: CompareConfig) -> np.ndarray:
+    """Zero out difference pixels on the outer frame/border band of the page.
+
+    The drawing frame is a continuous rectangle; a slight registration residual
+    turns it into a single page-spanning connected component. Suppressing a thin
+    border band removes that artifact without touching interior content.
+
+    Args:
+        mask: Binary difference mask (uint8, 0/255).
+        config: Pipeline configuration.
+
+    Returns:
+        The mask with the border band cleared (a copy).
+    """
+    if not config.ignore_frame_border:
+        return mask
+
+    h, w = mask.shape[:2]
+    band = max(1, round(min(h, w) * config.frame_border_fraction))
+    if band * 2 >= min(h, w):
+        return mask
+
+    out = mask.copy()
+    out[:band, :] = 0
+    out[h - band:, :] = 0
+    out[:, :band] = 0
+    out[:, w - band:] = 0
+    return out
+
+
 # ==============================================================================
 # Step 4: Difference Detection
 # ==============================================================================
@@ -440,76 +631,222 @@ def _merge_nearby_boxes(
     divergences: list[float],
     thresh_img: np.ndarray,
     max_gap: int,
+    max_area_fraction: float = 1.0,
 ) -> tuple[list[tuple[int, int, int, int]], list[float]]:
     """Merge bounding boxes that are within max_gap pixels of each other.
 
-    Uses a union-find approach: iteratively merge overlapping/close boxes
-    until no more merges are possible. Recomputes divergence for merged boxes.
+    Greedily merges overlapping/close boxes, but refuses any merge that would
+    grow the resulting box beyond max_area_fraction of the page. Recomputes
+    divergence for merged boxes.
 
     Args:
         bboxes: List of (x, y, w, h) bounding boxes.
         divergences: List of divergence percentages per bbox.
         thresh_img: Binary threshold image for recomputing divergence.
         max_gap: Maximum pixel gap to consider boxes as part of the same group.
+        max_area_fraction: A merge is rejected if the resulting union box would
+            exceed this fraction of the page area. This prevents a chain of
+            nearby boxes from collapsing into a single page-spanning box. Use
+            1.0 to disable the bound (legacy behavior).
 
     Returns:
         (merged_bboxes, merged_divergences)
     """
-    n = len(bboxes)
-    # Union-find parent array
-    parent = list(range(n))
+    h_img, w_img = thresh_img.shape[:2]
+    page_area = h_img * w_img
+    area_cap = max_area_fraction * page_area
 
-    def find(i):
-        while parent[i] != i:
-            parent[i] = parent[parent[i]]
-            i = parent[i]
-        return i
+    def _union_box(a: tuple, b: tuple) -> tuple[int, int, int, int]:
+        ax, ay, aw, ah = a
+        bx, by, bw, bh = b
+        x_min = min(ax, bx)
+        y_min = min(ay, by)
+        x_max = max(ax + aw, bx + bw)
+        y_max = max(ay + ah, by + bh)
+        return (x_min, y_min, x_max - x_min, y_max - y_min)
 
-    def union(i, j):
-        ri, rj = find(i), find(j)
-        if ri != rj:
-            parent[ri] = rj
+    # Greedy iterative merging: repeatedly merge a close pair, but only if the
+    # resulting box stays within the area cap. Because a rejected pair is left
+    # untouched, an oversized cluster naturally splits into several bounded boxes.
+    boxes = list(bboxes)
+    changed = True
+    while changed and len(boxes) > 1:
+        changed = False
+        for i in range(len(boxes)):
+            for j in range(i + 1, len(boxes)):
+                if not _boxes_are_close(boxes[i], boxes[j], max_gap):
+                    continue
+                candidate = _union_box(boxes[i], boxes[j])
+                if candidate[2] * candidate[3] > area_cap:
+                    # Merging these would create an oversized box — keep separate.
+                    continue
+                boxes[i] = candidate
+                del boxes[j]
+                changed = True
+                break
+            if changed:
+                break
 
-    # Find pairs that should be merged
-    for i in range(n):
-        for j in range(i + 1, n):
-            if find(i) != find(j) and _boxes_are_close(bboxes[i], bboxes[j], max_gap):
-                union(i, j)
-
-    # Group boxes by their root
-    from collections import defaultdict
-    groups = defaultdict(list)
-    for i in range(n):
-        groups[find(i)].append(i)
-
-    # Merge each group into a single bounding box
+    # Recompute divergence for each final box from the threshold mask.
     merged_bboxes = []
     merged_divergences = []
-    h_img, w_img = thresh_img.shape[:2]
-
-    for indices in groups.values():
-        # Compute the union bounding box
-        x_min = min(bboxes[i][0] for i in indices)
-        y_min = min(bboxes[i][1] for i in indices)
-        x_max = max(bboxes[i][0] + bboxes[i][2] for i in indices)
-        y_max = max(bboxes[i][1] + bboxes[i][3] for i in indices)
-
-        merged_w = x_max - x_min
-        merged_h = y_max - y_min
-
-        # Recompute divergence for the merged box
-        region = thresh_img[y_min:y_min+merged_h, x_min:x_min+merged_w]
+    for (x, y, w, h) in boxes:
+        x0, y0 = max(0, x), max(0, y)
+        region = thresh_img[y0:y0 + h, x0:x0 + w]
         total_pixels = region.size
         if total_pixels > 0:
             diff_pixels = int(np.count_nonzero(region))
             div_pct = (diff_pixels / total_pixels) * 100.0
         else:
-            div_pct = max(divergences[i] for i in indices)
-
-        merged_bboxes.append((x_min, y_min, merged_w, merged_h))
+            div_pct = 0.0
+        merged_bboxes.append((x, y, w, h))
         merged_divergences.append(div_pct)
 
     return merged_bboxes, merged_divergences
+
+
+def _boxes_from_mask(
+    cleaned_mask: np.ndarray,
+    thresh_mask: np.ndarray,
+    image_shape: tuple[int, int],
+    config: CompareConfig,
+) -> tuple[
+    list[tuple[int, int, int, int]],
+    list[float],
+    list[tuple[int, int, int, int]],
+    list[float],
+]:
+    """Turn a cleaned binary mask into padded, area-filtered bounding boxes.
+
+    Boxes are split into accepted (divergence >= min_divergence_pct) and
+    excluded (below threshold) using the raw thresh_mask to compute divergence.
+
+    Args:
+        cleaned_mask: Morphologically cleaned binary mask used for contours.
+        thresh_mask: Raw binary threshold mask used for divergence computation.
+        image_shape: (height, width) of the source image.
+        config: Pipeline configuration.
+
+    Returns:
+        (bboxes, divergences, excluded_bboxes, excluded_divergences)
+    """
+    contours, _ = cv2.findContours(
+        cleaned_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
+    )
+
+    bboxes: list[tuple[int, int, int, int]] = []
+    divergences: list[float] = []
+    excluded_bboxes: list[tuple[int, int, int, int]] = []
+    excluded_divergences: list[float] = []
+    h, w = image_shape
+    padding = config.box_padding
+
+    for cnt in contours:
+        area = cv2.contourArea(cnt)
+        if area < config.min_contour_area:
+            continue
+
+        x, y, bw, bh = cv2.boundingRect(cnt)
+        x = max(0, x - padding)
+        y = max(0, y - padding)
+        bw = min(w - x, bw + 2 * padding)
+        bh = min(h - y, bh + 2 * padding)
+
+        bbox_region = thresh_mask[y:y + bh, x:x + bw]
+        total_pixels = bbox_region.size
+        if total_pixels == 0:
+            continue
+        diff_pixels = int(np.count_nonzero(bbox_region))
+        divergence_pct = (diff_pixels / total_pixels) * 100.0
+
+        if divergence_pct < config.min_divergence_pct:
+            excluded_bboxes.append((x, y, bw, bh))
+            excluded_divergences.append(divergence_pct)
+        else:
+            bboxes.append((x, y, bw, bh))
+            divergences.append(divergence_pct)
+
+    return bboxes, divergences, excluded_bboxes, excluded_divergences
+
+
+def _split_oversized_boxes(
+    bboxes: list[tuple[int, int, int, int]],
+    divergences: list[float],
+    gray1: np.ndarray,
+    gray2: np.ndarray,
+    config: CompareConfig,
+) -> tuple[list[tuple[int, int, int, int]], list[float]]:
+    """Break boxes that cover too much of the page into localized sub-boxes.
+
+    A box larger than max_box_area_fraction of the page (or spanning more than
+    max_box_dim_fraction of a dimension) is re-analyzed *inside its own region*
+    with a higher difference threshold and a smaller morphological kernel. This
+    isolates the strongest changes instead of discarding the region — so a real
+    change hidden inside an over-merged blob is preserved.
+
+    If the internal re-detection yields nothing (e.g. the whole box was
+    registration noise), the box is dropped.
+
+    Args:
+        bboxes: Accepted boxes from the first pass.
+        divergences: Divergence per accepted box.
+        gray1: Grayscale reference image.
+        gray2: Grayscale aligned revised image.
+        config: Pipeline configuration.
+
+    Returns:
+        (bboxes, divergences) with oversized boxes replaced by their sub-boxes.
+    """
+    h, w = gray1.shape[:2]
+    page_area = h * w
+    area_cap = config.max_box_area_fraction * page_area
+    dim_cap_w = config.max_box_dim_fraction * w
+    dim_cap_h = config.max_box_dim_fraction * h
+
+    out_boxes: list[tuple[int, int, int, int]] = []
+    out_divs: list[float] = []
+
+    for (x, y, bw, bh), div in zip(bboxes, divergences):
+        oversized = (
+            bw * bh > area_cap or bw > dim_cap_w or bh > dim_cap_h
+        )
+        if not oversized:
+            out_boxes.append((x, y, bw, bh))
+            out_divs.append(div)
+            continue
+
+        # Re-detect within the region using stricter settings.
+        sub1 = gray1[y:y + bh, x:x + bw]
+        sub2 = gray2[y:y + bh, x:x + bw]
+        sub_diff = cv2.absdiff(sub1, sub2)
+        sub_diff = cv2.GaussianBlur(sub_diff, (5, 5), 0)
+        strict_thresh = min(255, config.diff_threshold + config.split_diff_threshold_boost)
+        _, sub_th = cv2.threshold(sub_diff, strict_thresh, 255, cv2.THRESH_BINARY)
+
+        ksize = max(1, config.split_morph_kernel_size)
+        sub_kernel = np.ones((ksize, ksize), np.uint8)
+        sub_clean = cv2.morphologyEx(sub_th, cv2.MORPH_CLOSE, sub_kernel, iterations=1)
+        sub_clean = cv2.dilate(sub_clean, sub_kernel, iterations=1)
+
+        sub_boxes, sub_divs, _, _ = _boxes_from_mask(
+            sub_clean, sub_th, (bh, bw), config
+        )
+
+        if not sub_boxes:
+            # Nothing strong enough inside — this was registration noise. Drop it.
+            continue
+
+        # Merge the sub-boxes (bounded) and translate back to full-image coords.
+        if len(sub_boxes) > 1:
+            sub_boxes, sub_divs = _merge_nearby_boxes(
+                sub_boxes, sub_divs, sub_th, config.merge_distance,
+                config.max_merge_area_fraction,
+            )
+        for (sx, sy, sw, sh), sdiv in zip(sub_boxes, sub_divs):
+            out_boxes.append((x + sx, y + sy, sw, sh))
+            out_divs.append(sdiv)
+
+    return out_boxes, out_divs
 
 
 def _detect_differences(
@@ -557,6 +894,10 @@ def _detect_differences(
         gray_diff, config.diff_threshold, 255, cv2.THRESH_BINARY
     )
 
+    # Suppress the outer frame/border band. A continuous frame rectangle with a
+    # small registration residual otherwise becomes one page-spanning contour.
+    thresh = _suppress_frame_border(thresh, config)
+
     # Morphological operations to clean up
     kernel = np.ones(
         (config.morph_kernel_size, config.morph_kernel_size), np.uint8
@@ -568,52 +909,23 @@ def _detect_differences(
         cleaned, kernel, iterations=config.morph_dilate_iterations
     )
 
-    # Find contours
-    contours, _ = cv2.findContours(
-        cleaned, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
+    # Find contours -> accepted / excluded boxes
+    bboxes, divergences, excluded_bboxes, excluded_divergences = _boxes_from_mask(
+        cleaned, thresh, img1.shape[:2], config
     )
 
-    # Filter by area, compute divergence, and separate into accepted/excluded
-    bboxes = []
-    divergences = []
-    excluded_bboxes = []
-    excluded_divergences = []
-    h, w = img1.shape[:2]
-    padding = config.box_padding
+    # Split any oversized accepted box into localized changes rather than
+    # shipping a single page-covering "difference".
+    bboxes, divergences = _split_oversized_boxes(
+        bboxes, divergences, gray1, gray2, config
+    )
 
-    for cnt in contours:
-        area = cv2.contourArea(cnt)
-        if area < config.min_contour_area:
-            continue
-
-        x, y, bw, bh = cv2.boundingRect(cnt)
-        # Add padding
-        x = max(0, x - padding)
-        y = max(0, y - padding)
-        bw = min(w - x, bw + 2 * padding)
-        bh = min(h - y, bh + 2 * padding)
-
-        # Compute divergence: percentage of pixels within bbox that are above threshold
-        bbox_region = thresh[y:y+bh, x:x+bw]
-        total_pixels = bbox_region.size
-        if total_pixels == 0:
-            continue
-        diff_pixels = int(np.count_nonzero(bbox_region))
-        divergence_pct = (diff_pixels / total_pixels) * 100.0
-
-        if divergence_pct < config.min_divergence_pct:
-            # Below threshold — excluded (will be shown in green)
-            excluded_bboxes.append((x, y, bw, bh))
-            excluded_divergences.append(divergence_pct)
-        else:
-            # Accepted difference
-            bboxes.append((x, y, bw, bh))
-            divergences.append(divergence_pct)
-
-    # Merge nearby accepted boxes that likely belong to the same modification
+    # Merge nearby accepted boxes that likely belong to the same modification,
+    # but never grow a merged box past the area bound.
     if config.merge_distance > 0 and len(bboxes) > 1:
         bboxes, divergences = _merge_nearby_boxes(
-            bboxes, divergences, thresh, config.merge_distance
+            bboxes, divergences, thresh, config.merge_distance,
+            config.max_merge_area_fraction,
         )
 
     return bboxes, divergences, excluded_bboxes, excluded_divergences, cleaned
@@ -781,6 +1093,11 @@ def compare_cad_pages_opencv(
             img2_aligned = cv2.resize(img2, (img1.shape[1], img1.shape[0]))
         else:
             img2_aligned = img2.copy()
+
+    # --- Step 4b: Sub-pixel alignment refinement (ECC) ---
+    # Corrects the small residual left by the title-block homography that
+    # otherwise lights up every edge across the page. Kept only if validated.
+    img2_aligned, _ecc_used = _refine_alignment_ecc(img1, img2_aligned, config)
 
     # --- Step 5: Detect differences ---
     bboxes, divergences, excluded_bboxes, excluded_divergences, _ = _detect_differences(img1, img2_aligned, config)

@@ -1,8 +1,13 @@
 __pycache__
 .venv
+.venv_cadtest
 .env
 
 # Generated outputs from the integrated review pipelines
 REVIEW_RESULTS/
 GDT_RESULTS/
 opencv_compare_results/
+
+# Temporary artifacts
+streamlit_app.zip
+print_gcs.jpeg

@@ -1,0 +1,29 @@
+{
+  "page_index": 0,
+  "total_candidates": 2,
+  "num_true_changes": 2,
+  "num_false_positives": 0,
+  "changes": [
+    {
+      "index": 1,
+      "original_id": "page_01_diff_001",
+      "description": "The phrase \"BY CARDBOARD GASKET.\" was moved to a new line and the text was adjusted to include \"MEASUREMENT BY CARDBOARD GASKET.\". The position of the geometric tolerance symbols for cardboard gasket was also shifted left.",
+      "x": 1367,
+      "y": 2287,
+      "width": 901,
+      "height": 108,
+      "divergence_pct": 21.71
+    },
+    {
+      "index": 2,
+      "original_id": "page_01_diff_002",
+      "description": "A new revision entry was added to the revision block. The new entry is labeled '08', with revision number 'CR30970', description 'ADJUST NOTE 9', date '2026.05.05', and 'LLF' for the note ID.",
+      "x": 481,
+      "y": 1991,
+      "width": 50,
+      "height": 444,
+      "divergence_pct": 14.86
+    }
+  ],
+  "false_positive_ids": []
+}

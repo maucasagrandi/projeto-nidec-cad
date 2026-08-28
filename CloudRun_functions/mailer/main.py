@@ -1,7 +1,9 @@
-"""Cloud Run Function 3: Mailer.
+"""Cloud Run Service: Mailer.
 
 Sends an email with the CAD review report PDF attached.
-SMTP credentials are retrieved from Google Secret Manager.
+SMTP credentials are provided via environment variables.
+The SMTP password is injected from a Secret Manager secret via Cloud Run's
+native secretKeyRef mechanism (already resolved as an env var at runtime).
 
 Expected JSON payload:
 {
@@ -12,11 +14,10 @@ Expected JSON payload:
 }
 
 Environment variables:
-    SMTP_HOST               - SMTP server address (e.g. smtp.gmail.com)
+    SMTP_HOST               - SMTP server address (e.g. smtp-relay.gmail.com)
     SMTP_PORT               - SMTP server port (default: 587)
-    SECRET_PROJECT_ID       - GCP project ID where secrets are stored
-    SECRET_SMTP_USER        - Secret Manager secret name for the SMTP username
-    SECRET_SMTP_PASSWORD    - Secret Manager secret name for the SMTP password
+    SECRET_SMTP_USER        - SMTP username (plain value, e.g. it.apps@nidec-ga.com)
+    SECRET_SMTP_PASSWORD    - SMTP password (injected from Secret Manager via secretKeyRef)
     MAIL_RECIPIENTS         - Comma-separated list of recipient email addresses
     MAIL_SENDER             - Sender email address (From header)
 """
@@ -27,13 +28,12 @@ import logging
 import os
 import smtplib
 from email import encoders
-from email.mime.base64 import MIMEBase
+from email.mime.base import MIMEBase
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
-import functions_framework
 from flask import Flask, Request, jsonify, request as flask_request
-from google.cloud import secretmanager, storage
+from google.cloud import storage
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -47,14 +47,6 @@ DEFAULT_BODY = (
     "Atenciosamente,\n"
     "Sistema de Revisão CAD"
 )
-
-
-def _get_secret(project_id: str, secret_name: str, version: str = "latest") -> str:
-    """Retrieve a secret value from Google Secret Manager."""
-    client = secretmanager.SecretManagerServiceClient()
-    resource_name = f"projects/{project_id}/secrets/{secret_name}/versions/{version}"
-    response = client.access_secret_version(request={"name": resource_name})
-    return response.payload.data.decode("UTF-8")
 
 
 def _parse_gcs_path(gcs_path: str) -> tuple[str, str]:
@@ -88,7 +80,7 @@ def _send_email(
     attachment_bytes: bytes,
     attachment_filename: str,
 ) -> None:
-    """Compose and send an email with a PDF attachment via SMTP/TLS."""
+    """Compose and send an email with a PDF attachment via SMTP."""
     msg = MIMEMultipart()
     msg["From"] = sender
     msg["To"] = ", ".join(recipients)
@@ -104,20 +96,35 @@ def _send_email(
     part.add_header("Content-Disposition", f'attachment; filename="{attachment_filename}"')
     msg.attach(part)
 
-    # Send via SMTP with STARTTLS
+    # Send via SMTP — use SSL for port 465, STARTTLS for port 587
     logger.info("Connecting to SMTP %s:%d", smtp_host, smtp_port)
-    with smtplib.SMTP(smtp_host, smtp_port, timeout=30) as server:
-        server.ehlo()
-        server.starttls()
-        server.ehlo()
-        server.login(smtp_user, smtp_password)
-        server.sendmail(sender, recipients, msg.as_string())
+
+    if smtp_port == 465:
+        with smtplib.SMTP_SSL(smtp_host, smtp_port, timeout=30) as server:
+            if smtp_user and smtp_password:
+                server.login(smtp_user, smtp_password)
+            server.sendmail(sender, recipients, msg.as_string())
+    else:
+        with smtplib.SMTP(smtp_host, smtp_port, timeout=60) as server:
+            server.ehlo()
+            # Attempt STARTTLS if available
+            if server.has_extn("STARTTLS"):
+                server.starttls()
+                server.ehlo()
+                logger.info("STARTTLS established")
+            else:
+                logger.info("STARTTLS not available, continuing without encryption")
+            # Always attempt login if credentials are provided
+            if smtp_user and smtp_password:
+                logger.info("Logging in as %s", smtp_user)
+                server.login(smtp_user, smtp_password)
+            server.sendmail(sender, recipients, msg.as_string())
 
     logger.info("Email sent to %d recipients", len(recipients))
 
 
 def mailer(request: Request):
-    """HTTP Cloud Run function entry point for the mailer."""
+    """HTTP Cloud Run entry point for the mailer."""
     # Parse request
     try:
         payload = request.get_json(force=True)
@@ -134,12 +141,11 @@ def mailer(request: Request):
 
     logger.info("Mailer started | process_id=%s", process_id)
 
-    # Read environment configuration
+    # Read environment configuration — all values are plain env vars
     smtp_host = os.environ.get("SMTP_HOST", "")
     smtp_port = int(os.environ.get("SMTP_PORT", "587"))
-    secret_project_id = os.environ.get("SECRET_PROJECT_ID", "")
-    secret_smtp_user = os.environ.get("SECRET_SMTP_USER", "")
-    secret_smtp_password = os.environ.get("SECRET_SMTP_PASSWORD", "")
+    smtp_user = os.environ.get("SECRET_SMTP_USER", "")
+    smtp_password = os.environ.get("SECRET_SMTP_PASSWORD", "")
     mail_recipients_raw = os.environ.get("MAIL_RECIPIENTS", "")
     mail_sender = os.environ.get("MAIL_SENDER", "")
 
@@ -147,11 +153,9 @@ def mailer(request: Request):
     missing_env = []
     if not smtp_host:
         missing_env.append("SMTP_HOST")
-    if not secret_project_id:
-        missing_env.append("SECRET_PROJECT_ID")
-    if not secret_smtp_user:
+    if not smtp_user:
         missing_env.append("SECRET_SMTP_USER")
-    if not secret_smtp_password:
+    if not smtp_password:
         missing_env.append("SECRET_SMTP_PASSWORD")
     if not mail_recipients_raw:
         missing_env.append("MAIL_RECIPIENTS")
@@ -166,11 +170,6 @@ def mailer(request: Request):
         return jsonify({"error": "MAIL_RECIPIENTS is empty after parsing"}), 500
 
     try:
-        # Retrieve SMTP credentials from Secret Manager
-        logger.info("Retrieving SMTP credentials from Secret Manager")
-        smtp_user = _get_secret(secret_project_id, secret_smtp_user)
-        smtp_password = _get_secret(secret_project_id, secret_smtp_password)
-
         # Download the report PDF from GCS
         logger.info("Downloading report PDF: %s", report_gcs_path)
         report_pdf_bytes = _download_blob(report_gcs_path)

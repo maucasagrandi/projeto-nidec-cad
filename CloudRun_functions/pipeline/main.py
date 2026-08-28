@@ -13,7 +13,7 @@ Expected JSON payload:
 
 Environment variables:
     GCP_PROJECT_ID  - Google Cloud project ID
-    GCP_REGION      - Vertex AI region (e.g. us-east5)
+    GCP_REGION      - Vertex AI region (e.g. us-central1)
 """
 
 from __future__ import annotations
@@ -76,22 +76,23 @@ def _upload_directory(client: storage.Client, local_dir: Path, gcs_base_path: st
 
 
 def run_pipeline(
-    original_pdf: bytes,
     revised_pdf: bytes,
-    original_name: str,
     revised_name: str,
     output_dir: Path,
+    original_pdf: bytes | None = None,
+    original_name: str = "",
 ) -> dict[str, Path]:
     """Execute the integrated CAD review pipeline and save results locally.
 
+    If original_pdf is None, runs in single-PDF mode (no comparison).
     Returns the paths dict from save_integrated_review.
     """
     from src.cad_review.integrated_review import run_integrated_review, save_integrated_review
     from src.utils.opencv_cad_compare import CompareConfig
 
     result = run_integrated_review(
-        original_pdf,
         revised_pdf,
+        original_pdf=original_pdf,
         original_name=original_name,
         revised_name=revised_name,
         comparison_model="gemini-2.5-flash",
@@ -114,31 +115,35 @@ def pipeline(request: Request):
     except Exception:
         return jsonify({"error": "Invalid JSON payload"}), 400
 
-    required_fields = ["process_id", "base_gcs_path", "original_pdf_gcs_path", "revised_pdf_gcs_path"]
+    # revised_pdf_gcs_path is always required; original is optional
+    required_fields = ["process_id", "base_gcs_path", "revised_pdf_gcs_path"]
     missing = [f for f in required_fields if f not in payload]
     if missing:
         return jsonify({"error": f"Missing required fields: {missing}"}), 400
 
     process_id = payload["process_id"]
     base_gcs_path = payload["base_gcs_path"].rstrip("/")
-    original_gcs = payload["original_pdf_gcs_path"]
     revised_gcs = payload["revised_pdf_gcs_path"]
+    original_gcs = payload.get("original_pdf_gcs_path")  # None in single mode
+    mode = payload.get("mode", "comparison" if original_gcs else "single")
 
-    logger.info("Pipeline started | process_id=%s", process_id)
+    logger.info("Pipeline started | process_id=%s | mode=%s", process_id, mode)
 
     try:
         # Initialize GCS client
         gcs_client = storage.Client()
 
         # Download PDFs from GCS
-        logger.info("Downloading original PDF: %s", original_gcs)
-        original_pdf = _download_blob(gcs_client, original_gcs)
+        original_pdf = None
+        original_name = ""
+        if original_gcs:
+            logger.info("Downloading original PDF: %s", original_gcs)
+            original_pdf = _download_blob(gcs_client, original_gcs)
+            original_name = original_gcs.rsplit("/", 1)[-1]
 
         logger.info("Downloading revised PDF: %s", revised_gcs)
         revised_pdf = _download_blob(gcs_client, revised_gcs)
 
-        # Extract filenames from GCS paths
-        original_name = original_gcs.rsplit("/", 1)[-1]
         revised_name = revised_gcs.rsplit("/", 1)[-1]
 
         # Run pipeline in a temporary directory
@@ -147,11 +152,11 @@ def pipeline(request: Request):
             output_dir.mkdir()
 
             paths = run_pipeline(
-                original_pdf,
                 revised_pdf,
-                original_name=original_name,
                 revised_name=revised_name,
                 output_dir=output_dir,
+                original_pdf=original_pdf,
+                original_name=original_name,
             )
 
             # Upload results to GCS under base_gcs_path/PROCESSING_OUTPUTS
@@ -166,6 +171,7 @@ def pipeline(request: Request):
         return jsonify({
             "status": "success",
             "process_id": process_id,
+            "mode": mode,
             "report_gcs_path": report_gcs_path,
             "output_gcs_path": output_gcs_path,
             "files_uploaded": len(uploaded_files),

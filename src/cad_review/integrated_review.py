@@ -220,9 +220,9 @@ def _default_comparator(
 
 
 def run_integrated_review(
-    original_pdf: bytes,
     revised_pdf: bytes,
     *,
+    original_pdf: bytes | None = None,
     original_name: str = "original.pdf",
     revised_name: str = "revised.pdf",
     classification_prompt: str | None = None,
@@ -239,12 +239,18 @@ def run_integrated_review(
     comparator: Callable[..., list[Any]] | None = None,
     format_checker: Callable[[bytes, bytes], list[dict[str, Any]]] | None = None,
 ) -> IntegratedReviewResult:
-    """Run classification, GD&T/datum detection and comparison in one flow."""
+    """Run classification, GD&T/datum detection and (optionally) comparison.
 
-    if not original_pdf or not revised_pdf:
-        raise ValueError("Both original and revised PDF bytes are required")
+    If original_pdf is None, comparison and format-check steps are skipped
+    (single-PDF analysis mode).
+    """
+
+    if not revised_pdf:
+        raise ValueError("Revised PDF bytes are required")
     if gdt_workers < 1:
         raise ValueError("gdt_workers must be at least 1")
+
+    comparison_enabled = original_pdf is not None and len(original_pdf) > 0
 
     pipeline_started = perf_counter()
     stage_started = pipeline_started
@@ -325,23 +331,31 @@ def run_integrated_review(
     )
 
     compare = comparator or _default_comparator
-    comparison_pages = compare(
-        original_pdf,
-        revised_pdf,
-        model=comparison_model,
-        opencv_config=opencv_config,
-    )
-    stage_started, timings["part_comparison"] = _log_timing(
-        "Part Comparison concluída",
-        stage_started,
-        pipeline_started,
-    )
-    paper_format_changes = (format_checker or _default_format_checker)(original_pdf, revised_pdf)
-    _, timings["paper_format_check"] = _log_timing(
-        "Verificação do formato de papel concluída",
-        stage_started,
-        pipeline_started,
-    )
+    comparison_pages: list[Any] = []
+    paper_format_changes: list[dict[str, Any]] = []
+
+    if comparison_enabled:
+        comparison_pages = compare(
+            original_pdf,
+            revised_pdf,
+            model=comparison_model,
+            opencv_config=opencv_config,
+        )
+        stage_started, timings["part_comparison"] = _log_timing(
+            "Part Comparison concluída",
+            stage_started,
+            pipeline_started,
+        )
+        paper_format_changes = (format_checker or _default_format_checker)(original_pdf, revised_pdf)
+        _, timings["paper_format_check"] = _log_timing(
+            "Verificação do formato de papel concluída",
+            stage_started,
+            pipeline_started,
+        )
+    else:
+        logger.info("TEMPO | Comparison skipped (single-PDF mode)")
+        timings["part_comparison"] = 0.0
+        timings["paper_format_check"] = 0.0
     timings["pipeline_total"] = perf_counter() - pipeline_started
     logger.info("TEMPO | Pipeline concluído | total=%s", _format_elapsed(timings["pipeline_total"]))
 
@@ -359,9 +373,10 @@ def run_integrated_review(
             "revised_text_characters": len(revised_text),
             "revised_pages": revised_page_count,
             "compared_pages": len(comparison_pages),
+            "mode": "comparison" if comparison_enabled else "single",
             "gdt_mode": "deterministic_template_and_geometry",
             "gdt_workers": gdt_workers,
-            "comparison_mode": "opencv_candidates_then_llm_verification",
+            "comparison_mode": "opencv_candidates_then_llm_verification" if comparison_enabled else "disabled",
             "timings_seconds": {key: round(value, 3) for key, value in timings.items()},
         },
     )

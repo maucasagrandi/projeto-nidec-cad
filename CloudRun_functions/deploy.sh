@@ -13,16 +13,39 @@
 #   - Required secrets already created in Secret Manager
 #
 # Usage:
-#   ./deploy.sh <GCP_PROJECT_ID> <GCP_REGION>
+#   ./deploy.sh <GCP_PROJECT_ID> <GCP_REGION> <TRIGGER_BUCKET> <TRIGGER_LOCATION> [TRIGGER_SA]
 #
-# Example:
-#   ./deploy.sh acim-global-data-lake-sandbox us-east5
+#   TRIGGER_LOCATION must match the bucket location: a multi-region value like
+#   'us' or 'eu' for a multi-region bucket, or a region like 'us-central1' for
+#   a regional bucket.
+#
+# Example (multi-region US bucket, services in us-central1):
+#   ./deploy.sh acim-global-data-lake-sandbox us-central1 my-windchill-bucket us
 # ==============================================================================
 
 set -euo pipefail
 
-PROJECT_ID="${1:?Usage: ./deploy.sh <GCP_PROJECT_ID> <GCP_REGION>}"
-REGION="${2:?Usage: ./deploy.sh <GCP_PROJECT_ID> <GCP_REGION>}"
+USAGE="Usage: ./deploy.sh <GCP_PROJECT_ID> <GCP_REGION> <TRIGGER_BUCKET> <TRIGGER_LOCATION> [TRIGGER_SA]"
+
+PROJECT_ID="${1:?${USAGE}}"
+REGION="${2:?${USAGE}}"
+TRIGGER_BUCKET="${3:?${USAGE}}"
+# Eventarc trigger location — MUST match the bucket's location. For a
+# multi-region bucket use the multi-region value (e.g. 'us' or 'eu'); for a
+# regional bucket use its region (e.g. 'us-central1'). Cloud Storage event
+# triggers support single- and multi-region locations.
+TRIGGER_LOCATION="${4:?${USAGE}}"
+# Service account Eventarc uses to invoke the orchestrator. Defaults to the
+# project's Compute Engine default SA if not supplied.
+PROJECT_NUMBER="$(gcloud projects describe "${PROJECT_ID}" --format='value(projectNumber)')"
+TRIGGER_SA="${5:-${PROJECT_NUMBER}-compute@developer.gserviceaccount.com}"
+
+# Only objects under this prefix trigger the orchestrator (filtered in code,
+# since Eventarc GCS triggers cannot filter by object prefix).
+TRIGGER_PREFIX="temp/Windchill/cadreview"
+# Seconds to wait after a PDF event before resolving the PDF set, so a second
+# PDF arriving moments later is included (comparison vs single-PDF accuracy).
+SETTLE_DELAY_SECONDS="5"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
@@ -98,7 +121,8 @@ gcloud run deploy cad-review-mailer \
     --cpu=1 \
     --min-instances=0 \
     --max-instances=3 \
-    --set-env-vars="SMTP_HOST=<SMTP_HOST>,SMTP_PORT=587,SECRET_PROJECT_ID=${PROJECT_ID},SECRET_SMTP_USER=smtp-user,SECRET_SMTP_PASSWORD=smtp-password,MAIL_RECIPIENTS=<RECIPIENTS>,MAIL_SENDER=<SENDER>" \
+    --set-env-vars="SMTP_HOST=smtp-relay.gmail.com,SMTP_PORT=587,SECRET_SMTP_USER=it.apps@nidec-ga.com,MAIL_RECIPIENTS=elvis.cantelli@madeinweb.com.br,MAIL_SENDER=do-not-reply@nidec-ga.com" \
+    --set-secrets="SECRET_SMTP_PASSWORD=airflow-config-smtp-password:latest" \
     --quiet
 
 MAILER_URL=$(gcloud run services describe cad-review-mailer \
@@ -130,18 +154,76 @@ gcloud run deploy cad-review-orchestrator \
     --cpu=1 \
     --min-instances=0 \
     --max-instances=3 \
-    --set-env-vars="PIPELINE_FUNCTION_URL=${PIPELINE_URL},MAILER_FUNCTION_URL=${MAILER_URL}" \
+    --set-env-vars="PIPELINE_FUNCTION_URL=${PIPELINE_URL},MAILER_FUNCTION_URL=${MAILER_URL},TRIGGER_PREFIX=${TRIGGER_PREFIX},SETTLE_DELAY_SECONDS=${SETTLE_DELAY_SECONDS}" \
     --quiet
 
 ORCHESTRATOR_URL=$(gcloud run services describe cad-review-orchestrator \
     --region="${REGION}" --project="${PROJECT_ID}" \
     --format="value(status.url)")
 
+echo "Orchestrator URL: ${ORCHESTRATOR_URL}"
+echo ""
+
+# ------------------------------------------------------------------------------
+# Eventarc trigger: fire the orchestrator when the sentinel marker is uploaded
+# ------------------------------------------------------------------------------
+# GCS event filters only support 'type' and 'bucket' (no path/prefix filtering),
+# so the orchestrator filters in code to react only to PDFs under
+# '${TRIGGER_PREFIX}/.../ResultingObjects/'. Two PDFs produce two events; the
+# orchestrator's atomic manifest claim ensures only one invocation proceeds.
+#
+# Requirements (grant once, idempotent):
+#   - The GCS service agent needs roles/pubsub.publisher.
+#   - ${TRIGGER_SA} needs roles/run.invoker on the orchestrator and
+#     roles/eventarc.eventReceiver on the project.
+echo "--- Configuring Eventarc trigger prerequisites ---"
+
+GCS_SA="$(gcloud storage service-agent --project="${PROJECT_ID}")"
+gcloud projects add-iam-policy-binding "${PROJECT_ID}" \
+    --member="serviceAccount:${GCS_SA}" \
+    --role="roles/pubsub.publisher" \
+    --condition=None --quiet >/dev/null
+
+gcloud projects add-iam-policy-binding "${PROJECT_ID}" \
+    --member="serviceAccount:${TRIGGER_SA}" \
+    --role="roles/eventarc.eventReceiver" \
+    --condition=None --quiet >/dev/null
+
+gcloud run services add-iam-policy-binding cad-review-orchestrator \
+    --region="${REGION}" --project="${PROJECT_ID}" \
+    --member="serviceAccount:${TRIGGER_SA}" \
+    --role="roles/run.invoker" --quiet >/dev/null
+
+echo "--- Creating Eventarc trigger (idempotent) ---"
+# Trigger location must match the bucket location (multi-region 'us'/'eu' or a
+# single region). The destination Cloud Run service can live in a different
+# region (${REGION}).
+if gcloud eventarc triggers describe cad-review-gcs-trigger \
+    --location="${TRIGGER_LOCATION}" --project="${PROJECT_ID}" >/dev/null 2>&1; then
+    echo "Trigger cad-review-gcs-trigger already exists in ${TRIGGER_LOCATION} — skipping creation."
+else
+    gcloud eventarc triggers create cad-review-gcs-trigger \
+        --location="${TRIGGER_LOCATION}" \
+        --project="${PROJECT_ID}" \
+        --destination-run-service=cad-review-orchestrator \
+        --destination-run-region="${REGION}" \
+        --event-filters="type=google.cloud.storage.object.v1.finalized" \
+        --event-filters="bucket=${TRIGGER_BUCKET}" \
+        --service-account="${TRIGGER_SA}" \
+        --quiet
+fi
+
 echo ""
 echo "=== Deployment Complete ==="
 echo "Orchestrator URL: ${ORCHESTRATOR_URL}"
 echo "Pipeline URL:     ${PIPELINE_URL}"
 echo "Mailer URL:       ${MAILER_URL}"
+echo "Trigger:          cad-review-gcs-trigger (location=${TRIGGER_LOCATION}, bucket=${TRIGGER_BUCKET}, scope=${TRIGGER_PREFIX})"
+echo ""
+echo "NOTE: The orchestrator reacts to PDFs uploaded under"
+echo "      '${TRIGGER_PREFIX}/.../ResultingObjects/'. It waits ${SETTLE_DELAY_SECONDS}s for a"
+echo "      possible second PDF, then de-duplicates concurrent events via an atomic"
+echo "      manifest claim so each CT folder is processed exactly once."
 echo ""
 echo "NOTE: Update the mailer env vars (SMTP_HOST, MAIL_RECIPIENTS, MAIL_SENDER)"
 echo "      with actual values using:"
