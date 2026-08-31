@@ -1,41 +1,147 @@
-"""Streamlit interface for the unified CAD Review workflow."""
+"""Streamlit front-end for the CAD Review pipeline from the script branch.
+
+The UI intentionally reuses the visual structure of the Part Classification page,
+while the processing is delegated to the same run_review.py entrypoint used by
+scripts/run_batch.py.
+"""
 
 from __future__ import annotations
 
 import hmac
-import json
 import os
+import subprocess
 import sys
+import tempfile
+from io import BytesIO
 from pathlib import Path
 
-import cv2
+import fitz
 import streamlit as st
 from dotenv import load_dotenv
 from PIL import Image
 from streamlit_image_zoom import image_zoom
 
-_PROJECT_ROOT = Path(__file__).resolve().parent
-_PIPELINE_ROOT = _PROJECT_ROOT / "CloudRun_functions" / "pipeline"
-if not (_PIPELINE_ROOT / "src" / "cad_review").is_dir():
-    raise RuntimeError(f"Pipeline package not found: {_PIPELINE_ROOT}")
-sys.path.insert(0, str(_PIPELINE_ROOT))
-
-from src.cad_review.integrated_review import run_integrated_review
-from src.reporting.unified_cad_report import (
-    DRAWING_BLOCK_FIELDS,
-    HEADER_FIELDS,
-    build_unified_report,
-)
-from src.utils.opencv_cad_compare import CompareConfig
-
 load_dotenv()
+
+_PROJECT_ROOT = Path(__file__).resolve().parent
+_RUN_REVIEW = _PROJECT_ROOT / "run_review.py"
+_LOGO_PATH = _PROJECT_ROOT / "logo.png"
+
 st.set_page_config(page_title="CAD Review", layout="wide")
 
+# ==============================================================================
+# Theme - same green/white structure used by Part Classification
+# ==============================================================================
+st.markdown(
+    """
+    <style>
+    .stApp, .main, .main > div, .block-container {
+        background-color: #FFFFFF !important;
+    }
 
+    .block-container {
+        max-width: 100%;
+        padding-left: 3rem;
+        padding-right: 3rem;
+    }
+
+    [data-testid="stHeader"],
+    header[data-testid="stHeader"],
+    [data-testid="stToolbar"] {
+        background-color: #FFFFFF !important;
+    }
+
+    [data-testid="stSidebar"],
+    [data-testid="stSidebar"] > div:first-child {
+        background-color: #13A344 !important;
+    }
+
+    [data-testid="stSidebar"] h1,
+    [data-testid="stSidebar"] h2,
+    [data-testid="stSidebar"] h3,
+    [data-testid="stSidebar"] h4,
+    [data-testid="stSidebar"] h5,
+    [data-testid="stSidebar"] h6,
+    [data-testid="stSidebar"] p,
+    [data-testid="stSidebar"] label,
+    [data-testid="stSidebar"] span,
+    [data-testid="stSidebar"] a {
+        color: #FFFFFF !important;
+    }
+
+    [data-testid="stSidebar"] hr {
+        background-color: rgba(255, 255, 255, 0.2) !important;
+        border: none !important;
+        height: 1px !important;
+    }
+
+    body, p, span, label, div {
+        color: #2C3E50 !important;
+    }
+
+    h1, h2, h3, h4, h5, h6 {
+        color: #13A344 !important;
+    }
+
+    [data-testid="stFileUploader"] section {
+        background-color: #F8F9FA !important;
+        border: 2px dashed #13A344 !important;
+        border-radius: 8px !important;
+    }
+
+    [data-testid="stFileUploader"] section:hover {
+        background-color: #F0F5F2 !important;
+        border-color: #0F8233 !important;
+    }
+
+    [data-testid="stFileUploader"] section button,
+    .stButton > button,
+    [data-testid="stDownloadButton"] > button {
+        background-color: #13A344 !important;
+        color: #FFFFFF !important;
+        border: none !important;
+        border-radius: 6px !important;
+    }
+
+    [data-testid="stFileUploader"] section button:hover,
+    .stButton > button:hover,
+    [data-testid="stDownloadButton"] > button:hover {
+        background-color: #0F8233 !important;
+    }
+
+    .stButton > button:disabled {
+        background-color: #BDC3C7 !important;
+        color: #FFFFFF !important;
+    }
+
+    [data-testid="stAlert"] {
+        background-color: #F0F5F2 !important;
+        border-radius: 8px !important;
+    }
+
+    hr {
+        background-color: #D5E8DC !important;
+        border: none !important;
+        height: 1px !important;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
+# ==============================================================================
+# Sidebar
+# ==============================================================================
+if _LOGO_PATH.exists():
+    st.sidebar.image(Image.open(_LOGO_PATH), width=280)
+st.sidebar.divider()
+st.sidebar.markdown("#### Powered by [MadeinWeb](https://madeinweb.com.br/)")
+
+# ==============================================================================
+# Authentication - same environment-based structure as Part Classification
+# ==============================================================================
 def check_login() -> bool:
-    """Keep the existing environment-based application authentication."""
-
-    def submit() -> None:
+    def _on_submit() -> None:
         username_ok = hmac.compare_digest(
             st.session_state["login_user"], os.getenv("APP_USERNAME", "")
         )
@@ -51,180 +157,184 @@ def check_login() -> bool:
         return True
 
     st.markdown("### 🔐 Login")
-    st.text_input("Usuário", key="login_user")
-    st.text_input("Senha", type="password", key="login_pass")
-    st.button("Entrar", on_click=submit)
+    st.text_input("Username", key="login_user")
+    st.text_input("Password", type="password", key="login_pass")
+    st.button("Sign In", on_click=_on_submit)
+
     if st.session_state.get("authenticated") is False:
-        st.error("Usuário ou senha incorretos")
+        st.error("😕 Incorrect username or password")
     return False
-
-
-def metadata_table(values: dict, fields: list[tuple[str, str]]) -> list[dict[str, str]]:
-    rows = []
-    for key, label in fields:
-        value = values.get(key)
-        if isinstance(value, list):
-            value = "; ".join(str(item) for item in value)
-        rows.append({"Campo": label, "Valor extraído": "—" if value in (None, "") else str(value)})
-    return rows
-
-
-def bgr_to_rgb(image):
-    return cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 
 
 if not check_login():
     st.stop()
 
-if os.path.exists("logo.png"):
-    st.sidebar.image(Image.open("logo.png"), width=280)
-st.sidebar.divider()
-st.sidebar.markdown("#### Powered by [MadeinWeb](https://madeinweb.com.br/)")
+# ==============================================================================
+# Helpers
+# ==============================================================================
+def _first_page_preview(pdf_bytes: bytes, dpi: int = 110) -> Image.Image:
+    """Rasterize only the first PDF page for a lightweight preview."""
+    document = fitz.open(stream=pdf_bytes, filetype="pdf")
+    try:
+        if document.page_count == 0:
+            raise ValueError("PDF has no pages")
+        page = document.load_page(0)
+        scale = dpi / 72.0
+        pixmap = page.get_pixmap(matrix=fitz.Matrix(scale, scale), alpha=False)
+        return Image.open(BytesIO(pixmap.tobytes("png"))).copy()
+    finally:
+        document.close()
 
-st.title("CAD Review integrado")
-st.write(
-    "Envie o desenho original e o revisado. A classificação, as normas e o "
-    "GD&T são extraídos somente do revisado; a comparação usa os dois arquivos."
-)
 
-with st.expander("Fluxo executado"):
+def _run_review(original_name: str, original_bytes: bytes, revised_name: str, revised_bytes: bytes) -> bytes:
+    """Run exactly the same per-pair command used by scripts/run_batch.py."""
+    if not _RUN_REVIEW.is_file():
+        raise FileNotFoundError(f"run_review.py not found: {_RUN_REVIEW}")
+
+    with tempfile.TemporaryDirectory(prefix="cad_review_streamlit_") as tmp:
+        tmp_dir = Path(tmp)
+        original_path = tmp_dir / Path(original_name).name
+        revised_path = tmp_dir / Path(revised_name).name
+        output_dir = tmp_dir / "review_results"
+
+        original_path.write_bytes(original_bytes)
+        revised_path.write_bytes(revised_bytes)
+
+        command = [
+            sys.executable,
+            str(_RUN_REVIEW),
+            str(original_path),
+            str(revised_path),
+            "-o",
+            str(output_dir),
+            "--opencv-dpi",
+            "150",
+            "--gdt-workers",
+            "1",
+        ]
+
+        completed = subprocess.run(
+            command,
+            cwd=_PROJECT_ROOT,
+            capture_output=True,
+            text=True,
+        )
+        if completed.returncode != 0:
+            details = (completed.stderr or completed.stdout or "Unknown pipeline error").strip()
+            raise RuntimeError(details)
+
+        report_path = output_dir / "integrated_review_report.pdf"
+        if not report_path.is_file():
+            raise FileNotFoundError(
+                "Pipeline finished without generating integrated_review_report.pdf"
+            )
+
+        return report_path.read_bytes()
+
+
+# ==============================================================================
+# Main page - Part Classification structure, CAD Review behavior
+# ==============================================================================
+st.title("🔄 CAD Review")
+st.write("### Compare two CAD drawings and generate the complete review report")
+
+with st.expander("📋 Instructions"):
     st.markdown(
         """
-        1. **Header e drawing block no revisado:** extração multimodal do carimbo, classificação e normas.
-        2. **GD&T e datums no revisado:** detecção determinística e imagem anotada.
-        3. **Part Comparison:** OpenCV encontra regiões candidatas e a LLM valida/descreve as mudanças.
-        4. **Relatório único:** tabela da classificação, normas, imagem GD&T/datums e comparação.
+        1. Upload the **original / previous** drawing on the left.
+        2. Upload the **revised / current** drawing on the right.
+        3. Confirm the first-page previews.
+        4. Click **Generate CAD Review**.
+        5. When processing finishes, download the generated PDF report.
         """
     )
 
-left, right = st.columns(2)
-with left:
-    original_file = st.file_uploader("PDF original", type=["pdf"], key="original_pdf")
-with right:
-    revised_file = st.file_uploader("PDF revisado", type=["pdf"], key="revised_pdf")
+st.divider()
+
+upload_left, upload_right = st.columns(2)
+with upload_left:
+    st.write("#### Original PDF (previous version)")
+    original_file = st.file_uploader(
+        "Upload original PDF",
+        type=["pdf"],
+        key="cad_review_original",
+    )
+
+with upload_right:
+    st.write("#### Revised PDF (current version)")
+    revised_file = st.file_uploader(
+        "Upload revised PDF",
+        type=["pdf"],
+        key="cad_review_revised",
+    )
 
 if original_file or revised_file:
+    st.divider()
+    st.write("#### First page preview")
     preview_left, preview_right = st.columns(2)
-    from src.utils.helper_func import pdf_to_pil_images
 
     if original_file:
         with preview_left:
-            st.caption("Original")
-            image_zoom(pdf_to_pil_images(original_file.getvalue(), dpi=100)[0])
+            try:
+                st.caption(f"Original — {original_file.name}")
+                image_zoom(_first_page_preview(original_file.getvalue()))
+            except Exception as exc:  # noqa: BLE001
+                st.warning(f"Could not render original preview: {exc}")
+
     if revised_file:
         with preview_right:
-            st.caption("Revisado")
-            image_zoom(pdf_to_pil_images(revised_file.getvalue(), dpi=100)[0])
+            try:
+                st.caption(f"Revised — {revised_file.name}")
+                image_zoom(_first_page_preview(revised_file.getvalue()))
+            except Exception as exc:  # noqa: BLE001
+                st.warning(f"Could not render revised preview: {exc}")
+
+st.divider()
 
 if st.button(
-    "Executar revisão completa",
+    "🔄 Generate CAD Review",
     disabled=not (original_file and revised_file),
     use_container_width=True,
 ):
+    # A new execution invalidates any report from a previous upload pair.
+    st.session_state.pop("cad_review_report_bytes", None)
+    st.session_state.pop("cad_review_report_name", None)
+
     try:
-        with st.spinner("Extraindo carimbo, classificando e executando a comparação..."):
-            result = run_integrated_review(
+        with st.spinner("Running CAD Review pipeline..."):
+            report_bytes = _run_review(
+                original_file.name,
                 original_file.getvalue(),
+                revised_file.name,
                 revised_file.getvalue(),
-                original_name=original_file.name,
-                revised_name=revised_file.name,
-                comparison_model="gemini-2.5-flash",
-                gdt_workers=1,
-                template_root=_PIPELINE_ROOT / "assets" / "gdt" / "templates",
-                opencv_config=CompareConfig(dpi=150),
             )
-            report_bytes = build_unified_report(result)
-        st.session_state["integrated_review_result"] = result
-        st.session_state["integrated_review_report"] = report_bytes
-    # Streamlit is the application boundary: surface pipeline, credential and
-    # document errors in the UI instead of terminating the server process.
+
+        revised_stem = Path(revised_file.name).stem
+        st.session_state["cad_review_report_bytes"] = report_bytes
+        st.session_state["cad_review_report_name"] = f"{revised_stem}_cad_review_report.pdf"
+        st.success("✅ CAD Review completed successfully.")
     except Exception as exc:  # noqa: BLE001
+        st.error("CAD Review could not be completed.")
         st.exception(exc)
 
-result = st.session_state.get("integrated_review_result")
-if result is not None:
+report_bytes = st.session_state.get("cad_review_report_bytes")
+if report_bytes:
     st.divider()
-    st.header("1. Header")
-    header_values = dict(result.part_classification.get("header") or {})
-    if not header_values.get("classification"):
-        header_values["classification"] = result.part_classification.get("classificacao")
-    st.table(metadata_table(header_values, HEADER_FIELDS))
-    st.subheader("Drawing Block Transcription")
-    st.table(metadata_table(result.part_classification.get("drawing_block") or {}, DRAWING_BLOCK_FIELDS))
-
-    st.header("2. Difference Map with IDs")
-    for page in result.comparison_pages:
-        st.subheader(f"Página {page.page_index + 1}")
-        if page.image_highlighted is not None:
-            st.image(bgr_to_rgb(page.image_highlighted), use_container_width=True)
-
-    st.header("3. Applied Standards")
-    cited = result.part_classification.get("lista_normas", []) or []
-    evidence = result.part_classification.get("justificativas_normas", []) or []
-    if cited:
-        st.subheader("Normas citadas no revisado")
-        for index, standard in enumerate(cited):
-            suffix = f" — {evidence[index]}" if index < len(evidence) else ""
-            st.markdown(f"- {standard}{suffix}")
-    else:
-        st.info("Nenhuma norma explícita foi extraída.")
-
-    suggested = result.inferred_standards.get("normas_sugeridas", []) or []
-    if suggested:
-        st.subheader("Normas sugeridas para validação humana")
-        for standard in suggested:
-            st.markdown(f"- {standard}")
-
-    st.header("4. Difference Table")
-    if result.paper_format_changes:
-        st.subheader("Mudanças de formato do desenho")
-        for change in result.paper_format_changes:
-            st.warning(f"Página {change['page']}: {change['description']}")
-    for page in result.comparison_pages:
-        st.subheader(f"Página {page.page_index + 1}")
-        if page.true_changes:
-            st.table([
-                {
-                    "ID": change.index,
-                    "Difference found": change.description,
-                    "Recommended Action": "Validar a alteração com o requisito técnico aplicável.",
-                }
-                for change in page.true_changes
-            ])
-        else:
-            st.success("Nenhuma mudança significativa confirmada.")
-        if page.true_changes:
-            st.subheader("Differences by ID")
-            for change in page.true_changes:
-                st.markdown(
-                    f"- **ID {change.index}:** {change.description} "
-                    f"(x={change.x}, y={change.y}, w={change.width}, h={change.height})"
-                )
-
-    st.header("5. GD&T and Datums")
-    for page in result.gdt_pages:
-        st.subheader(f"Página {page.page_index + 1}")
-        summary = page.report.get("summary", {})
-        col1, col2, col3 = st.columns(3)
-        col1.metric("GD&T", summary.get("total_detections", 0))
-        col2.metric("Referências resolvidas", summary.get("resolved_datum_refs", 0))
-        col3.metric("Datums definidos", summary.get("datum_definitions_found", 0))
-        if page.annotated_image is not None:
-            st.image(bgr_to_rgb(page.annotated_image), use_container_width=True)
-
-    json_bytes = json.dumps(result.to_dict(), indent=2, ensure_ascii=False).encode("utf-8")
-    download_left, download_right = st.columns(2)
-    download_left.download_button(
-        "Baixar relatório PDF",
-        data=st.session_state["integrated_review_report"],
-        file_name="integrated_review_report.pdf",
+    st.write("### 📄 Review Report")
+    st.success("The report is ready for download.")
+    st.download_button(
+        "⬇️ Download CAD Review Report (PDF)",
+        data=report_bytes,
+        file_name=st.session_state.get(
+            "cad_review_report_name",
+            "integrated_review_report.pdf",
+        ),
         mime="application/pdf",
         use_container_width=True,
     )
-    download_right.download_button(
-        "Baixar resultado JSON",
-        data=json_bytes,
-        file_name="integrated_review.json",
-        mime="application/json",
-        use_container_width=True,
-    )
+
+st.divider()
+st.warning(
+    "This application may make mistakes. Always validate the generated CAD Review "
+    "with an engineering professional."
+)
