@@ -29,6 +29,7 @@ from src.gdt.datum_finder import DatumDefinition, find_datum_definitions
 from src.gdt.datum_text import extract_datum_text_candidates
 from src.gdt.datum_visual_resolver import resolve_outlined_datum_references
 from src.gdt.fcf_expander import FcfFrame, expand_detections_to_fcf
+from src.gdt.geometry_first_detector import detect_geometry_first_frames
 from src.gdt.template_detector import (
     Detection,
     GdtTemplateDetector,
@@ -124,20 +125,26 @@ def analyze_page(
     if rotations is None:
         rotations = [0, 90, -90]
 
-    # Step 1: Detect GD&T symbols (parallel template matching)
-    # Detection uses its own DPI (lower = faster). The extraction render is separate.
-    detector = GdtTemplateDetector(
+    # Steps 1+2: Geometry-first detection.
+    #
+    # Replaces the old full-page multi-scale/multi-rotation template scan
+    # (~672 correlations/page) with a geometry-first detector: find candidate
+    # FCF boxes from vector + raster geometry, then score each box crop with
+    # normalized cross-correlation resized to the box's measured height (a single
+    # scale-correct pass), and grow each accepted symbol cell into a full FCF.
+    # Returns the same Detection + FcfFrame shapes the old Step 1 + Step 2 did,
+    # with frame.detection_score == det.score so _align_results still joins them.
+    #
+    # NOTE: `scales`, `rotations`, `score_threshold`, and `max_workers` are
+    # retained for signature compatibility but no longer drive the primary path
+    # (there is no full-page multi-scale scan). `dpi` still sets the render DPI
+    # used for NCC scoring (clamped to a sensible minimum inside the detector).
+    detections, frames, _gdt_audit = detect_geometry_first_frames(
+        pdf_bytes,
+        page_index=page_index,
         template_root=template_root,
-        dpi=dpi,
-        scales=scales,
-        rotations=rotations,
-        score_threshold=score_threshold,
-        max_workers=max_workers,
+        symbol_dpi=max(dpi, 300),
     )
-    detections = detector.detect(pdf_bytes, page_index=page_index)
-
-    # Step 2: Expand detections to full FCF frames (vector lines from PDF)
-    frames = expand_detections_to_fcf(pdf_bytes, detections, page_index=page_index)
 
     # Step 3: Render at 300 DPI for extraction and datum finding
     extraction_dpi = max(dpi, 300)
