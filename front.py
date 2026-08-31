@@ -7,8 +7,6 @@ scripts/run_batch.py.
 
 from __future__ import annotations
 
-import hmac
-import os
 import subprocess
 import sys
 import tempfile
@@ -17,11 +15,8 @@ from pathlib import Path
 
 import fitz
 import streamlit as st
-from dotenv import load_dotenv
 from PIL import Image
 from streamlit_image_zoom import image_zoom
-
-load_dotenv()
 
 _PROJECT_ROOT = Path(__file__).resolve().parent
 _RUN_REVIEW = _PROJECT_ROOT / "run_review.py"
@@ -136,38 +131,6 @@ if _LOGO_PATH.exists():
     st.sidebar.image(Image.open(_LOGO_PATH), width=280)
 st.sidebar.divider()
 st.sidebar.markdown("#### Powered by [MadeinWeb](https://madeinweb.com.br/)")
-
-# ==============================================================================
-# Authentication - same environment-based structure as Part Classification
-# ==============================================================================
-def check_login() -> bool:
-    def _on_submit() -> None:
-        username_ok = hmac.compare_digest(
-            st.session_state["login_user"], os.getenv("APP_USERNAME", "")
-        )
-        password_ok = hmac.compare_digest(
-            st.session_state["login_pass"], os.getenv("APP_PASSWORD", "")
-        )
-        st.session_state["authenticated"] = username_ok and password_ok
-        if username_ok and password_ok:
-            del st.session_state["login_user"]
-            del st.session_state["login_pass"]
-
-    if st.session_state.get("authenticated", False):
-        return True
-
-    st.markdown("### 🔐 Login")
-    st.text_input("Username", key="login_user")
-    st.text_input("Password", type="password", key="login_pass")
-    st.button("Sign In", on_click=_on_submit)
-
-    if st.session_state.get("authenticated") is False:
-        st.error("😕 Incorrect username or password")
-    return False
-
-
-if not check_login():
-    st.stop()
 
 # ==============================================================================
 # Helpers
@@ -296,7 +259,6 @@ if st.button(
     disabled=not (original_file and revised_file),
     use_container_width=True,
 ):
-    # A new execution invalidates any report from a previous upload pair.
     st.session_state.pop("cad_review_report_bytes", None)
     st.session_state.pop("cad_review_report_name", None)
 
