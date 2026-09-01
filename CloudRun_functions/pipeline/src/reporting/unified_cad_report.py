@@ -594,26 +594,27 @@ def build_unified_report(result: Any) -> bytes:
         Paragraph("Result", tbl_header),
     ]]
     objective_metrics = dict(getattr(result, "objective_metrics", {}) or {})
+    # (chave em PT usada no lookup dos valores, rótulo em EN exibido na tabela)
     metric_order = [
-        "Quantidade de cotas",
-        "Quantidade de cotas HIC",
-        "Quantidade de cotas CTQ",
-        "Quantidade de cotas CTQ-S",
-        "Quantidade de GD&Ts",
-        "Quantidade de Datums Reference",
-        "Lista de datums reference",
-        "Quantidade de revisões",
-        "Quantidade de notas",
-        "Quantidade de códigos",
+        ("Quantidade de cotas", "Dimension Count"),
+        ("Quantidade de cotas HIC", "HIC Dimension Count"),
+        ("Quantidade de cotas CTQ", "CTQ Dimension Count"),
+        ("Quantidade de cotas CTQ-S", "CTQ-S Dimension Count"),
+        ("Quantidade de GD&Ts", "GD&T Feature Count"),
+        ("Quantidade de Datums Reference", "Datum Reference Count"),
+        ("Lista de datums reference", "Datum Reference List"),
+        ("Quantidade de revisões", "Revision Count"),
+        ("Quantidade de notas", "Note Count"),
+        ("Quantidade de códigos", "Code Count"),
     ]
-    for metric in metric_order:
+    for metric_key, metric_label in metric_order:
         metric_value = (
             "-"
-            if metric in UNTYPED_DIMENSION_METRICS
-            else objective_metrics.get(metric)
+            if metric_key in UNTYPED_DIMENSION_METRICS
+            else objective_metrics.get(metric_key)
         )
         metric_rows.append([
-            Paragraph(_escape(metric), label_cell),
+            Paragraph(_escape(metric_label), label_cell),
             Paragraph(_escape(_display(metric_value)), cell),
         ])
 
